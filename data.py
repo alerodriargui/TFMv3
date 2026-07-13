@@ -131,3 +131,57 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
             )
             pixels = np.asarray(image, dtype=np.float32).copy() / 255.0
         return torch.from_numpy(pixels).unsqueeze(0), self.labels[index], str(path)
+
+
+def supervised_development_split(
+    root: Path,
+    image_size: int = 64,
+    seed: int = 42,
+    validation_fraction: float = 0.2,
+    limit_per_class: int | None = None,
+) -> tuple[RadiographDataset, RadiographDataset]:
+    """Build a balanced supervised split while leaving the official test untouched.
+
+    Anomalies come from the labelled BMAD validation split. The same number of
+    normal images is sampled from the normal-only training split. Both classes
+    are then divided deterministically into development train and validation.
+    """
+    normal = find_images(find_class_dir(split_dir(root, "train"), NORMAL_NAMES))
+    anomalous = find_images(find_class_dir(split_dir(root, "val"), ANOMALY_NAMES))
+    per_class = min(len(normal), len(anomalous))
+    if limit_per_class is not None:
+        per_class = min(per_class, limit_per_class)
+    if per_class < 2:
+        raise ValueError("Se necesitan al menos dos imágenes por clase")
+
+    normal = deterministic_subset(normal, per_class, seed)
+    anomalous = deterministic_subset(anomalous, per_class, seed + 1)
+    normal_indices = list(range(per_class))
+    anomalous_indices = list(range(per_class))
+    random.Random(seed + 2).shuffle(normal_indices)
+    random.Random(seed + 3).shuffle(anomalous_indices)
+    validation_count = max(1, round(per_class * validation_fraction))
+    validation_count = min(validation_count, per_class - 1)
+
+    def select(paths: list[Path], indices: list[int], validation: bool) -> list[Path]:
+        chosen = (
+            indices[:validation_count] if validation else indices[validation_count:]
+        )
+        return [paths[index] for index in chosen]
+
+    train_normal = select(normal, normal_indices, False)
+    train_anomalous = select(anomalous, anomalous_indices, False)
+    val_normal = select(normal, normal_indices, True)
+    val_anomalous = select(anomalous, anomalous_indices, True)
+    return (
+        RadiographDataset(
+            train_normal + train_anomalous,
+            [0] * len(train_normal) + [1] * len(train_anomalous),
+            image_size,
+        ),
+        RadiographDataset(
+            val_normal + val_anomalous,
+            [0] * len(val_normal) + [1] * len(val_anomalous),
+            image_size,
+        ),
+    )

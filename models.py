@@ -1,4 +1,4 @@
-"""Comparable convolutional AE, VAE and GANomaly implementations."""
+"""Small convolutional models used in the experiments."""
 
 from __future__ import annotations
 
@@ -137,6 +137,18 @@ class Discriminator(nn.Module):
         return logits, features
 
 
+class BinaryClassifier(nn.Module):
+    """Minimal supervised reference reusing the common convolutional encoder."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.features = encoder_blocks()
+        self.classifier = nn.Linear(128 * 4 * 4, 1)
+
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        return self.classifier(self.features(images).flatten(1)).squeeze(1)
+
+
 @dataclass(frozen=True)
 class ModelBundle:
     name: str
@@ -151,6 +163,8 @@ def build_model(name: str, latent_dim: int = 64) -> ModelBundle:
         return ModelBundle(name, VariationalAutoencoder(latent_dim))
     if name == "ganomaly":
         return ModelBundle(name, GANomalyGenerator(latent_dim), Discriminator())
+    if name == "classifier":
+        return ModelBundle(name, BinaryClassifier())
     raise ValueError(f"Modelo desconocido: {name}")
 
 
@@ -166,9 +180,12 @@ def per_image_scores(
         reconstruction = torch.mean(torch.abs(reconstructed - images), dim=(1, 2, 3))
         kl = -0.5 * torch.mean(1 + logvar - mu.square() - logvar.exp(), dim=1)
         score = reconstruction + vae_beta * kl
-    else:
+    elif bundle.name == "ganomaly":
         reconstructed, latent_in, latent_out = bundle.model(images)
         score = torch.mean(torch.abs(latent_in - latent_out), dim=1)
+    else:
+        score = torch.sigmoid(bundle.model(images))
+        reconstructed = images
     return score, reconstructed
 
 

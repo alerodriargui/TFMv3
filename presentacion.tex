@@ -7,7 +7,7 @@
 \setbeamertemplate{navigation symbols}{}
 
 \title{Detección de anomalías en radiografías}
-\subtitle{Comparación de AE, VAE y GANomaly}
+\subtitle{AE, VAE y GANomaly con una referencia supervisada simple}
 \author{Trabajo Fin de Máster -- MUSI}
 \date{Curso 2025--2026}
 
@@ -34,8 +34,8 @@
   normales cuando los pesos se ajustan exclusivamente con normales?
   \vspace{0.8em}
 
-  \textbf{Contribución:} dataset auditado, protocolo sin fuga, nueve
-  ejecuciones, controles simples y análisis de errores reproducible.
+  \textbf{Contribución:} comparación no supervisada y una referencia
+  supervisada mínima para medir cuánta información aportan las etiquetas.
 \end{frame}
 
 \begin{frame}{Dataset Chest-RSNA/BMAD}
@@ -64,7 +64,7 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Protocolo sin fuga}
+\begin{frame}{Protocolo no supervisado sin fuga}
   \begin{enumerate}
     \item Ajustar pesos solo con entrenamiento normal.
     \item Elegir checkpoint con validación normal.
@@ -75,6 +75,16 @@
   sensibilidad y especificidad.
 \end{frame}
 
+\begin{frame}{Una sola mejora sencilla}
+  \begin{itemize}
+    \item Se reutiliza el codificador convolucional y se añade una salida binaria.
+    \item Desarrollo balanceado: 1.136 normales + 1.136 anómalas para ajuste.
+    \item Validación: 284 por clase; el test oficial permanece intacto.
+    \item 175.025 parámetros, Adam, 20 épocas y las mismas tres semillas.
+  \end{itemize}
+  Es una referencia supervisada, no se presenta como detector de una clase.
+\end{frame}
+
 \begin{frame}{Resultados finales}
   \begin{center}
   \begin{tabular}{lrrr}
@@ -83,12 +93,13 @@
     \midrule
     AE & 0,4566$\pm$0,0163 & 0,5105 \\
     VAE & 0,4506$\pm$0,0016 & 0,5064 \\
-    GANomaly & \textbf{0,5636$\pm$0,0150} & \textbf{0,5484} \\
+    GANomaly & 0,5636$\pm$0,0150 & 0,5484 \\
+    Clasificador & \textbf{0,8538$\pm$0,0070} & \textbf{0,7717} \\
     \bottomrule
   \end{tabular}
   \end{center}
-  GANomaly gana en las tres semillas. AE y VAE reconstruyen normalidad, pero
-  puntúan las anomalías en la dirección incorrecta.
+  GANomaly gana entre los métodos no supervisados. Con etiquetas, el mismo
+  codificador produce una separación claramente más útil.
 \end{frame}
 
 \begin{frame}{El control que cambia la conclusión}
@@ -119,11 +130,11 @@
   \begin{itemize}
     \item GANomaly supera de forma consistente AE y VAE, con mayor coste.
     \item AE/VAE no son útiles con esta puntuación y configuración.
-    \item El control de gradiente supera GANomaly: no hay evidencia de señal
-      clínica robusta.
-    \item El resultado negativo es útil: identifica límites y evita una
-      afirmación asistencial injustificada.
-    \item Siguiente paso: 128$\times$128, control por paciente y validación externa.
+    \item El control de gradiente supera GANomaly: la reconstrucción no capta
+      una señal robusta en este protocolo.
+    \item Una única referencia supervisada eleva AUROC de 0,5636 a 0,8538.
+    \item El resultado es útil como clasificador del benchmark, no como sistema
+      diagnóstico; falta validación externa y separación por paciente.
   \end{itemize}
 \end{frame}
 
@@ -133,4 +144,3 @@
 \end{frame}
 
 \end{document}
-

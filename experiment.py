@@ -16,8 +16,8 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from data import RadiographDataset, split_dir
-from metrics import best_balanced_threshold, evaluate
+from data import RadiographDataset, split_dir, supervised_development_split
+from metrics import auroc, best_balanced_threshold, evaluate
 from models import ModelBundle, build_model, per_image_scores, vae_loss
 
 
@@ -72,6 +72,20 @@ def _train_standard(
     else:
         reconstructed, mu, logvar = bundle.model(images)
         loss = vae_loss(reconstructed, images, mu, logvar, config.vae_beta)
+    loss.backward()
+    optimizer.step()
+    return float(loss.detach())
+
+
+def _train_classifier(
+    bundle: ModelBundle,
+    images: torch.Tensor,
+    labels: torch.Tensor,
+    optimizer: torch.optim.Optimizer,
+) -> float:
+    optimizer.zero_grad(set_to_none=True)
+    logits = bundle.model(images)
+    loss = F.binary_cross_entropy_with_logits(logits, labels.float())
     loss.backward()
     optimizer.step()
     return float(loss.detach())
@@ -132,21 +146,47 @@ def _normal_validation_loss(
     return total / max(count, 1)
 
 
+@torch.no_grad()
+def _classifier_validation_auroc(
+    bundle: ModelBundle, loader: DataLoader, device: torch.device
+) -> float:
+    bundle.model.eval()
+    scores = []
+    labels = []
+    for images, batch_labels, _paths in loader:
+        scores.append(torch.sigmoid(bundle.model(images.to(device))).cpu().numpy())
+        labels.append(batch_labels.numpy())
+    return auroc(np.concatenate(labels), np.concatenate(scores))
+
+
 def train(
     config: ExperimentConfig, device: torch.device
 ) -> tuple[ModelBundle, list[dict], int]:
-    train_set = RadiographDataset.normal_only(
-        split_dir(config.data_root, "train"),
-        config.image_size,
-        config.max_train_images,
-        config.seed,
-    )
-    validation_set = RadiographDataset.normal_only(
-        split_dir(config.data_root, "val"),
-        config.image_size,
-        None,
-        config.seed,
-    )
+    if config.model == "classifier":
+        limit_per_class = (
+            max(2, config.max_train_images // 2)
+            if config.max_train_images is not None
+            else None
+        )
+        train_set, validation_set = supervised_development_split(
+            config.data_root,
+            config.image_size,
+            config.seed,
+            limit_per_class=limit_per_class,
+        )
+    else:
+        train_set = RadiographDataset.normal_only(
+            split_dir(config.data_root, "train"),
+            config.image_size,
+            config.max_train_images,
+            config.seed,
+        )
+        validation_set = RadiographDataset.normal_only(
+            split_dir(config.data_root, "val"),
+            config.image_size,
+            None,
+            config.seed,
+        )
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
     bundle = build_model(config.model, config.latent_dim)
@@ -166,7 +206,7 @@ def train(
         if bundle.discriminator is not None
         else None
     )
-    best_loss = float("inf")
+    best_value = -float("inf") if config.model == "classifier" else float("inf")
     history: list[dict] = []
     best_state: dict | None = None
 
@@ -178,13 +218,18 @@ def train(
         total_generator = 0.0
         total_discriminator = 0.0
         seen = 0
-        for images, _labels, _paths in train_loader:
+        for images, labels, _paths in train_loader:
             images = images.to(device)
             if bundle.name == "ganomaly":
                 assert discriminator_optimizer is not None
                 generator_loss, discriminator_loss = _train_ganomaly(
                     bundle, images, optimizer, discriminator_optimizer, config
                 )
+            elif bundle.name == "classifier":
+                generator_loss = _train_classifier(
+                    bundle, images, labels.to(device), optimizer
+                )
+                discriminator_loss = 0.0
             else:
                 generator_loss = _train_standard(bundle, images, optimizer, config)
                 discriminator_loss = 0.0
@@ -192,25 +237,35 @@ def train(
             total_discriminator += discriminator_loss * len(images)
             seen += len(images)
 
-        validation_loss = _normal_validation_loss(
-            bundle, validation_loader, device, config.vae_beta
-        )
+        if bundle.name == "classifier":
+            validation_value = _classifier_validation_auroc(
+                bundle, validation_loader, device
+            )
+        else:
+            validation_value = _normal_validation_loss(
+                bundle, validation_loader, device, config.vae_beta
+            )
         record = {
             "epoch": epoch,
             "train_loss": total_generator / seen,
             "discriminator_loss": total_discriminator / seen,
-            "normal_validation_score": validation_loss,
+            "validation_value": validation_value,
             "seconds": time.perf_counter() - started,
         }
         history.append(record)
         print(
             f"{config.model} epoch={epoch}/{config.epochs} "
-            f"train={record['train_loss']:.6f} val={validation_loss:.6f} "
+            f"train={record['train_loss']:.6f} val={validation_value:.6f} "
             f"seconds={record['seconds']:.1f}",
             flush=True,
         )
-        if validation_loss < best_loss:
-            best_loss = validation_loss
+        improved = (
+            validation_value > best_value
+            if bundle.name == "classifier"
+            else validation_value < best_value
+        )
+        if improved:
+            best_value = validation_value
             best_state = {
                 "model": {
                     key: value.detach().cpu().clone()
@@ -315,12 +370,24 @@ def run(config: ExperimentConfig) -> dict:
     started = time.perf_counter()
     bundle, history, selected_epoch = train(config, device)
 
-    validation = RadiographDataset.labeled(
-        split_dir(config.data_root, "val"),
-        config.image_size,
-        config.max_eval_images_per_class,
-        config.seed,
-    )
+    if config.model == "classifier":
+        _, validation = supervised_development_split(
+            config.data_root,
+            config.image_size,
+            config.seed,
+            limit_per_class=(
+                max(2, config.max_train_images // 2)
+                if config.max_train_images is not None
+                else None
+            ),
+        )
+    else:
+        validation = RadiographDataset.labeled(
+            split_dir(config.data_root, "val"),
+            config.image_size,
+            config.max_eval_images_per_class,
+            config.seed,
+        )
     test = RadiographDataset.labeled(
         split_dir(config.data_root, "test"),
         config.image_size,
@@ -343,9 +410,10 @@ def run(config: ExperimentConfig) -> dict:
     _save_scores(
         config.output_dir / "test_scores.csv", test_labels, test_scores, test_paths
     )
-    _save_reconstructions(
-        config.output_dir / "reconstructions.png", *samples, config.model
-    )
+    if config.model != "classifier":
+        _save_reconstructions(
+            config.output_dir / "reconstructions.png", *samples, config.model
+        )
     report = {
         "config": {
             **asdict(config),

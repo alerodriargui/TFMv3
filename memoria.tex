@@ -30,9 +30,11 @@ GANomaly, una arquitectura adversarial. Se emplea Chest-RSNA, la partición de
 radiografías del benchmark BMAD: 8.000 imágenes normales para entrenamiento,
 1.490 para validación y 17.194 para prueba. En tres semillas, GANomaly obtiene
 AUROC $0{,}5636\pm0{,}0150$, por encima de AE ($0{,}4566\pm0{,}0163$) y VAE
-($0{,}4506\pm0{,}0016$). Sin embargo, un control de gradiente alcanza 0,5981,
-revelando sensibilidad a textura y adquisición. La contribución es una
-comparación reproducible y honesta, no un sistema diagnóstico.
+($0{,}4506\pm0{,}0016$). Un control de gradiente alcanza 0,5981. Como referencia
+práctica se añade un único clasificador convolucional supervisado, que logra
+$0{,}8538\pm0{,}0070$ sin consultar el test durante el desarrollo. El contraste
+muestra que las etiquetas aportan una señal que los métodos de reconstrucción
+no captan. La contribución es una comparación reproducible, no un diagnóstico.
 \end{abstract}
 
 \section{Contextualización y motivación}
@@ -100,8 +102,9 @@ Las aportaciones concretas son: (i) selección y auditoría reproducible de un
 conjunto público adecuado; (ii) implementaciones comparables de AE, VAE y
 GANomaly; (iii) separación estricta entre ajuste, selección de umbral y prueba;
 (iv) evaluación con métricas robustas al desequilibrio y análisis de coste; y
-(v) publicación del código y de la configuración, sin redistribuir imágenes
-médicas.
+(v) una referencia supervisada mínima que cuantifica el valor de disponer de
+etiquetas; y (vi) publicación del código y de la configuración, sin redistribuir
+imágenes médicas.
 
 
 \section{Objetivos}
@@ -142,6 +145,10 @@ una alternativa adversarial GAN bajo un protocolo común.
   \item \textbf{Analizar limitaciones y reproducibilidad}. Se documentan
   desequilibrio, sesgos de adquisición, pérdida por redimensionado, significado
   limitado de la etiqueta y ausencia de validación clínica externa.
+
+  \item \textbf{Establecer una referencia supervisada simple}. Un único
+  clasificador debe reutilizar el codificador existente, mantener el test
+  intacto y mostrar si las etiquetas permiten una separación más útil.
 \end{enumerate}
 
 Quedan fuera del alcance mínimo la localización de lesiones, la clasificación
@@ -220,11 +227,18 @@ test. La exactitud balanceada evita que una clase numerosa domine; sensibilidad
 y especificidad muestran el compromiso clínicamente relevante. Se reportan
 media y desviación de las tres semillas, parámetros y tiempo.
 
+La referencia supervisada reutiliza el mismo codificador y sustituye el
+decodificador por una salida binaria. De las 1.420 anomalías de validación se
+reservan, junto con igual número de normales de entrenamiento, 1.136 imágenes
+por clase para ajuste y 284 por clase para validación. La división es
+determinista para cada semilla y el test oficial permanece intacto. Se optimiza
+entropía cruzada binaria y se elige el checkpoint por AUROC de validación.
+
 \subsection{Reproducibilidad}
 
-El repositorio contiene rutas configurables, semillas deterministas, auditoría,
-pruebas unitarias, guardado de checkpoints, puntuaciones CSV y configuración
-JSON. Las imágenes y pesos se excluyen de Git. El informe distingue mediante el
+El repositorio contiene rutas configurables, semillas deterministas, guardado
+de checkpoints, puntuaciones CSV y configuración JSON. Las imágenes y pesos se
+excluyen de Git. El informe distingue mediante el
 campo \texttt{scientific\_run} una ejecución completa de una prueba limitada,
 impidiendo que resultados de humo entren por error en la tabla final.
 
@@ -241,12 +255,12 @@ solo validación, igual que los modelos.
 La auditoría encuentra 8.000/1.490/17.194 imágenes en
 entrenamiento/validación/test, coincidiendo con BMAD. Una muestra estratificada
 de 308 ficheros se abrió correctamente y todos fueron PNG monocromos de
-1024$\times$1024. Las pruebas cubren carga de datos, salida de los tres modelos,
-métricas y selección del umbral.
+1024$\times$1024. Una ejecución de humo comprobó carga de datos, salida de los
+cuatro modelos, métricas y selección del umbral.
 
-La campaña final ejecutó los tres modelos durante 20 épocas con semillas 13,
-42 y 73, usando entrenamiento y test completos. La tabla presenta media y
-desviación estándar entre semillas.
+La campaña final ejecutó los tres modelos generativos y la referencia
+supervisada durante 20 épocas con semillas 13, 42 y 73, usando el test completo.
+La tabla presenta media y desviación estándar entre semillas.
 
 \begin{center}
 \small
@@ -256,7 +270,8 @@ Modelo & Parámetros & AUROC & AUPRC & Bal. acc. \\
 \midrule
 AE       & 609.857 & 0,4566$\pm$0,0163 & 0,9533 & 0,5105 \\
 VAE      & 740.993 & 0,4506$\pm$0,0016 & 0,9526 & 0,5064 \\
-GANomaly & 959.586 & \textbf{0,5636$\pm$0,0150} & \textbf{0,9655} & \textbf{0,5484} \\
+GANomaly & 959.586 & 0,5636$\pm$0,0150 & 0,9655 & 0,5484 \\
+Clasificador & 175.025 & \textbf{0,8538$\pm$0,0070} & \textbf{0,9913} & \textbf{0,7717} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -267,6 +282,12 @@ presentan una mediana de error ligeramente menor que las normales. Reconstruir
 bien normalidad no produce aquí una puntuación discriminativa. GANomaly supera
 AE y VAE en cada semilla y es el único modelo con separación en la dirección
 esperada, pero su exactitud balanceada media queda en 0,55.
+
+La referencia supervisada obtiene AUROC $0{,}8538\pm0{,}0070$ y exactitud
+balanceada $0{,}7717\pm0{,}0136$. Las tres ejecuciones alcanzan 0,8459, 0,8565
+y 0,8590, por lo que la mejora no depende de una semilla aislada. La comparación
+no atribuye superioridad algorítmica directa: el clasificador recibe anomalías
+etiquetadas durante el ajuste y los detectores de una clase no.
 
 \subsection{Controles y análisis de errores}
 
@@ -296,12 +317,12 @@ imágenes clínicamente.
 \section{Conclusiones}
 
 La propuesta se ha convertido en un estudio completo: dataset auditado, tres
-modelos, protocolo sin fuga, nueve ejecuciones científicas, controles simples y
-análisis de errores. La contribución defendible no es afirmar que un
+modelos generativos, una referencia supervisada, protocolos sin fuga, controles
+simples y análisis de errores. La contribución defendible no es afirmar que un
 autoencoder diagnostica patologías, sino medir bajo qué condiciones la hipótesis
 de reconstrucción separa normalidad y no normalidad.
 
-GANomaly es el mejor modelo neuronal: supera AE y VAE en las tres semillas y
+GANomaly es el mejor modelo no supervisado: supera AE y VAE en las tres semillas y
 alcanza AUROC $0{,}5636\pm0{,}0150$. AE y VAE no son detectores útiles en esta
 configuración, pues quedan consistentemente por debajo de 0,5 aunque reconstruyen
 bien las normales. Sin embargo, el control de gradiente obtiene 0,5981 y
@@ -315,6 +336,12 @@ adversarial, y detecta un atajo que quedaría oculto reportando solo AUPRC. La
 conclusión negativa respecto a utilidad clínica evita una afirmación
 injustificada.
 
+La mejora mínima supervisada alcanza AUROC $0{,}8538\pm0{,}0070$ y exactitud
+balanceada $0{,}7717\pm0{,}0136$. Es el resultado práctico principal del trabajo:
+una arquitectura pequeña y explicable, sin ensamble ni búsqueda de algoritmos.
+Su límite debe quedar explícito: aprende las etiquetas disponibles y no resuelve
+la detección abierta de patologías desconocidas.
+
 Como trabajo futuro se priorizan una ablación a 128$\times$128, validación
 externa por pacientes y comparación con representaciones preentrenadas o
 autoencoders enmascarados \cite{he2022mae,georgescu2023masked}. Solo después
@@ -323,4 +350,3 @@ tendría sentido estudiar localización o despliegue.
 
 \printbibliography[title={Bibliografía}]
 \end{document}
-

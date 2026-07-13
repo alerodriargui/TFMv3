@@ -15,6 +15,10 @@ from experiment import ExperimentConfig, run
 
 def summarize(output_root: Path, report_path: Path) -> None:
     """Write the individual and aggregated final result tables."""
+    previous = {}
+    if report_path.is_file():
+        with report_path.open(newline="", encoding="utf-8") as handle:
+            previous = {row["model"]: row for row in csv.DictReader(handle)}
     rows = []
     for path in sorted(output_root.glob("*/metrics.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
@@ -38,18 +42,19 @@ def summarize(output_root: Path, report_path: Path) -> None:
     grouped = defaultdict(list)
     for row in rows:
         grouped[row["model"]].append(row)
-    summary = []
+    summary = dict(previous)
     for model, model_rows in sorted(grouped.items()):
         item = {"model": model, "runs": len(model_rows)}
         for metric in ("auroc", "average_precision", "balanced_accuracy"):
             values = [float(row[metric]) for row in model_rows]
             item[f"{metric}_mean"] = statistics.mean(values)
             item[f"{metric}_std"] = statistics.stdev(values) if len(values) > 1 else 0.0
-        summary.append(item)
+        summary[model] = item
     with report_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(summary[0]))
+        rows = [summary[model] for model in sorted(summary)]
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
-        writer.writerows(summary)
+        writer.writerows(rows)
 
 
 def main() -> int:
@@ -57,8 +62,8 @@ def main() -> int:
     parser.add_argument(
         "--models",
         nargs="+",
-        choices=("ae", "vae", "ganomaly"),
-        default=("ae", "vae", "ganomaly"),
+        choices=("ae", "vae", "ganomaly", "classifier"),
+        default=("ae", "vae", "ganomaly", "classifier"),
     )
     parser.add_argument("--data-root", type=Path)
     parser.add_argument(
