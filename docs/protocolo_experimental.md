@@ -1,5 +1,8 @@
 # Protocolo experimental cerrado
 
+Estado: completado para semillas 13, 42 y 73. Los resultados están en
+`reports/model_comparison.csv` y `docs/resultados_finales.md`.
+
 ## Pregunta
 
 ¿Cuál de AE, VAE y GANomaly ordena mejor radiografías Chest-RSNA normales y no

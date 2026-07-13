@@ -42,3 +42,14 @@ pruebas unitarias, guardado de checkpoints, puntuaciones CSV y configuración
 JSON. Las imágenes y pesos se excluyen de Git. El informe distingue mediante el
 campo \texttt{scientific\_run} una ejecución completa de una prueba limitada,
 impidiendo que resultados de humo entren por error en la tabla final.
+
+Para evitar descomprimir los PNG originales en cada ejecución se generó una
+caché \texttt{uint8} del redimensionado. Se comprobó igualdad exacta de píxeles,
+etiquetas y rutas en una muestra estratificada, y un benchmark produjo métricas
+idénticas reduciendo 13,23 a 2,32 segundos. La caché es regenerable y no añade
+transformaciones al protocolo.
+
+Como control no neuronal se calcularon nueve estadísticas predefinidas de
+intensidad y textura. Cada una se convirtió en distancia absoluta tipificada
+respecto al entrenamiento normal. La selección del control y su umbral usaron
+solo validación, igual que los modelos.

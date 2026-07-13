@@ -1,0 +1,135 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{lmodern,booktabs,graphicx}
+\usetheme{Madrid}
+\setbeamertemplate{navigation symbols}{}
+
+\title{Detección de anomalías en radiografías}
+\subtitle{Comparación de AE, VAE y GANomaly}
+\author{Trabajo Fin de Máster -- MUSI}
+\date{Curso 2025--2026}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Problema y motivación}
+  \begin{itemize}
+    \item Etiquetar patologías requiere tiempo y conocimiento clínico.
+    \item Es imposible enumerar todas las anomalías que aparecerán.
+    \item Hipótesis: aprender normalidad con imágenes sanas y puntuar desviaciones.
+    \item La salida es rareza respecto al benchmark, no un diagnóstico.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Objetivo y pregunta}
+  \textbf{Objetivo:} comparar AE, VAE y GANomaly bajo las mismas condiciones.
+  \vspace{0.8em}
+
+  \textbf{Pregunta:} ¿qué familia ordena mejor radiografías normales y no
+  normales cuando los pesos se ajustan exclusivamente con normales?
+  \vspace{0.8em}
+
+  \textbf{Contribución:} dataset auditado, protocolo sin fuga, nueve
+  ejecuciones, controles simples y análisis de errores reproducible.
+\end{frame}
+
+\begin{frame}{Dataset Chest-RSNA/BMAD}
+  \begin{center}
+  \begin{tabular}{lrrr}
+    \toprule
+    Partición & Normal & Anómala & Total \\
+    \midrule
+    Entrenamiento & 8.000 & 0 & 8.000 \\
+    Validación & 70 & 1.420 & 1.490 \\
+    Test & 781 & 16.413 & 17.194 \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  PNG monocromos 1024$\times$1024; entrada común 64$\times$64. ``Anómala''
+  significa no normal según RSNA/BMAD.
+\end{frame}
+
+\begin{frame}{Tres modelos comparables}
+  \begin{itemize}
+    \item \textbf{AE:} error absoluto de reconstrucción.
+    \item \textbf{VAE:} reconstrucción más regularización KL.
+    \item \textbf{GANomaly:} codificador--decodificador--codificador y
+      entrenamiento adversarial; distancia latente como puntuación.
+    \item Dimensión latente 64, Adam, 20 épocas, semillas 13/42/73.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Protocolo sin fuga}
+  \begin{enumerate}
+    \item Ajustar pesos solo con entrenamiento normal.
+    \item Elegir checkpoint con validación normal.
+    \item Elegir umbral con validación etiquetada.
+    \item Congelar modelo y umbral; evaluar test una vez.
+  \end{enumerate}
+  Métrica principal: AUROC. Secundarias: AUPRC, exactitud balanceada,
+  sensibilidad y especificidad.
+\end{frame}
+
+\begin{frame}{Resultados finales}
+  \begin{center}
+  \begin{tabular}{lrrr}
+    \toprule
+    Modelo & AUROC & Bal. acc. & Tiempo (s) \\
+    \midrule
+    AE & 0,4566$\pm$0,0163 & 0,5105 & 205,6 \\
+    VAE & 0,4506$\pm$0,0016 & 0,5064 & 221,4 \\
+    GANomaly & \textbf{0,5636$\pm$0,0150} & \textbf{0,5484} & 572,3 \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  GANomaly gana en las tres semillas. AE y VAE reconstruyen normalidad, pero
+  puntúan las anomalías en la dirección incorrecta.
+\end{frame}
+
+\begin{frame}{El control que cambia la conclusión}
+  \begin{center}
+  \begin{tabular}{lrr}
+    \toprule
+    Método & AUROC & Bal. acc. \\
+    \midrule
+    GANomaly (media) & 0,5636 & 0,5484 \\
+    Diferencia centro--borde & 0,5848 & 0,5759 \\
+    Gradiente medio & \textbf{0,5981} & \textbf{0,5894} \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  Parte de la separación procede de textura, contraste o adquisición. El mejor
+  modelo neuronal no supera un control simple.
+\end{frame}
+
+\begin{frame}{Análisis visual de errores}
+  \centering
+  \includegraphics[width=0.82\linewidth]{../reports/error_analysis_ganomaly.png}
+
+  \scriptsize Falsos positivos: encuadre pediátrico, rotación, marcadores y
+  proyección portátil. No se realiza interpretación clínica.
+\end{frame}
+
+\begin{frame}{Conclusiones}
+  \begin{itemize}
+    \item GANomaly supera de forma consistente AE y VAE, con mayor coste.
+    \item AE/VAE no son útiles con esta puntuación y configuración.
+    \item El control de gradiente supera GANomaly: no hay evidencia de señal
+      clínica robusta.
+    \item El resultado negativo es útil: identifica límites y evita una
+      afirmación asistencial injustificada.
+    \item Siguiente paso: 128$\times$128, control por paciente y validación externa.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \centering\Huge Gracias\\[1em]
+  \Large Preguntas
+\end{frame}
+
+\end{document}

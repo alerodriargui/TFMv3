@@ -28,11 +28,11 @@ asignar una puntuación alta a imágenes no normales. Se comparan, bajo un mismo
 protocolo, un autoencoder convolucional (AE), un autoencoder variacional (VAE) y
 GANomaly, una arquitectura adversarial. Se emplea Chest-RSNA, la partición de
 radiografías del benchmark BMAD: 8.000 imágenes normales para entrenamiento,
-1.490 para validación y 17.194 para prueba. La contribución es una comparación
-reproducible, honesta respecto a los límites clínicos y evaluada con AUROC,
-AUPRC y exactitud balanceada. El software, la auditoría y el protocolo quedan
-preparados; cualquier ejecución reducida se identifica como prueba técnica y no
-se presenta como resultado científico final.
+1.490 para validación y 17.194 para prueba. En tres semillas, GANomaly obtiene
+AUROC $0{,}5636\pm0{,}0150$, por encima de AE ($0{,}4566\pm0{,}0163$) y VAE
+($0{,}4506\pm0{,}0016$). Sin embargo, un control de gradiente alcanza 0,5981,
+revelando sensibilidad a textura y adquisición. La contribución es una
+comparación reproducible y honesta, no un sistema diagnóstico.
 \end{abstract}
 
 \input{capitulos/01_contextualizacion}

@@ -23,6 +23,7 @@ def main() -> int:
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
     parser.add_argument("--vae-beta", type=float, default=1e-4)
+    parser.add_argument("--cache-root", type=Path)
     args = parser.parse_args()
     root = resolve_data_root(args.data_root)
     for model in args.models:
@@ -39,6 +40,7 @@ def main() -> int:
             max_train_images=args.max_train_images,
             max_eval_images_per_class=args.max_eval_images_per_class,
             vae_beta=args.vae_beta,
+            cache_root=args.cache_root,
         )
         report = run(config)
         test = report["test"]

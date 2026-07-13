@@ -1,18 +1,24 @@
 \section{Conclusiones}
 
-Se ha convertido la propuesta en un estudio ejecutable: dataset localizado y
-auditado, tres modelos implementados, protocolo sin fuga, métricas adecuadas y
-memoria respaldada por bibliografía primaria. La contribución defendible no es
-afirmar de antemano que un autoencoder detecta patologías, sino medir bajo qué
-condiciones la hipótesis de reconstrucción separa normalidad y no normalidad.
+La propuesta se ha convertido en un estudio completo: dataset auditado, tres
+modelos, protocolo sin fuga, nueve ejecuciones científicas, controles simples y
+análisis de errores. La contribución defendible no es afirmar que un
+autoencoder diagnostica patologías, sino medir bajo qué condiciones la hipótesis
+de reconstrucción separa normalidad y no normalidad.
 
-El piloto completo sugiere que GANomaly (AUROC 0,6019) merece continuar, mientras
-AE y VAE quedan cerca del azar tras tres épocas. Todavía no existe evidencia
-suficiente para escoger un ganador: la conclusión científica debe escribirse
-después de las nueve ejecuciones completas (tres modelos por tres semillas). Si ningún modelo
-supera de forma estable el azar o controles simples, ese resultado negativo
-seguirá siendo válido y útil: mostrará los límites de estas arquitecturas en
-Chest-RSNA y evitará una afirmación clínica injustificada.
+GANomaly es el mejor modelo neuronal: supera AE y VAE en las tres semillas y
+alcanza AUROC $0{,}5636\pm0{,}0150$. AE y VAE no son detectores útiles en esta
+configuración, pues quedan consistentemente por debajo de 0,5 aunque reconstruyen
+bien las normales. Sin embargo, el control de gradiente obtiene 0,5981 y
+evidencia que variaciones simples de textura o adquisición explican una parte
+importante de la separación. No se sostiene que GANomaly haya aprendido una
+señal clínica robusta ni que esté preparado para uso asistencial.
+
+El resultado es útil y defendible: demuestra experimentalmente los límites de
+la hipótesis de reconstrucción, cuantifica el beneficio y coste del entrenamiento
+adversarial, y detecta un atajo que quedaría oculto reportando solo AUPRC. La
+conclusión negativa respecto a utilidad clínica evita una afirmación
+injustificada.
 
 Como trabajo futuro se priorizan una ablación a 128$\times$128, validación
 externa por pacientes y comparación con representaciones preentrenadas o

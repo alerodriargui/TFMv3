@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 .tools/
 artifacts/
+reports/error_analysis_ganomaly.png
 data/raw/
 data/*.zip
 memoria/*.aux

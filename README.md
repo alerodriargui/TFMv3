@@ -13,15 +13,15 @@ radiografías del benchmark BMAD. Los datos anómalos se usan únicamente para
 seleccionar el umbral en validación y para la evaluación final, nunca para
 ajustar los pesos de las redes.
 
-## Estado
+## Estado y resultado principal
 
 - Dataset localizado y auditado: 26.684 PNG de 1024x1024.
-- Pipeline común de datos, entrenamiento y evaluación implementado.
-- AE, VAE y GANomaly implementados en PyTorch sin depender de `torchvision`.
-- Memoria LaTeX y bibliografía preparadas en `memoria/` y `bibliografia/`.
-- Los resultados de humo sirven para verificar el software; los resultados
-  científicos finales deben proceder de `scripts/run_experiment.py` sin límites
-  de muestras y con las semillas indicadas en el protocolo.
+- Campaña final completada: tres modelos, 20 épocas y semillas 13, 42 y 73.
+- GANomaly supera AE y VAE: AUROC medio `0.5636 ± 0.0150`, frente a
+  `0.4566 ± 0.0163` y `0.4506 ± 0.0016`.
+- Un control de gradiente alcanza AUROC `0.5981`; GANomaly es el mejor modelo
+  neuronal estudiado, pero no supera una estadística simple de textura.
+- Memoria, bibliografía, análisis de errores y resultados CSV preparados.
 
 ## Dataset
 
@@ -44,6 +44,7 @@ El intérprete Python portátil ya existente puede reutilizarse en PowerShell:
 $python = '..\TFMv2\.tools\python-3.11.9\tools\python.exe'
 $env:PYTHONPATH = 'src'
 & $python scripts\audit_dataset.py
+& $python scripts\build_cache.py
 .\scripts\run_final.ps1 -Python $python
 ```
 
@@ -59,7 +60,16 @@ Cada modelo guarda configuración, pesos, curvas, puntuaciones de validación y
 test, métricas y una cuadrícula de reconstrucciones. El umbral se fija una sola
 vez en validación maximizando la exactitud balanceada y se congela para test.
 El lanzador final reanuda por modelo y semilla: omite únicamente las ejecuciones
-científicas ya completas.
+científicas ya completas. También construye una caché local `uint8` del
+redimensionado determinista; reduce drásticamente la lectura sin cambiar los
+valores que reciben los modelos.
+
+Resultados finales versionables:
+
+- `reports/model_comparison.csv`: nueve ejecuciones individuales;
+- `reports/model_comparison_summary.csv`: medias y desviaciones;
+- `reports/intensity_controls.csv`: controles simples;
+- `reports/error_analysis.json` y `.png`: distribuciones y casos extremos.
 
 ## Estructura
 

@@ -1,48 +1,58 @@
-\section{Resultados y plan de análisis}
+\section{Resultados y análisis}
 
-\subsection{Verificación disponible}
+\subsection{Verificación y campaña final}
 
-La auditoría reproducible encuentra 8.000/1.490/17.194 imágenes en
+La auditoría encuentra 8.000/1.490/17.194 imágenes en
 entrenamiento/validación/test, coincidiendo con BMAD. Una muestra estratificada
 de 308 ficheros se abrió correctamente y todos fueron PNG monocromos de
-1024$\times$1024. Las pruebas del software cubren carga de ambas clases, forma de
-salida de los tres modelos, empates en AUROC y selección del umbral.
+1024$\times$1024. Las pruebas cubren carga de datos, salida de los tres modelos,
+métricas y selección del umbral.
 
-Se completó primero una prueba técnica de una época con 32 imágenes normales y
-16 por clase. Después se ejecutó un \textbf{piloto} más exigente: tres épocas,
-las 8.000 imágenes de entrenamiento, validación y test completos y semilla 42.
-La tabla resume ese piloto; no sustituye las tres semillas y 20 épocas del
-protocolo definitivo.
+Tras una prueba técnica y un piloto, la campaña final ejecutó los tres modelos
+durante 20 épocas con semillas 13, 42 y 73, usando entrenamiento y test
+completos. La tabla presenta media y desviación estándar entre semillas.
 
 \begin{center}
+\small
 \begin{tabular}{lrrrrr}
 \toprule
 Modelo & Parámetros & AUROC & AUPRC & Bal. acc. & Tiempo (s) \\
 \midrule
-AE       & 609.857 & 0,4818 & 0,9552 & 0,5180 & 581,7 \\
-VAE      & 740.993 & 0,4934 & 0,9567 & 0,5218 & 592,4 \\
-GANomaly & 959.586 & \textbf{0,6019} & \textbf{0,9691} & \textbf{0,5865} & 610,4 \\
+AE       & 609.857 & 0,4566$\pm$0,0163 & 0,9533 & 0,5105 & 205,6 \\
+VAE      & 740.993 & 0,4506$\pm$0,0016 & 0,9526 & 0,5064 & 221,4 \\
+GANomaly & 959.586 & \textbf{0,5636$\pm$0,0150} & \textbf{0,9655} & \textbf{0,5484} & 572,3 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 La prevalencia anómala de test es 95,46\%; por eso AUPRC ronda 0,95 incluso en
-AE y VAE, cuyos AUROC están cerca del azar. El umbral de validación produce
-sensibilidad/especificidad 0,179/0,857 en AE, 0,215/0,828 en VAE y 0,475/0,698
-en GANomaly. La alternativa adversarial ofrece la única señal prometedora, pero
-una sola semilla y tres épocas no permiten atribuir una ventaja estable.
+AE y VAE. Sus AUROC son inferiores a 0,5 en las seis ejecuciones: las anómalas
+presentan una mediana de error ligeramente menor que las normales. Reconstruir
+bien normalidad no produce aquí una puntuación discriminativa. GANomaly supera
+AE y VAE en cada semilla y es el único modelo con separación en la dirección
+esperada, pero su exactitud balanceada media queda en 0,55 y cuesta unas 2,7
+veces más que VAE.
 
-\subsection{Resultado científico pendiente de cómputo}
+\subsection{Controles y análisis de errores}
 
-La tabla definitiva se generará automáticamente tras ejecutar 20 épocas sobre
-las 8.000 imágenes y tres semillas. Debe contener media $\pm$ desviación de
-AUROC, AUPRC y exactitud balanceada, además del tiempo. No se rellenan cifras
-antes de ejecutar el protocolo completo. La hipótesis $H_1$ es que al menos VAE
-o GANomaly mejora el AUROC medio del AE; $H_0$ afirma que la diferencia no es
-consistente entre semillas.
+El control de gradiente medio, seleccionado en validación, obtiene AUROC 0,5981
+y exactitud balanceada 0,5894. La diferencia centro--borde alcanza 0,5848 y el
+control multivariante diagonal 0,5754. Los tres igualan o superan el GANomaly
+medio. Por tanto, la hipótesis se acepta solo parcialmente: GANomaly mejora de
+forma consistente el AE, pero no demuestra una representación superior a
+señales estadísticas simples.
 
-El análisis no se limitará al mejor número: se inspeccionarán distribuciones de
-puntuación, falsos positivos/negativos y reconstrucciones. Una ganancia pequeña
-con gran coste o variabilidad no justificará declarar superior el método más
-complejo. También se comparará el ranking con controles simples de intensidad
-para detectar atajos no anatómicos.
+La inspección del GANomaly con mayor AUROC muestra entre los falsos positivos
+encuadres pediátricos, rotaciones, marcadores, proyecciones portátiles y cambios
+de contraste. Los falsos negativos conservan con frecuencia un encuadre adulto
+estandarizado pese a estar etiquetados como no normales. Esta evidencia visual,
+junto al control de gradiente, sugiere que parte de la señal procede del proceso
+de adquisición y no necesariamente de la patología. No se interpretan las
+imágenes clínicamente.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.92\linewidth]{../reports/error_analysis_ganomaly.png}
+  \caption{Falsos positivos y falsos negativos extremos de GANomaly, semilla
+  42. Las miniaturas se emplean únicamente para análisis metodológico.}
+\end{figure}

@@ -100,3 +100,106 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
             )
             pixels = np.asarray(image, dtype=np.float32).copy() / 255.0
         return torch.from_numpy(pixels).unsqueeze(0), self.labels[index], str(path)
+
+
+class CachedRadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
+    """Serve preprocessed uint8 tensors while preserving source paths."""
+
+    def __init__(
+        self,
+        tensors: torch.Tensor,
+        labels: list[int],
+        paths: list[str],
+        indices: list[int] | None = None,
+    ) -> None:
+        if tensors.dtype != torch.uint8 or tensors.ndim != 4:
+            raise ValueError("La caché debe tener forma NCHW y dtype uint8")
+        if len(tensors) != len(labels) or len(labels) != len(paths):
+            raise ValueError("Tensores, etiquetas y rutas no coinciden")
+        self.tensors = tensors
+        self.labels = labels
+        self.paths = paths
+        self.indices = indices if indices is not None else list(range(len(labels)))
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int, str]:
+        source = self.indices[index]
+        return self.tensors[source].float().div(255), self.labels[source], self.paths[source]
+
+
+def cache_file(cache_root: Path, split: str, label: int, image_size: int) -> Path:
+    class_name = "normal" if label == 0 else "anomalous"
+    return cache_root / f"{split}_{class_name}_{image_size}.pt"
+
+
+def _load_cache(path: Path, label: int) -> tuple[torch.Tensor, list[int], list[str]]:
+    payload = torch.load(path, map_location="cpu", weights_only=False)
+    tensors = payload["images"]
+    paths = payload["paths"]
+    return tensors, [label] * len(tensors), paths
+
+
+def _limited_indices(length: int, limit: int | None, seed: int) -> list[int]:
+    indices = list(range(length))
+    if limit is not None and limit < length:
+        random.Random(seed).shuffle(indices)
+        indices = sorted(indices[:limit])
+    return indices
+
+
+def cached_normal_only(
+    cache_root: Path,
+    split: str,
+    image_size: int,
+    limit: int | None,
+    seed: int,
+) -> CachedRadiographDataset:
+    tensors, labels, paths = _load_cache(
+        cache_file(cache_root, split, 0, image_size), 0
+    )
+    return CachedRadiographDataset(
+        tensors, labels, paths, _limited_indices(len(tensors), limit, seed)
+    )
+
+
+def cached_labeled(
+    cache_root: Path,
+    split: str,
+    image_size: int,
+    limit_per_class: int | None,
+    seed: int,
+) -> CachedRadiographDataset:
+    normal_tensors, normal_labels, normal_paths = _load_cache(
+        cache_file(cache_root, split, 0, image_size), 0
+    )
+    anomaly_tensors, anomaly_labels, anomaly_paths = _load_cache(
+        cache_file(cache_root, split, 1, image_size), 1
+    )
+    tensors = torch.cat((normal_tensors, anomaly_tensors), dim=0)
+    labels = normal_labels + anomaly_labels
+    paths = normal_paths + anomaly_paths
+    normal_indices = _limited_indices(
+        len(normal_tensors), limit_per_class, seed
+    )
+    anomaly_indices = [
+        len(normal_tensors) + index
+        for index in _limited_indices(
+            len(anomaly_tensors), limit_per_class, seed + 1
+        )
+    ]
+    return CachedRadiographDataset(
+        tensors, labels, paths, normal_indices + anomaly_indices
+    )
+
+
+def cache_is_complete(cache_root: Path, image_size: int) -> bool:
+    required = [
+        cache_file(cache_root, "train", 0, image_size),
+        cache_file(cache_root, "val", 0, image_size),
+        cache_file(cache_root, "val", 1, image_size),
+        cache_file(cache_root, "test", 0, image_size),
+        cache_file(cache_root, "test", 1, image_size),
+    ]
+    return all(path.is_file() for path in required)

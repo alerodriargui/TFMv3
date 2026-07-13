@@ -16,7 +16,13 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from .dataset import RadiographDataset
+from .dataset import (
+    CachedRadiographDataset,
+    RadiographDataset,
+    cache_is_complete,
+    cached_labeled,
+    cached_normal_only,
+)
 from .metrics import best_balanced_threshold, evaluate
 from .models import ModelBundle, build_model, per_image_scores, vae_loss
 from .paths import split_dir
@@ -39,6 +45,7 @@ class ExperimentConfig:
     adversarial_weight: float = 1.0
     contextual_weight: float = 50.0
     latent_weight: float = 1.0
+    cache_root: Path | None = None
 
 
 def set_seed(seed: int) -> None:
@@ -51,7 +58,11 @@ def set_seed(seed: int) -> None:
     torch.backends.cudnn.benchmark = False
 
 
-def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataLoader:
+def _loader(
+    dataset: RadiographDataset | CachedRadiographDataset,
+    batch_size: int,
+    shuffle: bool,
+) -> DataLoader:
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -136,18 +147,33 @@ def _normal_validation_loss(
 def train(
     config: ExperimentConfig, device: torch.device
 ) -> tuple[ModelBundle, list[dict], int]:
-    train_set = RadiographDataset.normal_only(
-        split_dir(config.data_root, "train"),
-        config.image_size,
-        config.max_train_images,
-        config.seed,
+    use_cache = config.cache_root is not None and cache_is_complete(
+        config.cache_root, config.image_size
     )
-    validation_set = RadiographDataset.normal_only(
-        split_dir(config.data_root, "val"),
-        config.image_size,
-        None,
-        config.seed,
-    )
+    if use_cache:
+        train_set = cached_normal_only(
+            config.cache_root,
+            "train",
+            config.image_size,
+            config.max_train_images,
+            config.seed,
+        )
+        validation_set = cached_normal_only(
+            config.cache_root, "val", config.image_size, None, config.seed
+        )
+    else:
+        train_set = RadiographDataset.normal_only(
+            split_dir(config.data_root, "train"),
+            config.image_size,
+            config.max_train_images,
+            config.seed,
+        )
+        validation_set = RadiographDataset.normal_only(
+            split_dir(config.data_root, "val"),
+            config.image_size,
+            None,
+            config.seed,
+        )
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
     bundle = build_model(config.model, config.latent_dim)
@@ -251,7 +277,7 @@ def train(
 @torch.no_grad()
 def score_dataset(
     bundle: ModelBundle,
-    dataset: RadiographDataset,
+    dataset: RadiographDataset | CachedRadiographDataset,
     batch_size: int,
     device: torch.device,
     vae_beta: float,
@@ -310,18 +336,37 @@ def run(config: ExperimentConfig) -> dict:
     started = time.perf_counter()
     bundle, history, selected_epoch = train(config, device)
 
-    validation = RadiographDataset.labeled(
-        split_dir(config.data_root, "val"),
-        config.image_size,
-        config.max_eval_images_per_class,
-        config.seed,
+    use_cache = config.cache_root is not None and cache_is_complete(
+        config.cache_root, config.image_size
     )
-    test = RadiographDataset.labeled(
-        split_dir(config.data_root, "test"),
-        config.image_size,
-        config.max_eval_images_per_class,
-        config.seed,
-    )
+    if use_cache:
+        validation = cached_labeled(
+            config.cache_root,
+            "val",
+            config.image_size,
+            config.max_eval_images_per_class,
+            config.seed,
+        )
+        test = cached_labeled(
+            config.cache_root,
+            "test",
+            config.image_size,
+            config.max_eval_images_per_class,
+            config.seed,
+        )
+    else:
+        validation = RadiographDataset.labeled(
+            split_dir(config.data_root, "val"),
+            config.image_size,
+            config.max_eval_images_per_class,
+            config.seed,
+        )
+        test = RadiographDataset.labeled(
+            split_dir(config.data_root, "test"),
+            config.image_size,
+            config.max_eval_images_per_class,
+            config.seed,
+        )
     val_labels, val_scores, val_paths, samples = score_dataset(
         bundle, validation, config.batch_size, device, config.vae_beta
     )
@@ -336,7 +381,13 @@ def run(config: ExperimentConfig) -> dict:
     _save_scores(config.output_dir / "test_scores.csv", test_labels, test_scores, test_paths)
     _save_reconstructions(config.output_dir / "reconstructions.png", *samples, config.model)
     report = {
-        "config": {**asdict(config), "data_root": str(config.data_root), "output_dir": str(config.output_dir)},
+        "config": {
+            **asdict(config),
+            "data_root": str(config.data_root),
+            "output_dir": str(config.output_dir),
+            "cache_root": str(config.cache_root) if config.cache_root else None,
+        },
+        "used_cache": use_cache,
         "device": str(device),
         "parameter_count": sum(parameter.numel() for parameter in bundle.model.parameters()),
         "discriminator_parameter_count": (
