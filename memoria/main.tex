@@ -1,0 +1,46 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{geometry}
+\geometry{margin=2.2cm}
+\usepackage{amsmath,amssymb,booktabs,graphicx,hyperref,xcolor}
+\usepackage[backend=biber,style=numeric,sorting=none,maxbibnames=8]{biblatex}
+\addbibresource{../bibliografia/referencias.bib}
+\hypersetup{colorlinks=true,linkcolor=blue!45!black,citecolor=blue!45!black,urlcolor=blue!45!black}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.45em}
+
+\title{Detección no supervisada de anomalías en radiografías de tórax\\mediante AE, VAE y GAN}
+\author{Trabajo Fin de Máster\\Máster Universitario en Sistemas Inteligentes}
+\date{Curso 2025--2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+La escasez de anotaciones clínicas exhaustivas limita el entrenamiento de
+detectores supervisados capaces de reconocer patologías diversas. Este trabajo
+estudia si un modelo entrenado exclusivamente con radiografías normales puede
+asignar una puntuación alta a imágenes no normales. Se comparan, bajo un mismo
+protocolo, un autoencoder convolucional (AE), un autoencoder variacional (VAE) y
+GANomaly, una arquitectura adversarial. Se emplea Chest-RSNA, la partición de
+radiografías del benchmark BMAD: 8.000 imágenes normales para entrenamiento,
+1.490 para validación y 17.194 para prueba. La contribución es una comparación
+reproducible, honesta respecto a los límites clínicos y evaluada con AUROC,
+AUPRC y exactitud balanceada. El software, la auditoría y el protocolo quedan
+preparados; cualquier ejecución reducida se identifica como prueba técnica y no
+se presenta como resultado científico final.
+\end{abstract}
+
+\input{capitulos/01_contextualizacion}
+\input{capitulos/02_objetivos}
+\input{capitulos/03_estado_arte}
+\input{capitulos/04_datos_metodologia}
+\input{capitulos/05_resultados}
+\input{capitulos/06_conclusiones}
+
+\printbibliography[title={Bibliografía}]
+\end{document}

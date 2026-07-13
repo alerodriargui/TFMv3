@@ -1,0 +1,67 @@
+\section{Contextualización y motivación}
+
+\subsection{Problema}
+
+La imagen médica es una fuente central de información diagnóstica, pero un
+algoritmo convencional necesita ejemplos representativos y correctamente
+etiquetados de cada entidad que deberá reconocer. En radiología, obtener esas
+etiquetas exige tiempo experto, los hallazgos pueden ser sutiles, existe
+variabilidad entre observadores y la distribución de patologías es muy
+desigual. Además, un clasificador cerrado aprende las categorías disponibles y
+puede responder con excesiva confianza ante un patrón no representado. Estas
+condiciones motivan la detección de anomalías: modelar la normalidad y señalar
+desviaciones sin exigir ejemplos de todas las enfermedades posibles
+\cite{pang2021review,ruff2021unifying}.
+
+La formulación de una clase es especialmente natural cuando abundan muestras
+sanas y las anomalías son heterogéneas. Sea $x$ una radiografía y $f_\theta$ un
+modelo ajustado con el conjunto normal $\mathcal{D}_{N}$. Se busca una función
+$s(x)$ tal que
+\[
+  s(x_N) < s(x_A), \qquad x_N\sim p_N,\quad x_A\not\sim p_N,
+\]
+sin utilizar $x_A$ para optimizar $\theta$. El resultado no es un diagnóstico,
+sino una puntuación de incompatibilidad con la distribución aprendida.
+
+\subsection{Por qué reconstrucción generativa}
+
+Un autoencoder comprime la entrada en una representación latente y aprende a
+reconstruirla \cite{hinton2006reducing}. Si solo observa imágenes normales, se
+espera que reconstruya peor una alteración y que el residuo sirva como señal de
+anomalía. La hipótesis es atractiva, pero no está garantizada: una red con mucha
+capacidad puede copiar también una entrada anómala; el error puede estar
+dominado por contraste, bordes o adquisición, y una reconstrucción visualmente
+nítida no implica mejor discriminación \cite{baur2021autoencoders}.
+
+El VAE introduce una representación probabilística regularizada mediante la
+divergencia de Kullback--Leibler \cite{kingma2014vae}. Esto puede producir un
+espacio latente más continuo, aunque también reconstrucciones suavizadas. Las
+GAN enfrentan generador y discriminador \cite{goodfellow2014gan}; aplicaciones
+como AnoGAN y GANomaly trasladan ese aprendizaje adversarial a detección de
+anomalías \cite{schlegl2017anogan,akcay2019ganomaly}. La literatura médica
+incluye autoencoders adversariales, VAE en cascada y autoencoders enmascarados
+\cite{zhang2022improved,guo2021cvad,georgescu2023masked}. No obstante, las
+diferencias de datasets, preprocesado y métricas dificultan saber qué parte de
+la mejora procede realmente del modelo.
+
+\subsection{Pregunta de investigación y alcance}
+
+La pregunta principal es: \emph{¿qué familia, AE, VAE o GANomaly, separa mejor
+radiografías normales y no normales cuando todas se entrenan solo con normales
+y se evalúan bajo idénticas condiciones?}
+
+El estudio usa radiografías frontales del benchmark Chest-RSNA de BMAD
+\cite{bao2024bmad,shih2019rsna}. ``Anómala'' significa \emph{no normal según la
+taxonomía RSNA/BMAD}; no significa cualquier patología torácica ni confirma
+neumonía. La salida podría servir como señal de priorización o control de
+calidad en investigación, pero el sistema no está calibrado prospectivamente,
+no ha sido validado externamente y no debe utilizarse para decisiones clínicas.
+
+\subsection{Aportaciones}
+
+Las aportaciones concretas son: (i) selección y auditoría reproducible de un
+conjunto público adecuado; (ii) implementaciones comparables de AE, VAE y
+GANomaly; (iii) separación estricta entre ajuste, selección de umbral y prueba;
+(iv) evaluación con métricas robustas al desequilibrio y análisis de coste; y
+(v) publicación del código y de la configuración, sin redistribuir imágenes
+médicas.
