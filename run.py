@@ -9,8 +9,8 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
-from tfm_anomaly.dataset import resolve_data_root
-from tfm_anomaly.experiment import ExperimentConfig, run
+from data import resolve_data_root
+from experiment import ExperimentConfig, run
 
 
 def summarize(output_root: Path, report_path: Path) -> None:
@@ -35,11 +35,6 @@ def summarize(output_root: Path, report_path: Path) -> None:
         )
     if not rows:
         return
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    with report_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
     grouped = defaultdict(list)
     for row in rows:
         grouped[row["model"]].append(row)
@@ -51,8 +46,7 @@ def summarize(output_root: Path, report_path: Path) -> None:
             item[f"{metric}_mean"] = statistics.mean(values)
             item[f"{metric}_std"] = statistics.stdev(values) if len(values) > 1 else 0.0
         summary.append(item)
-    summary_path = report_path.with_name(report_path.stem + "_summary.csv")
-    with summary_path.open("w", newline="", encoding="utf-8") as handle:
+    with report_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(summary[0]))
         writer.writeheader()
         writer.writerows(summary)
@@ -111,7 +105,7 @@ def main() -> int:
                 f"balanced_accuracy={test['balanced_accuracy']:.4f}",
                 flush=True,
             )
-    summarize(args.output_root, Path("reports/model_comparison.csv"))
+    summarize(args.output_root, Path("resultados.csv"))
     return 0
 
 

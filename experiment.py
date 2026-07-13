@@ -16,9 +16,9 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from .dataset import RadiographDataset, split_dir
-from .metrics import best_balanced_threshold, evaluate
-from .models import ModelBundle, build_model, per_image_scores, vae_loss
+from data import RadiographDataset, split_dir
+from metrics import best_balanced_threshold, evaluate
+from models import ModelBundle, build_model, per_image_scores, vae_loss
 
 
 @dataclass(frozen=True)

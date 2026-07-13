@@ -11,8 +11,8 @@ import torch
 
 from torch.utils.data import DataLoader
 
-from tfm_anomaly.dataset import RadiographDataset, resolve_data_root, split_dir
-from tfm_anomaly.metrics import best_balanced_threshold, evaluate
+from data import RadiographDataset, resolve_data_root, split_dir
+from metrics import best_balanced_threshold, evaluate
 
 
 FEATURE_NAMES = (
@@ -67,9 +67,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--image-size", type=int, default=64)
-    parser.add_argument(
-        "--output", type=Path, default=Path("reports/intensity_controls.csv")
-    )
+    parser.add_argument("--output", type=Path, default=Path("control.csv"))
     args = parser.parse_args()
     root = resolve_data_root(args.data_root)
     train = RadiographDataset.normal_only(split_dir(root, "train"), args.image_size)
