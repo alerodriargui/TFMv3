@@ -11,7 +11,7 @@ from pathlib import Path
 from PIL import Image
 
 from tfm_anomaly.dataset import ANOMALY_NAMES, NORMAL_NAMES, find_class_dir, find_images
-from tfm_anomaly.paths import resolve_data_root, split_dir
+from tfm_anomaly.dataset import resolve_data_root, split_dir
 
 EXPECTED = {
     "train": {"normal": 8000, "anomalous": 0},
@@ -42,7 +42,9 @@ def audit(root: Path, strict: bool, hash_all: bool) -> dict:
         all_paths = normal + anomalous
         unreadable: list[str] = []
         size_counts: dict[str, int] = {}
-        inspect_paths = all_paths if strict else all_paths[:: max(1, len(all_paths) // 100)]
+        inspect_paths = (
+            all_paths if strict else all_paths[:: max(1, len(all_paths) // 100)]
+        )
         for path in inspect_paths:
             try:
                 with Image.open(path) as image:
@@ -90,12 +92,16 @@ def main() -> int:
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--output", type=Path, default=Path("reports/data_audit.json"))
     parser.add_argument("--strict", action="store_true", help="Open every image")
-    parser.add_argument("--hash-all", action="store_true", help="Hash every image (slow)")
+    parser.add_argument(
+        "--hash-all", action="store_true", help="Hash every image (slow)"
+    )
     args = parser.parse_args()
     root = resolve_data_root(args.data_root)
     report = audit(root, args.strict, args.hash_all)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if not report["expected_counts_match"]:
         return 1

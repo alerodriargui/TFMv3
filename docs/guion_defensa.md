@@ -41,10 +41,9 @@ AUROC; AUPRC se interpreta con cuidado porque test tiene 95,46 % de anomalías.
 ## 6. Resultados — 90 segundos
 
 AE logra AUROC medio 0,4566; VAE, 0,4506; GANomaly, 0,5636. GANomaly supera a los
-otros dos en las tres semillas, pero cuesta aproximadamente 2,7 veces más.
-AE/VAE reconstruyen las normales, aunque asignan una mediana de error ligeramente
-menor a las anómalas: la hipótesis de que anomalía equivale automáticamente a
-peor reconstrucción no se cumple.
+otros dos en las tres semillas. AE/VAE reconstruyen las normales, aunque asignan
+una mediana de error ligeramente menor a las anómalas: la hipótesis de que
+anomalía equivale automáticamente a peor reconstrucción no se cumple.
 
 ## 7. Control simple — 75 segundos
 

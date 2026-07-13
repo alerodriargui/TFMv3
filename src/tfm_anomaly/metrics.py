@@ -63,9 +63,7 @@ def auroc(y_true: np.ndarray, scores: np.ndarray) -> float:
         ranks[order[start:end]] = (start + end + 1) / 2
         start = end
     rank_sum = float(ranks[positive].sum())
-    return (rank_sum - n_positive * (n_positive + 1) / 2) / (
-        n_positive * n_negative
-    )
+    return (rank_sum - n_positive * (n_positive + 1) / 2) / (n_positive * n_negative)
 
 
 def average_precision(y_true: np.ndarray, scores: np.ndarray) -> float:

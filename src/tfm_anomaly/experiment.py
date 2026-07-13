@@ -16,16 +16,9 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from .dataset import (
-    CachedRadiographDataset,
-    RadiographDataset,
-    cache_is_complete,
-    cached_labeled,
-    cached_normal_only,
-)
+from .dataset import RadiographDataset, split_dir
 from .metrics import best_balanced_threshold, evaluate
 from .models import ModelBundle, build_model, per_image_scores, vae_loss
-from .paths import split_dir
 
 
 @dataclass(frozen=True)
@@ -45,7 +38,6 @@ class ExperimentConfig:
     adversarial_weight: float = 1.0
     contextual_weight: float = 50.0
     latent_weight: float = 1.0
-    cache_root: Path | None = None
 
 
 def set_seed(seed: int) -> None:
@@ -58,11 +50,7 @@ def set_seed(seed: int) -> None:
     torch.backends.cudnn.benchmark = False
 
 
-def _loader(
-    dataset: RadiographDataset | CachedRadiographDataset,
-    batch_size: int,
-    shuffle: bool,
-) -> DataLoader:
+def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataLoader:
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -147,33 +135,18 @@ def _normal_validation_loss(
 def train(
     config: ExperimentConfig, device: torch.device
 ) -> tuple[ModelBundle, list[dict], int]:
-    use_cache = config.cache_root is not None and cache_is_complete(
-        config.cache_root, config.image_size
+    train_set = RadiographDataset.normal_only(
+        split_dir(config.data_root, "train"),
+        config.image_size,
+        config.max_train_images,
+        config.seed,
     )
-    if use_cache:
-        train_set = cached_normal_only(
-            config.cache_root,
-            "train",
-            config.image_size,
-            config.max_train_images,
-            config.seed,
-        )
-        validation_set = cached_normal_only(
-            config.cache_root, "val", config.image_size, None, config.seed
-        )
-    else:
-        train_set = RadiographDataset.normal_only(
-            split_dir(config.data_root, "train"),
-            config.image_size,
-            config.max_train_images,
-            config.seed,
-        )
-        validation_set = RadiographDataset.normal_only(
-            split_dir(config.data_root, "val"),
-            config.image_size,
-            None,
-            config.seed,
-        )
+    validation_set = RadiographDataset.normal_only(
+        split_dir(config.data_root, "val"),
+        config.image_size,
+        None,
+        config.seed,
+    )
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
     bundle = build_model(config.model, config.latent_dim)
@@ -277,7 +250,7 @@ def train(
 @torch.no_grad()
 def score_dataset(
     bundle: ModelBundle,
-    dataset: RadiographDataset | CachedRadiographDataset,
+    dataset: RadiographDataset,
     batch_size: int,
     device: torch.device,
     vae_beta: float,
@@ -306,7 +279,9 @@ def score_dataset(
     return np.concatenate(labels), np.concatenate(scores), paths, samples
 
 
-def _save_scores(path: Path, labels: np.ndarray, scores: np.ndarray, paths: list[str]) -> None:
+def _save_scores(
+    path: Path, labels: np.ndarray, scores: np.ndarray, paths: list[str]
+) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(["label", "score", "path"])
@@ -324,49 +299,34 @@ def _save_reconstructions(
     for index in range(count):
         for row, tensor in enumerate((originals[index, 0], reconstructed[index, 0])):
             array = (tensor.clamp(0, 1).numpy() * 255).astype(np.uint8)
-            canvas.paste(Image.fromarray(array, mode="L"), (index * size, 20 + row * size))
+            canvas.paste(
+                Image.fromarray(array, mode="L"), (index * size, 20 + row * size)
+            )
     canvas.save(path)
 
 
 def run(config: ExperimentConfig) -> dict:
     if config.image_size != 64:
-        raise ValueError("Las arquitecturas comparables actuales requieren --image-size 64")
+        raise ValueError(
+            "Las arquitecturas comparables actuales requieren --image-size 64"
+        )
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
     bundle, history, selected_epoch = train(config, device)
 
-    use_cache = config.cache_root is not None and cache_is_complete(
-        config.cache_root, config.image_size
+    validation = RadiographDataset.labeled(
+        split_dir(config.data_root, "val"),
+        config.image_size,
+        config.max_eval_images_per_class,
+        config.seed,
     )
-    if use_cache:
-        validation = cached_labeled(
-            config.cache_root,
-            "val",
-            config.image_size,
-            config.max_eval_images_per_class,
-            config.seed,
-        )
-        test = cached_labeled(
-            config.cache_root,
-            "test",
-            config.image_size,
-            config.max_eval_images_per_class,
-            config.seed,
-        )
-    else:
-        validation = RadiographDataset.labeled(
-            split_dir(config.data_root, "val"),
-            config.image_size,
-            config.max_eval_images_per_class,
-            config.seed,
-        )
-        test = RadiographDataset.labeled(
-            split_dir(config.data_root, "test"),
-            config.image_size,
-            config.max_eval_images_per_class,
-            config.seed,
-        )
+    test = RadiographDataset.labeled(
+        split_dir(config.data_root, "test"),
+        config.image_size,
+        config.max_eval_images_per_class,
+        config.seed,
+    )
     val_labels, val_scores, val_paths, samples = score_dataset(
         bundle, validation, config.batch_size, device, config.vae_beta
     )
@@ -377,19 +337,25 @@ def run(config: ExperimentConfig) -> dict:
     validation_metrics = evaluate(val_labels, val_scores, threshold)
     test_metrics = evaluate(test_labels, test_scores, threshold)
 
-    _save_scores(config.output_dir / "validation_scores.csv", val_labels, val_scores, val_paths)
-    _save_scores(config.output_dir / "test_scores.csv", test_labels, test_scores, test_paths)
-    _save_reconstructions(config.output_dir / "reconstructions.png", *samples, config.model)
+    _save_scores(
+        config.output_dir / "validation_scores.csv", val_labels, val_scores, val_paths
+    )
+    _save_scores(
+        config.output_dir / "test_scores.csv", test_labels, test_scores, test_paths
+    )
+    _save_reconstructions(
+        config.output_dir / "reconstructions.png", *samples, config.model
+    )
     report = {
         "config": {
             **asdict(config),
             "data_root": str(config.data_root),
             "output_dir": str(config.output_dir),
-            "cache_root": str(config.cache_root) if config.cache_root else None,
         },
-        "used_cache": use_cache,
         "device": str(device),
-        "parameter_count": sum(parameter.numel() for parameter in bundle.model.parameters()),
+        "parameter_count": sum(
+            parameter.numel() for parameter in bundle.model.parameters()
+        ),
         "discriminator_parameter_count": (
             sum(parameter.numel() for parameter in bundle.discriminator.parameters())
             if bundle.discriminator is not None

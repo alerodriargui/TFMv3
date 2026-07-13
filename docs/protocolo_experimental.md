@@ -23,7 +23,7 @@ normales cuando todos se entrenan exclusivamente con imágenes normales?
 ```powershell
 $python = '..\TFMv2\.tools\python-3.11.9\tools\python.exe'
 $env:PYTHONPATH = 'src'
-.\scripts\run_final.ps1 -Python $python
+& $python scripts\run_experiment.py
 ```
 
 ## Criterio de interpretación

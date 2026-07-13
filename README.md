@@ -1,92 +1,83 @@
-# Detección de anomalías en radiografías mediante AE, VAE y GAN
+# TFM: detección de anomalías en radiografías
 
-Proyecto reproducible del Trabajo Fin de Máster del Máster Universitario en
-Sistemas Inteligentes (UIB). El objetivo es comparar tres familias generativas
-entrenadas **solo con radiografías normales**:
+Comparación de tres modelos entrenados únicamente con radiografías normales:
 
 - autoencoder convolucional (AE);
 - autoencoder variacional (VAE);
-- GANomaly, una GAN con codificador--decodificador--codificador.
+- GANomaly.
 
-La evaluación se realiza a nivel de imagen sobre **Chest-RSNA**, la partición de
-radiografías del benchmark BMAD. Los datos anómalos se usan únicamente para
-seleccionar el umbral en validación y para la evaluación final, nunca para
-ajustar los pesos de las redes.
+El proyecto sigue un único flujo fácil de explicar:
 
-## Estado y resultado principal
+```text
+Chest-RSNA → redimensionado 64x64 → entrenamiento normal
+           → umbral de validación → evaluación de test
+```
 
-- Dataset localizado y auditado: 26.684 PNG de 1024x1024.
-- Campaña final completada: tres modelos, 20 épocas y semillas 13, 42 y 73.
-- GANomaly supera AE y VAE: AUROC medio `0.5636 ± 0.0150`, frente a
-  `0.4566 ± 0.0163` y `0.4506 ± 0.0016`.
-- Un control de gradiente alcanza AUROC `0.5981`; GANomaly es el mejor modelo
-  neuronal estudiado, pero no supera una estadística simple de textura.
-- Memoria, bibliografía, análisis de errores y resultados CSV preparados.
+## Resultado
+
+| Modelo | AUROC medio |
+|---|---:|
+| AE | 0,4566 ± 0,0163 |
+| VAE | 0,4506 ± 0,0016 |
+| GANomaly | **0,5636 ± 0,0150** |
+
+GANomaly supera AE y VAE, pero un control de gradiente sencillo obtiene 0,5981.
+Por tanto, el mejor modelo neuronal todavía depende de señales simples de
+textura o adquisición y no puede considerarse un detector clínico.
+
+## Archivos imprescindibles
+
+```text
+src/tfm_anomaly/dataset.py     carga y particiones del dataset
+src/tfm_anomaly/models.py      AE, VAE y GANomaly
+src/tfm_anomaly/experiment.py  entrenamiento y evaluación
+src/tfm_anomaly/metrics.py     AUROC, AUPRC y matriz de confusión
+scripts/run_experiment.py      ejecución de los experimentos
+scripts/evaluate_controls.py   control estadístico sencillo
+scripts/audit_dataset.py       comprobación del dataset
+scripts/analyze_errors.py      figura de errores
+memoria/                       memoria y presentación
+reports/                       resultados finales
+```
 
 ## Dataset
 
-El código busca Chest-RSNA en este orden:
+Se utiliza Chest-RSNA/BMAD: 8.000 imágenes normales de entrenamiento, 1.490 de
+validación y 17.194 de test. El código encuentra automáticamente la copia local
+en el repositorio hermano `TFMv2`. También se puede indicar:
 
-1. argumento `--data-root`;
-2. variable de entorno `TFM_DATA_ROOT`;
-3. `data/raw/rsna_bmad/Chest-RSNA`;
-4. la copia ya disponible en el repositorio hermano `TFMv2`.
-
-En este equipo ya está disponible la cuarta ruta, por lo que no se duplican
-aproximadamente 9 GB. Véase [data/README.md](data/README.md) para obtenerlo desde
-cero y para los conteos auditados.
+```powershell
+$env:TFM_DATA_ROOT = 'D:\datasets\Chest-RSNA'
+```
 
 ## Ejecución
 
-El intérprete Python portátil ya existente puede reutilizarse en PowerShell:
+Desde PowerShell:
 
 ```powershell
 $python = '..\TFMv2\.tools\python-3.11.9\tools\python.exe'
 $env:PYTHONPATH = 'src'
+
 & $python scripts\audit_dataset.py
-& $python scripts\build_cache.py
-.\scripts\run_final.ps1 -Python $python
+& $python scripts\run_experiment.py
+& $python scripts\evaluate_controls.py
+& $python scripts\analyze_errors.py
 ```
 
-Prueba rápida del pipeline:
+`run_experiment.py` ejecuta por defecto AE, VAE y GANomaly durante 20 épocas
+con semillas 13, 42 y 73. Para una prueba rápida:
 
 ```powershell
-& $python scripts\run_experiment.py --models ae vae ganomaly --epochs 1 `
+& $python scripts\run_experiment.py --models ae --seeds 42 --epochs 1 `
   --max-train-images 64 --max-eval-images-per-class 32 `
-  --output-root artifacts/smoke
+  --output-root artifacts\smoke
 ```
 
-Cada modelo guarda configuración, pesos, curvas, puntuaciones de validación y
-test, métricas y una cuadrícula de reconstrucciones. El umbral se fija una sola
-vez en validación maximizando la exactitud balanceada y se congela para test.
-El lanzador final reanuda por modelo y semilla: omite únicamente las ejecuciones
-científicas ya completas. También construye una caché local `uint8` del
-redimensionado determinista; reduce drásticamente la lectura sin cambiar los
-valores que reciben los modelos.
+Los pesos y puntuaciones individuales se guardan bajo `artifacts/`; las tablas
+finales se encuentran en `reports/`.
 
-Resultados finales versionables:
+## Alcance
 
-- `reports/model_comparison.csv`: nueve ejecuciones individuales;
-- `reports/model_comparison_summary.csv`: medias y desviaciones;
-- `reports/intensity_controls.csv`: controles simples;
-- `reports/error_analysis.json` y `.png`: distribuciones y casos extremos.
-
-## Estructura
-
-```text
-configs/                 configuración experimental documentada
-src/tfm_anomaly/         datos, modelos, métricas y entrenamiento
-scripts/                 auditoría, ejecución y resumen
-tests/                   pruebas unitarias y de integración ligera
-memoria/                 memoria del TFM en LaTeX
-bibliografia/            referencias BibTeX verificadas
-reports/                 auditoría y tablas finales versionables
-artifacts/               pesos y salidas pesadas, ignorados por Git
-```
-
-## Alcance clínico
-
-Este es un estudio metodológico retrospectivo sobre un benchmark público. El
-sistema produce una puntuación de rareza respecto del conjunto normal; no
+La etiqueta anómala significa ``no normal según RSNA/BMAD''. El sistema no
 diagnostica neumonía, no sustituye a profesionales sanitarios y no está
 validado para uso clínico.

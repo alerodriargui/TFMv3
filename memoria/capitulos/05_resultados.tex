@@ -8,19 +8,19 @@ de 308 ficheros se abrió correctamente y todos fueron PNG monocromos de
 1024$\times$1024. Las pruebas cubren carga de datos, salida de los tres modelos,
 métricas y selección del umbral.
 
-Tras una prueba técnica y un piloto, la campaña final ejecutó los tres modelos
-durante 20 épocas con semillas 13, 42 y 73, usando entrenamiento y test
-completos. La tabla presenta media y desviación estándar entre semillas.
+La campaña final ejecutó los tres modelos durante 20 épocas con semillas 13,
+42 y 73, usando entrenamiento y test completos. La tabla presenta media y
+desviación estándar entre semillas.
 
 \begin{center}
 \small
-\begin{tabular}{lrrrrr}
+\begin{tabular}{lrrrr}
 \toprule
-Modelo & Parámetros & AUROC & AUPRC & Bal. acc. & Tiempo (s) \\
+Modelo & Parámetros & AUROC & AUPRC & Bal. acc. \\
 \midrule
-AE       & 609.857 & 0,4566$\pm$0,0163 & 0,9533 & 0,5105 & 205,6 \\
-VAE      & 740.993 & 0,4506$\pm$0,0016 & 0,9526 & 0,5064 & 221,4 \\
-GANomaly & 959.586 & \textbf{0,5636$\pm$0,0150} & \textbf{0,9655} & \textbf{0,5484} & 572,3 \\
+AE       & 609.857 & 0,4566$\pm$0,0163 & 0,9533 & 0,5105 \\
+VAE      & 740.993 & 0,4506$\pm$0,0016 & 0,9526 & 0,5064 \\
+GANomaly & 959.586 & \textbf{0,5636$\pm$0,0150} & \textbf{0,9655} & \textbf{0,5484} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -30,8 +30,7 @@ AE y VAE. Sus AUROC son inferiores a 0,5 en las seis ejecuciones: las anómalas
 presentan una mediana de error ligeramente menor que las normales. Reconstruir
 bien normalidad no produce aquí una puntuación discriminativa. GANomaly supera
 AE y VAE en cada semilla y es el único modelo con separación en la dirección
-esperada, pero su exactitud balanceada media queda en 0,55 y cuesta unas 2,7
-veces más que VAE.
+esperada, pero su exactitud balanceada media queda en 0,55.
 
 \subsection{Controles y análisis de errores}
 
