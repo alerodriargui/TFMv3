@@ -18,7 +18,11 @@ def summarize(output_root: Path, report_path: Path) -> None:
     previous = {}
     if report_path.is_file():
         with report_path.open(newline="", encoding="utf-8") as handle:
-            previous = {row["model"]: row for row in csv.DictReader(handle)}
+            previous = {
+                row["model"]: row
+                for row in csv.DictReader(handle)
+                if row["model"] in {"ae", "vae", "ganomaly"}
+            }
     rows = []
     for path in sorted(output_root.glob("*/metrics.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
@@ -64,18 +68,18 @@ def main() -> int:
     parser.add_argument(
         "--models",
         nargs="+",
-        choices=("ae", "vae", "ganomaly", "classifier"),
-        default=("ae", "vae", "ganomaly", "classifier"),
+        choices=("ae", "vae", "ganomaly"),
+        default=("ae", "vae", "ganomaly"),
     )
     parser.add_argument("--data-root", type=Path)
     parser.add_argument(
         "--output-root", type=Path, default=Path("artifacts/experiments")
     )
-    parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--epochs", type=int)
+    parser.add_argument("--batch-size", type=int)
     parser.add_argument("--image-size", type=int, default=64)
     parser.add_argument("--latent-dim", type=int, default=64)
-    parser.add_argument("--learning-rate", type=float, default=2e-4)
+    parser.add_argument("--learning-rate", type=float)
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
@@ -84,6 +88,19 @@ def main() -> int:
     root = resolve_data_root(args.data_root)
     for seed in args.seeds:
         for model in args.models:
+            epochs = (
+                args.epochs if args.epochs is not None else (3 if model == "ae" else 20)
+            )
+            batch_size = (
+                args.batch_size
+                if args.batch_size is not None
+                else (32 if model == "ae" else 64)
+            )
+            learning_rate = (
+                args.learning_rate
+                if args.learning_rate is not None
+                else (1e-3 if model == "ae" else 2e-4)
+            )
             output_dir = args.output_root / f"{model}_seed{seed}"
             metrics_path = output_dir / "metrics.json"
             if metrics_path.is_file():
@@ -95,11 +112,11 @@ def main() -> int:
                 model=model,
                 data_root=root,
                 output_dir=output_dir,
-                epochs=args.epochs,
-                batch_size=args.batch_size,
+                epochs=epochs,
+                batch_size=batch_size,
                 image_size=args.image_size,
                 latent_dim=args.latent_dim,
-                learning_rate=args.learning_rate,
+                learning_rate=learning_rate,
                 seed=seed,
                 max_train_images=args.max_train_images,
                 max_eval_images_per_class=args.max_eval_images_per_class,

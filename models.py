@@ -44,17 +44,29 @@ def decoder_blocks() -> nn.Sequential:
 class ConvAutoencoder(nn.Module):
     def __init__(self, latent_dim: int = 64) -> None:
         super().__init__()
-        self.features = encoder_blocks()
-        self.to_latent = nn.Linear(128 * 4 * 4, latent_dim)
-        self.from_latent = nn.Linear(latent_dim, 128 * 4 * 4)
-        self.decoder = decoder_blocks()
+        del latent_dim
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 8, 3, 2, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(8, 16, 3, 2, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(16, 32, 3, 2, 1),
+            nn.ReLU(inplace=True),
+        )
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(32, 16, 4, 2, 1),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(16, 8, 4, 2, 1),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(8, 1, 4, 2, 1),
+            nn.Sigmoid(),
+        )
 
     def encode(self, images: torch.Tensor) -> torch.Tensor:
-        return self.to_latent(self.features(images).flatten(1))
+        return self.encoder(images)
 
     def decode(self, latent: torch.Tensor) -> torch.Tensor:
-        features = self.from_latent(latent).view(-1, 128, 4, 4)
-        return self.decoder(features)
+        return self.decoder(latent)
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         return self.decode(self.encode(images))
@@ -137,18 +149,6 @@ class Discriminator(nn.Module):
         return logits, features
 
 
-class BinaryClassifier(nn.Module):
-    """Minimal supervised reference reusing the common convolutional encoder."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.features = encoder_blocks()
-        self.classifier = nn.Linear(128 * 4 * 4, 1)
-
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
-        return self.classifier(self.features(images).flatten(1)).squeeze(1)
-
-
 @dataclass(frozen=True)
 class ModelBundle:
     name: str
@@ -163,8 +163,6 @@ def build_model(name: str, latent_dim: int = 64) -> ModelBundle:
         return ModelBundle(name, VariationalAutoencoder(latent_dim))
     if name == "ganomaly":
         return ModelBundle(name, GANomalyGenerator(latent_dim), Discriminator())
-    if name == "classifier":
-        return ModelBundle(name, BinaryClassifier())
     raise ValueError(f"Modelo desconocido: {name}")
 
 
@@ -180,12 +178,9 @@ def per_image_scores(
         reconstruction = torch.mean(torch.abs(reconstructed - images), dim=(1, 2, 3))
         kl = -0.5 * torch.mean(1 + logvar - mu.square() - logvar.exp(), dim=1)
         score = reconstruction + vae_beta * kl
-    elif bundle.name == "ganomaly":
+    else:
         reconstructed, latent_in, latent_out = bundle.model(images)
         score = torch.mean(torch.abs(latent_in - latent_out), dim=1)
-    else:
-        score = torch.sigmoid(bundle.model(images))
-        reconstructed = images
     return score, reconstructed
 
 

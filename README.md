@@ -1,13 +1,10 @@
-# TFM: detección de anomalías en radiografías
+# TFM: detección no supervisada de anomalías
 
-Proyecto mínimo y reproducible para comparar un autoencoder (AE), un
-autoencoder variacional (VAE) y GANomaly sobre Chest-RSNA. Incluye un único
-clasificador supervisado como referencia práctica y una demostración de
-inferencia sobre una radiografía.
+Sistema sencillo para detectar radiografías anómalas aprendiendo únicamente
+con imágenes normales. El modelo final es un autoencoder convolucional de
+16.281 parámetros y tres bloques de bajada/subida.
 
 ## Instalación
-
-Se recomienda Python 3.11:
 
 ```powershell
 python -m venv .venv
@@ -19,10 +16,8 @@ python -m pip install -r requirements.txt
 
 Se utiliza RSNA Pneumonia Detection Challenge con la reorganización de
 [BMAD](https://github.com/DorisBao/BMAD). `Chest-AD.zip` se descarga desde el
-Google Drive enlazado por BMAD, aceptando previamente las condiciones de la
+Google Drive enlazado por BMAD, aceptando las condiciones de la
 [fuente RSNA](https://www.rsna.org/artificial-intelligence/ai-image-challenge/rsna-pneumonia-detection-challenge-2018).
-
-Estructura esperada:
 
 ```text
 Chest-RSNA/
@@ -33,66 +28,76 @@ Chest-RSNA/
 └── test/Ungood/
 ```
 
-La copia auditada contiene 8.000 imágenes de entrenamiento, 1.490 de
+La copia empleada contiene 8.000 imágenes de entrenamiento, 1.490 de
 validación y 17.194 de test. Para indicar su ubicación:
 
 ```powershell
 $env:TFM_DATA_ROOT = 'D:\datasets\Chest-RSNA'
 ```
 
-## Ejecución
+## Modelo final
 
-Todo el estudio se reproduce con dos comandos:
-
-```powershell
-python run.py       # AE, VAE, GANomaly y clasificador; tres semillas
-python control.py   # control estadístico de intensidad y textura
+```text
+radiografía 64x64
+      ↓
+Conv 1→8 → Conv 8→16 → Conv 16→32
+      ↓
+ConvTranspose 32→16 → 16→8 → 8→1
+      ↓
+reconstrucción
 ```
 
-La ejecución completa usa 20 épocas y semillas 13, 42 y 73. Al ejecutar el
-clasificador con la semilla 42 se genera `modelo_clasificador.pt`, el único
-checkpoint conservado para la demostración.
+Los pesos se ajustan exclusivamente con las 8.000 radiografías normales. La
+puntuación final promedia dos señales tipificadas:
 
-Para clasificar una radiografía:
+```text
+0,5 × error de reconstrucción calibrado
++ 0,5 × diferencia de intensidad centro–borde
+```
+
+Validación selecciona la dirección de ambas señales y el umbral; nunca se usa
+para actualizar los pesos. El test se evalúa con modelo, calibración y umbral
+congelados.
+
+## Ejecución
+
+```powershell
+python run.py       # AE, VAE y GANomaly; semillas 13, 42 y 73
+python control.py   # controles estadísticos
+```
+
+El AE usa tres épocas, batch 32 y Adam con tasa `1e-3`. VAE y GANomaly se
+conservan como comparaciones de la propuesta original y usan 20 épocas.
+
+Para evaluar una radiografía con el autoencoder congelado:
 
 ```powershell
 python demo.py D:\radiografias\ejemplo.png
 ```
 
-La salida muestra la probabilidad, el umbral fijado en validación y la clase
-normal/anómala. Es una herramienta experimental, no un diagnóstico.
+La salida muestra error de reconstrucción, puntuación, umbral y clase. Es una
+herramienta experimental, no un diagnóstico.
 
-## Resultado principal
+## Resultados
 
-| Método | AUROC |
-|---|---:|
-| AE | 0,4566 ± 0,0163 |
-| VAE | 0,4506 ± 0,0016 |
-| GANomaly | 0,5636 ± 0,0150 |
-| Control de gradiente | 0,5981 |
-| Clasificador supervisado | **0,8538 ± 0,0070** |
+| Método no supervisado | AUROC | Balanced accuracy |
+|---|---:|---:|
+| VAE | 0,4506 ± 0,0016 | 0,5064 |
+| GANomaly | 0,5636 ± 0,0150 | 0,5484 |
+| Control de gradiente | 0,5981 | 0,5894 |
+| **AE final calibrado** | **0,7608 ± 0,0005** | **0,6790 ± 0,0139** |
 
-El clasificador tiene 175.025 parámetros y reutiliza el codificador
-convolucional. Se ajusta con 1.136 imágenes por clase, valida con 284 por clase
-y mantiene intacto el test oficial. No se compara como si fuera un detector no
-supervisado: cuantifica el valor aportado por las etiquetas.
+El resultado se repite en las tres semillas: 0,7608, 0,7603 y 0,7614. No se
+utiliza ningún clasificador supervisado, ensamble ni red preentrenada.
 
 ## Entregables
 
 | Archivo | Función |
 |---|---|
 | `memoria.pdf` | Memoria final |
-| `presentacion.pdf` | Diapositivas de defensa |
+| `presentacion.pdf` | Diapositivas |
 | `demo.py` | Demostración con una imagen |
-| `modelo_clasificador.pt` | Único modelo congelado |
+| `modelo_autoencoder.pt` | Único modelo congelado |
 | `run.py` | Entrenamiento y evaluación |
-| `control.py` | Control estadístico |
-| `resultados.csv` | Resultados agregados |
+| `resultados.csv` | Resultados de tres semillas |
 | `referencias.bib` | Bibliografía |
-
-Los documentos se recompilan con:
-
-```powershell
-tectonic memoria.tex
-tectonic presentacion.tex
-```

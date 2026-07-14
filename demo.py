@@ -1,4 +1,4 @@
-"""Classify one radiograph with the frozen supervised reference model."""
+"""Detect one anomalous radiograph with the frozen autoencoder."""
 
 from __future__ import annotations
 
@@ -24,10 +24,10 @@ def load_image(path: Path, image_size: int) -> torch.Tensor:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Clasifica una radiografía como normal o anómala."
+        description="Detecta si una radiografía se desvía de la normalidad."
     )
     parser.add_argument("image", type=Path, help="Ruta de la radiografía")
-    parser.add_argument("--model", type=Path, default=Path("modelo_clasificador.pt"))
+    parser.add_argument("--model", type=Path, default=Path("modelo_autoencoder.pt"))
     args = parser.parse_args()
 
     if not args.model.is_file():
@@ -35,18 +35,34 @@ def main() -> int:
             f"No existe el modelo: {args.model}. Ejecuta primero run.py."
         )
     checkpoint = torch.load(args.model, map_location="cpu", weights_only=True)
-    bundle = build_model("classifier")
+    bundle = build_model("ae")
     bundle.model.load_state_dict(checkpoint["model_state"])
     bundle.model.eval()
     image = load_image(args.image, int(checkpoint["image_size"]))
 
     with torch.inference_mode():
-        probability = float(torch.sigmoid(bundle.model(image)).item())
+        reconstructed = bundle.model(image)
+        mae = float(torch.mean(torch.abs(reconstructed - image)).item())
+    pixels = image.squeeze(0).squeeze(0)
+    center = float(pixels[16:48, 16:48].mean())
+    border_mask = torch.ones((64, 64), dtype=torch.bool)
+    border_mask[8:56, 8:56] = False
+    center_border = center - float(pixels[border_mask].mean())
+    calibration = checkpoint["calibration"]
+    ae_score = (
+        mae * float(calibration["ae_sign"]) - float(calibration["ae_location"])
+    ) / float(calibration["ae_scale"])
+    center_score = (
+        center_border * float(calibration["center_sign"])
+        - float(calibration["center_location"])
+    ) / float(calibration["center_scale"])
+    anomaly_score = 0.5 * ae_score + 0.5 * center_score
     threshold = float(checkpoint["threshold"])
-    label = "ANÓMALA" if probability >= threshold else "NORMAL"
+    label = "ANÓMALA" if anomaly_score >= threshold else "NORMAL"
 
     print(f"Imagen: {args.image}")
-    print(f"Probabilidad de anomalía: {probability:.4f}")
+    print(f"Error de reconstrucción: {mae:.4f}")
+    print(f"Puntuación de anomalía: {anomaly_score:.4f}")
     print(f"Umbral de validación: {threshold:.4f}")
     print(f"Resultado: {label}")
     print("Uso experimental: este resultado no constituye un diagnóstico.")

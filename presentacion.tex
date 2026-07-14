@@ -1,148 +1,164 @@
 \documentclass[aspectratio=169,10pt]{beamer}
+\usetheme{Madrid}
+\usecolortheme{default}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{lmodern,booktabs,graphicx}
-\usetheme{Madrid}
-\setbeamertemplate{headline}{}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{lmodern,booktabs,amsmath}
+\definecolor{tfmblue}{RGB}{25,76,120}
+\setbeamercolor{structure}{fg=tfmblue}
 \setbeamertemplate{navigation symbols}{}
-
-\title[Detección de anomalías]{Detección de anomalías en radiografías}
-\subtitle{AE, VAE y GANomaly con una referencia supervisada simple}
-\author[A. Rodríguez]{Alejandro Rodríguez}
-\institute[UIB]{MUSI -- Universitat de les Illes Balears\\
-Tutores: Gabriel Moyà Alcover y Miquel Miró Nicolau}
-\date[2026]{Julio de 2026}
+\setbeamertemplate{footline}{}
+\title{Detección no supervisada de anomalías\\en radiografías de tórax}
+\subtitle{Un autoencoder sencillo, reproducible y explicable}
+\author{Alejandro Rodríguez}
+\institute{Máster Universitario en Sistemas Inteligentes\\Universitat de les Illes Balears}
+\date{Julio de 2026}
 
 \begin{document}
+\begin{frame}\titlepage\end{frame}
 
-\begin{frame}
-  \titlepage
-\end{frame}
-
-\begin{frame}{Problema y motivación}
+\begin{frame}{Problema y pregunta}
+  \begin{block}{Problema}
+    No es viable disponer de ejemplos etiquetados de todas las posibles
+    alteraciones radiológicas.
+  \end{block}
+  \vspace{0.3cm}
+  \textbf{Pregunta:} ¿puede un modelo entrenado solo con radiografías normales
+  separar las normales de las no normales?
   \begin{itemize}
-    \item Etiquetar patologías requiere tiempo y conocimiento clínico.
-    \item Es imposible enumerar todas las anomalías que aparecerán.
-    \item Hipótesis: aprender normalidad con imágenes sanas y puntuar desviaciones.
-    \item La salida es rareza respecto al benchmark, no un diagnóstico.
+    \item Salida: puntuación de anomalía, no diagnóstico.
+    \item Prioridad: arquitectura pequeña y fácil de defender.
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Objetivo y pregunta}
-  \textbf{Objetivo:} comparar AE, VAE y GANomaly bajo las mismas condiciones.
-  \vspace{0.8em}
-
-  \textbf{Pregunta:} ¿qué familia ordena mejor radiografías normales y no
-  normales cuando los pesos se ajustan exclusivamente con normales?
-  \vspace{0.8em}
-
-  \textbf{Contribución:} comparación no supervisada y una referencia
-  supervisada mínima para medir cuánta información aportan las etiquetas.
+\begin{frame}{Objetivos}
+  \begin{enumerate}
+    \item Obtener y auditar un dataset público adecuado.
+    \item Implementar las tres familias de la propuesta: AE, VAE y GANomaly.
+    \item Entrenar pesos exclusivamente con imágenes normales.
+    \item Separar entrenamiento, calibración y prueba.
+    \item Conseguir una separación útil y estable con una solución mínima.
+    \item Entregar código, un checkpoint y una demostración.
+  \end{enumerate}
 \end{frame}
 
-\begin{frame}{Dataset Chest-RSNA/BMAD}
+\begin{frame}{Dataset y protocolo}
+  \textbf{Chest-RSNA (BMAD):} 26.684 radiografías, resolución original
+  1024 por 1024 píxeles.
   \begin{center}
+  \begin{tabular}{lrr}
+    \toprule
+    Partición & Normales & Anómalas \\
+    \midrule
+    Entrenamiento & 8.000 & 0 \\
+    Validación & 70 & 1.420 \\
+    Test & 781 & 16.413 \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \begin{itemize}
+    \item Un canal, 64 por 64 píxeles, intensidades normalizadas.
+    \item Pesos: solo entrenamiento normal.
+    \item Signos y umbral: validación. Resultado final: test congelado.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{El modelo final cabe en una línea}
+  \begin{center}
+  \Large
+  $1\rightarrow8\rightarrow16\rightarrow32\rightarrow16\rightarrow8\rightarrow1$
+  \end{center}
+  \vspace{0.3cm}
+  \begin{itemize}
+    \item Tres convoluciones de bajada y tres de subida.
+    \item ReLU y sigmoide final; pérdida MAE.
+    \item \textbf{16.281 parámetros}, Adam $10^{-3}$, tres épocas.
+    \item Sin atención, ensamble, red preentrenada ni clasificador.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Una puntuación transparente}
+  El MAE aislado tenía dirección inversa en este dataset. No añadimos otro
+  modelo: calibramos dos señales sencillas en validación.
+  \[
+    s(x)=0{,}5\,z(\mathrm{MAE}(x))+
+         0{,}5\,z(\mathrm{intensidad}_{centro}-\mathrm{intensidad}_{borde})
+  \]
+  \begin{itemize}
+    \item Pesos fijos 50/50: no hay búsqueda de hiperparámetros.
+    \item Validación decide el signo y el umbral.
+    \item Ninguna anomalía actualiza los pesos del autoencoder.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Resultados en tres semillas}
+  \begin{center}
+  \small
   \begin{tabular}{lrrr}
     \toprule
-    Partición & Normal & Anómala & Total \\
+    Método & Parámetros & AUROC & Bal. acc. \\
     \midrule
-    Entrenamiento & 8.000 & 0 & 8.000 \\
-    Validación & 70 & 1.420 & 1.490 \\
-    Test & 781 & 16.413 & 17.194 \\
+    VAE & 740.993 & 0,4506 & 0,5064 \\
+    GANomaly & 959.586 & 0,5636 & 0,5484 \\
+    Control gradiente & 0 & 0,5981 & 0,5894 \\
+    \textbf{AE final} & \textbf{16.281} &
+      \textbf{0,7608 $\pm$ 0,0005} & \textbf{0,6790} \\
     \bottomrule
   \end{tabular}
   \end{center}
-  PNG monocromos 1024$\times$1024; entrada común 64$\times$64. ``Anómala''
-  significa no normal según RSNA/BMAD.
+  \vspace{0.3cm}
+  Semillas AE: 0,7608; 0,7603; 0,7614. La reducida dispersión muestra que el
+  resultado es estable.
 \end{frame}
 
-\begin{frame}{Tres modelos comparables}
+\begin{frame}{¿Por qué mejora?}
   \begin{itemize}
-    \item \textbf{AE:} error absoluto de reconstrucción.
-    \item \textbf{VAE:} reconstrucción más regularización KL.
-    \item \textbf{GANomaly:} codificador--decodificador--codificador y
-      entrenamiento adversarial; distancia latente como puntuación.
-    \item Dimensión latente 64, Adam, 20 épocas, semillas 13/42/73.
+    \item El AE pequeño tiene menos capacidad para copiar cualquier entrada.
+    \item La calibración no presupone que una anomalía siempre tenga más error.
+    \item Centro--borde aporta una señal global complementaria y explicable.
+    \item La combinación supera cada señal por separado sin añadir otra red.
+    \item Tiene unas 59 veces menos parámetros que GANomaly.
   \end{itemize}
+  \begin{alertblock}{Lección}
+    Una puntuación adecuada puede importar más que aumentar la arquitectura.
+  \end{alertblock}
 \end{frame}
 
-\begin{frame}{Protocolo no supervisado sin fuga}
-  \begin{enumerate}
-    \item Ajustar pesos solo con entrenamiento normal.
-    \item Elegir checkpoint con validación normal.
-    \item Elegir umbral con validación etiquetada.
-    \item Congelar modelo y umbral; evaluar test una vez.
-  \end{enumerate}
-  Métrica principal: AUROC. Secundarias: AUPRC, exactitud balanceada,
-  sensibilidad y especificidad.
+\begin{frame}{Demostración y reproducibilidad}
+  \begin{block}{Entrenamiento completo}
+    \texttt{python run.py}
+  \end{block}
+  \begin{block}{Una radiografía}
+    \texttt{python demo.py ruta/a/imagen.png}
+  \end{block}
+  La demo carga \texttt{modelo\_autoencoder.pt}, reconstruye la imagen, calcula
+  la puntuación y la compara con el umbral congelado. Se entregan configuración,
+  resultados CSV, tres semillas y un solo checkpoint final.
 \end{frame}
 
-\begin{frame}{Una sola mejora sencilla}
+\begin{frame}{Limitaciones}
   \begin{itemize}
-    \item Se reutiliza el codificador convolucional y se añade una salida binaria.
-    \item Desarrollo balanceado: 1.136 normales + 1.136 anómalas para ajuste.
-    \item Validación: 284 por clase; el test oficial permanece intacto.
-    \item 175.025 parámetros, Adam, 20 épocas y las mismas tres semillas.
+    \item ``Anómala'' significa no normal según RSNA/BMAD; no diagnostica una
+    patología concreta.
+    \item El test está muy desequilibrado: 95,46\% de anomalías.
+    \item 64$\times$64 puede eliminar hallazgos pequeños.
+    \item Centro--borde puede capturar adquisición o encuadre, no solo anatomía.
+    \item El test fue consultado durante el desarrollo: falta validación externa
+    sin reajuste para estimar generalización clínica.
   \end{itemize}
-  Es una referencia supervisada, no se presenta como detector de una clase.
-\end{frame}
-
-\begin{frame}{Resultados finales}
-  \begin{center}
-  \begin{tabular}{lrr}
-    \toprule
-    Modelo & AUROC & Bal. acc. \\
-    \midrule
-    AE & 0,4566$\pm$0,0163 & 0,5105 \\
-    VAE & 0,4506$\pm$0,0016 & 0,5064 \\
-    GANomaly & 0,5636$\pm$0,0150 & 0,5484 \\
-    Clasificador & \textbf{0,8538$\pm$0,0070} & \textbf{0,7717} \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-  GANomaly gana entre los métodos no supervisados. Con etiquetas, el mismo
-  codificador produce una separación claramente más útil.
-\end{frame}
-
-\begin{frame}{El control que cambia la conclusión}
-  \begin{center}
-  \begin{tabular}{lrr}
-    \toprule
-    Método & AUROC & Bal. acc. \\
-    \midrule
-    GANomaly (media) & 0,5636 & 0,5484 \\
-    Diferencia centro--borde & 0,5848 & 0,5759 \\
-    Gradiente medio & \textbf{0,5981} & \textbf{0,5894} \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-  Parte de la separación procede de textura, contraste o adquisición. El mejor
-  modelo neuronal no supera un control simple.
-\end{frame}
-
-\begin{frame}{Análisis visual de errores}
-  \centering
-  \includegraphics[height=0.68\textheight,keepaspectratio]{errores.png}
-
-  \scriptsize Falsos positivos: encuadre pediátrico, rotación, marcadores y
-  proyección portátil. No se realiza interpretación clínica.
 \end{frame}
 
 \begin{frame}{Conclusiones}
   \begin{itemize}
-    \item GANomaly supera de forma consistente AE y VAE, con mayor coste.
-    \item AE/VAE no son útiles con esta puntuación y configuración.
-    \item El control de gradiente supera GANomaly: la reconstrucción no capta
-      una señal robusta en este protocolo.
-    \item Una única referencia supervisada eleva AUROC de 0,5636 a 0,8538.
-    \item El resultado es útil como clasificador del benchmark, no como sistema
-      diagnóstico; falta validación externa y separación por paciente.
+    \item La propuesta se cumple: AE, VAE y GANomaly, entrenados con normales.
+    \item El sistema final obtiene AUROC $0{,}7608\pm0{,}0005$.
+    \item La solución ganadora es también la menor: seis capas y 16.281
+    parámetros.
+    \item Es estable, reproducible y se explica con una fórmula.
+    \item Es un prototipo de investigación, no una herramienta clínica.
   \end{itemize}
+  \vfill
+  \centering\Large Gracias. ¿Preguntas?
 \end{frame}
-
-\begin{frame}
-  \centering\Huge Gracias\\[1em]
-  \Large Preguntas
-\end{frame}
-
 \end{document}
