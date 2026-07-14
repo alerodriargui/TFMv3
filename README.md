@@ -82,10 +82,10 @@ herramienta experimental, no un diagnóstico.
 
 | Método no supervisado | AUROC | Balanced accuracy |
 |---|---:|---:|
-| VAE | 0,4506 ± 0,0016 | 0,5064 |
-| GANomaly | 0,5636 ± 0,0150 | 0,5484 |
+| VAE | 0,4506 | 0,5064 |
+| GANomaly | 0,5636 | 0,5484 |
 | Control de gradiente | 0,5981 | 0,5894 |
-| **AE final calibrado** | **0,7608 ± 0,0005** | **0,6790 ± 0,0139** |
+| **AE final calibrado** | **0,7608** | **0,6790** |
 
 El resultado se repite en las tres semillas: 0,7608, 0,7603 y 0,7614. No se
 utiliza ningún clasificador supervisado, ensamble ni red preentrenada.

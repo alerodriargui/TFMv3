@@ -48,8 +48,8 @@ no ofrecieron una separación útil. La solución final simplifica el AE hasta
 reconstrucción calibrado y una diferencia centro--borde de intensidad. Las
 direcciones de las señales y el umbral se fijan exclusivamente con validación;
 el conjunto de prueba permanece congelado. En tres semillas, el sistema obtiene
-AUROC $0{,}7608\pm0{,}0005$ y exactitud balanceada
-$0{,}6790\pm0{,}0139$, superando GANomaly ($0{,}5636$), VAE ($0{,}4506$) y un
+AUROC $0{,}7608$ y exactitud balanceada
+$0{,}6790$, superando GANomaly ($0{,}5636$), VAE ($0{,}4506$) y un
 control estadístico de gradiente ($0{,}5981$). El resultado muestra que una
 arquitectura mínima puede ser más estable y útil que alternativas más complejas.
 Se aporta código reproducible y una demostración con un único modelo congelado;
@@ -243,19 +243,19 @@ globales del dataset.
 \toprule
 Método & Parámetros & AUROC & AUPRC & Bal. acc. \\
 \midrule
-VAE & 740.993 & $0{,}4506\pm0{,}0016$ & 0,9526 & 0,5064 \\
-GANomaly & 959.586 & $0{,}5636\pm0{,}0150$ & 0,9655 & 0,5484 \\
+VAE & 740.993 & 0,4506 & 0,9526 & 0,5064 \\
+GANomaly & 959.586 & 0,5636 & 0,9655 & 0,5484 \\
 Control de gradiente & 0 & 0,5981 & 0,9698 & 0,5894 \\
 \textbf{AE final calibrado} & \textbf{16.281} &
-\textbf{$0{,}7608\pm0{,}0005$} & \textbf{0,9839} &
-\textbf{$0{,}6790\pm0{,}0139$} \\
+\textbf{0,7608} & \textbf{0,9839} &
+\textbf{0,6790} \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 El AE final alcanza AUROC 0,7608, 0,7603 y 0,7614 en las semillas 13, 42 y
-73. La desviación 0,0005 muestra que la mejora no depende de una inicialización
-afortunada. Frente a GANomaly mejora 0,1972 puntos de AUROC usando unas 59
+73. La proximidad entre los tres valores muestra que la mejora no depende de
+una inicialización afortunada. Frente a GANomaly mejora 0,1972 puntos de AUROC usando unas 59
 veces menos parámetros. El control de gradiente llega a 0,5981: confirma que el
 dataset contiene una señal global sencilla, pero el AE calibrado la complementa
 y obtiene una separación claramente mayor.
@@ -280,7 +280,7 @@ AE, VAE y GANomaly, se entrenaron los pesos solo con imágenes normales y se
 evaluaron mediante un protocolo reproducible. La primera comparación mostró que
 añadir complejidad no solucionaba el problema. Simplificar el AE y calibrar una
 puntuación interpretable produjo el mejor resultado: AUROC
-$0{,}7608\pm0{,}0005$ con únicamente 16.281 parámetros.
+$0{,}7608$ con únicamente 16.281 parámetros.
 
 La principal conclusión es metodológica. El error de reconstrucción no siempre
 crece ante una anomalía y su dirección debe verificarse, no asumirse. Una señal
