@@ -49,7 +49,9 @@ def summarize(output_root: Path, report_path: Path) -> None:
             values = [float(row[metric]) for row in model_rows]
             item[f"{metric}_mean"] = statistics.mean(values)
             item[f"{metric}_std"] = statistics.stdev(values) if len(values) > 1 else 0.0
-        summary[model] = item
+        previous_runs = int(previous.get(model, {}).get("runs", 0))
+        if len(model_rows) >= previous_runs:
+            summary[model] = item
     with report_path.open("w", newline="", encoding="utf-8") as handle:
         rows = [summary[model] for model in sorted(summary)]
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))

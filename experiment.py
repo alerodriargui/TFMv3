@@ -443,4 +443,18 @@ def run(config: ExperimentConfig) -> dict:
     with (config.output_dir / "metrics.json").open("w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
+    if report["scientific_run"] and config.model == "classifier" and config.seed == 42:
+        torch.save(
+            {
+                "model_state": {
+                    key: value.detach().cpu()
+                    for key, value in bundle.model.state_dict().items()
+                },
+                "image_size": config.image_size,
+                "threshold": float(threshold),
+                "validation_auroc": float(validation_metrics["auroc"]),
+                "test_auroc": float(test_metrics["auroc"]),
+            },
+            "modelo_clasificador.pt",
+        )
     return report

@@ -1,15 +1,17 @@
 \documentclass[aspectratio=169,10pt]{beamer}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[spanish]{babel}
 \usepackage{lmodern,booktabs,graphicx}
 \usetheme{Madrid}
+\setbeamertemplate{headline}{}
 \setbeamertemplate{navigation symbols}{}
 
-\title{Detección de anomalías en radiografías}
+\title[Detección de anomalías]{Detección de anomalías en radiografías}
 \subtitle{AE, VAE y GANomaly con una referencia supervisada simple}
-\author{Trabajo Fin de Máster -- MUSI}
-\date{Curso 2025--2026}
+\author[A. Rodríguez]{Alejandro Rodríguez}
+\institute[UIB]{MUSI -- Universitat de les Illes Balears\\
+Tutores: Gabriel Moyà Alcover y Miquel Miró Nicolau}
+\date[2026]{Julio de 2026}
 
 \begin{document}
 
@@ -40,7 +42,7 @@
 
 \begin{frame}{Dataset Chest-RSNA/BMAD}
   \begin{center}
-  \begin{tabular}{lrr}
+  \begin{tabular}{lrrr}
     \toprule
     Partición & Normal & Anómala & Total \\
     \midrule
@@ -87,7 +89,7 @@
 
 \begin{frame}{Resultados finales}
   \begin{center}
-  \begin{tabular}{lrrr}
+  \begin{tabular}{lrr}
     \toprule
     Modelo & AUROC & Bal. acc. \\
     \midrule
@@ -120,7 +122,7 @@
 
 \begin{frame}{Análisis visual de errores}
   \centering
-  \includegraphics[width=0.82\linewidth]{errores.png}
+  \includegraphics[height=0.68\textheight,keepaspectratio]{errores.png}
 
   \scriptsize Falsos positivos: encuadre pediátrico, rotación, marcadores y
   proyección portátil. No se realiza interpretación clínica.
