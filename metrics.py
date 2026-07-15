@@ -33,14 +33,10 @@ def confusion(y_true: np.ndarray, scores: np.ndarray, threshold: float) -> Confu
 def threshold_metrics(value: Confusion) -> dict[str, float | int]:
     sensitivity = _divide(value.tp, value.tp + value.fn)
     specificity = _divide(value.tn, value.tn + value.fp)
-    precision = _divide(value.tp, value.tp + value.fp)
-    f1 = _divide(2 * precision * sensitivity, precision + sensitivity)
     result: dict[str, float | int] = asdict(value)
     result.update(
         sensitivity=sensitivity,
         specificity=specificity,
-        precision=precision,
-        f1=f1,
         balanced_accuracy=(sensitivity + specificity) / 2,
     )
     return result
@@ -64,17 +60,6 @@ def auroc(y_true: np.ndarray, scores: np.ndarray) -> float:
         start = end
     rank_sum = float(ranks[positive].sum())
     return (rank_sum - n_positive * (n_positive + 1) / 2) / (n_positive * n_negative)
-
-
-def average_precision(y_true: np.ndarray, scores: np.ndarray) -> float:
-    order = np.argsort(-scores, kind="mergesort")
-    labels = y_true[order]
-    n_positive = int(np.sum(labels == 1))
-    if not n_positive:
-        raise ValueError("AUPRC requiere positivos")
-    cumulative = np.cumsum(labels == 1)
-    ranks = np.arange(1, len(labels) + 1)
-    return float(np.sum((cumulative / ranks)[labels == 1]) / n_positive)
 
 
 def best_balanced_threshold(
@@ -121,7 +106,6 @@ def evaluate(y_true: np.ndarray, scores: np.ndarray, threshold: float) -> dict:
     result.update(
         threshold=float(threshold),
         auroc=auroc(y_true, scores),
-        average_precision=average_precision(y_true, scores),
         samples=int(len(y_true)),
         normal=int(np.sum(y_true == 0)),
         anomalous=int(np.sum(y_true == 1)),

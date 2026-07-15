@@ -132,8 +132,8 @@ VAE y GANomaly bajo un protocolo común.
   calibración y umbral en validación y evaluar después en test.
   \item Alcanzar una separación útil y estable con una solución fácil de
   explicar, comprobando el resultado en tres semillas.
-  \item Comparar efectividad y coste mediante AUROC, AUPRC, exactitud
-  balanceada, parámetros y dispersión entre semillas.
+  \item Comparar efectividad y coste mediante AUROC, exactitud balanceada,
+  parámetros y resultados en tres semillas.
   \item Entregar un experimento reproducible y una demostración mínima con un
   único checkpoint, documentando limitaciones y uso no clínico.
 \end{enumerate}
@@ -218,9 +218,9 @@ ello el aprendizaje del modelo es no supervisado y la decisión es calibrada,
 no completamente libre de etiquetas. El test se evalúa después sin cambios.
 
 VAE y GANomaly se conservan como comparaciones de la propuesta original, con
-20 épocas, lotes de 64 y tasa $2\cdot10^{-4}$. La métrica principal es AUROC;
-AUPRC debe interpretarse considerando que el 95,46\% del test es anómalo. La
-exactitud balanceada evita que esa clase mayoritaria domine el resultado.
+20 épocas, lotes de 64 y tasa $2\cdot10^{-4}$. La métrica principal es AUROC.
+La exactitud balanceada evalúa la decisión en el umbral seleccionado sin
+permitir que la clase mayoritaria domine el resultado.
 
 \subsection{Reproducibilidad y controles}
 
@@ -239,16 +239,15 @@ globales del dataset.
 
 \begin{center}
 \small
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrr}
 \toprule
-Método & Parámetros & AUROC & AUPRC & Bal. acc. \\
+Método & Parámetros & AUROC & Bal. acc. \\
 \midrule
-VAE & 740.993 & 0,4506 & 0,9526 & 0,5064 \\
-GANomaly & 959.586 & 0,5636 & 0,9655 & 0,5484 \\
-Control de gradiente & 0 & 0,5981 & 0,9698 & 0,5894 \\
+VAE & 740.993 & 0,4506 & 0,5064 \\
+GANomaly & 959.586 & 0,5636 & 0,5484 \\
+Control de gradiente & 0 & 0,5981 & 0,5894 \\
 \textbf{AE final calibrado} & \textbf{16.281} &
-\textbf{0,7608} & \textbf{0,9839} &
-\textbf{0,6790} \\
+\textbf{0,7608} & \textbf{0,6790} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -260,10 +259,10 @@ veces menos parámetros. El control de gradiente llega a 0,5981: confirma que el
 dataset contiene una señal global sencilla, pero el AE calibrado la complementa
 y obtiene una separación claramente mayor.
 
-La AUPRC alta no debe leerse de forma aislada: una predicción aleatoria ya se
-beneficia de una prevalencia anómala próxima a 0,95. AUROC y exactitud
-balanceada ofrecen aquí una comparación más informativa. Tampoco debe
-interpretarse el resultado como evidencia clínica. La diferencia centro--borde
+AUROC y exactitud balanceada resumen respectivamente la capacidad de ordenar
+las imágenes y el comportamiento de la decisión final. No se reporta accuracy
+convencional porque el 95,46\% del test es anómalo y esa métrica resultaría
+engañosa. Tampoco debe interpretarse el resultado como evidencia clínica. La diferencia centro--borde
 puede reflejar protocolo, contraste, edad o encuadre, y no necesariamente una
 lesión. El sistema es un detector del benchmark, no un diagnóstico.
 

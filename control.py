@@ -112,7 +112,6 @@ def main() -> int:
                 "control",
                 "validation_auroc",
                 "test_auroc",
-                "test_auprc",
                 "test_balanced_accuracy",
             ]
         )
@@ -122,7 +121,6 @@ def main() -> int:
                     item["control"],
                     item["validation"]["auroc"],
                     item["test"]["auroc"],
-                    item["test"]["average_precision"],
                     item["test"]["balanced_accuracy"],
                 ]
             )

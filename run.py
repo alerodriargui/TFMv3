@@ -34,10 +34,7 @@ def summarize(output_root: Path, report_path: Path) -> None:
                 "model": report["config"]["model"],
                 "seed": report["config"]["seed"],
                 "auroc": test["auroc"],
-                "average_precision": test["average_precision"],
                 "balanced_accuracy": test["balanced_accuracy"],
-                "sensitivity": test["sensitivity"],
-                "specificity": test["specificity"],
                 "elapsed_seconds": report["elapsed_seconds"],
             }
         )
@@ -49,10 +46,9 @@ def summarize(output_root: Path, report_path: Path) -> None:
     summary = dict(previous)
     for model, model_rows in sorted(grouped.items()):
         item = {"model": model, "runs": len(model_rows)}
-        for metric in ("auroc", "average_precision", "balanced_accuracy"):
+        for metric in ("auroc", "balanced_accuracy"):
             values = [float(row[metric]) for row in model_rows]
             item[f"{metric}_mean"] = statistics.mean(values)
-            item[f"{metric}_std"] = statistics.stdev(values) if len(values) > 1 else 0.0
         previous_runs = int(previous.get(model, {}).get("runs", 0))
         if len(model_rows) >= previous_runs:
             summary[model] = item
