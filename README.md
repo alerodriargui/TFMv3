@@ -72,11 +72,22 @@ conservan como comparaciones de la propuesta original y usan 20 épocas.
 Para evaluar una radiografía con el autoencoder congelado:
 
 ```powershell
-python demo.py D:\radiografias\ejemplo.png
+python demo.py D:\radiografias\ejemplo.png --output demo_resultado.png
 ```
 
-La salida muestra error de reconstrucción, puntuación, umbral y clase. Es una
-herramienta experimental, no un diagnóstico.
+La consola conserva el error de reconstrucción, la puntuación, el umbral y la
+clase. Además, el PNG generado contiene cuatro paneles:
+
+1. imagen original preprocesada a 64×64;
+2. reconstrucción producida por el autoencoder;
+3. mapa de error absoluto por píxel, con escala de color y MAE;
+4. puntuación de anomalía comparada con el umbral congelado de validación.
+
+Puede añadirse `--show` para abrir la figura en un entorno gráfico. Sin esa
+opción se usa un backend sin interfaz y el PNG se genera igualmente. La
+reconstrucción es la aproximación aprendida por el autoencoder, no una
+radiografía clínicamente normal garantizada. La demo es una herramienta
+experimental y no constituye un diagnóstico.
 
 ## Resultados
 
