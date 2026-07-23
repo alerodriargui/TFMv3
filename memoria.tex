@@ -156,6 +156,15 @@ empleando reparametrización para derivar a través del muestreo
 \cite{kingma2014vae}. Arquitectura y $\beta$ condicionan de forma importante
 su comportamiento \cite{nguyen2024vae}.
 
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\textwidth]{artifacts/autoencoder_architecture.pdf}
+  \caption{Arquitectura del autoencoder final. Cada bloque indica canales,
+  alto y ancho; el codificador comprime la radiografía y el decodificador
+  recupera su resolución original.}
+  \label{fig:arquitectura-ae}
+\end{figure}
+
 GANomaly aprende $z=E_1(x)$, $\hat x=G(z)$ y
 $\hat z=E_2(\hat x)$, y combina pérdidas contextual, latente y adversarial. En
 inferencia utiliza $\lVert z-\hat z\rVert_1$ como puntuación

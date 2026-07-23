@@ -109,6 +109,14 @@ utiliza ningún clasificador supervisado, ensamble ni red preentrenada.
 | `presentacion.pdf` | Diapositivas |
 | `demo.py` | Demostración con una imagen |
 | `modelo_autoencoder.pt` | Único modelo congelado |
+| `generate_architecture_diagram.py` | Regenera el diagrama del AE desde `models.py` |
+| `artifacts/autoencoder_architecture.{svg,pdf,png}` | Diagrama vectorial/editable y versión de uso directo |
 | `run.py` | Entrenamiento y evaluación |
 | `resultados.csv` | Resultados de tres semillas |
 | `referencias.bib` | Bibliografía |
+
+El diagrama se regenera con:
+
+```bash
+python generate_architecture_diagram.py
+```

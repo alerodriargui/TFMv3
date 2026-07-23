@@ -4,7 +4,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[spanish,es-nodecimaldot]{babel}
-\usepackage{lmodern,booktabs,amsmath}
+\usepackage{lmodern,booktabs,amsmath,graphicx}
 \definecolor{tfmblue}{RGB}{25,76,120}
 \setbeamercolor{structure}{fg=tfmblue}
 \setbeamertemplate{navigation symbols}{}
@@ -64,18 +64,13 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{El modelo final cabe en una línea}
-  \begin{center}
-  \Large
-  $1\rightarrow8\rightarrow16\rightarrow32\rightarrow16\rightarrow8\rightarrow1$
-  \end{center}
-  \vspace{0.3cm}
-  \begin{itemize}
-    \item Tres convoluciones de bajada y tres de subida.
-    \item ReLU y sigmoide final; pérdida MAE.
-    \item \textbf{16.281 parámetros}, Adam $10^{-3}$, tres épocas.
-    \item Sin atención, ensamble, red preentrenada ni clasificador.
-  \end{itemize}
+\begin{frame}{Arquitectura del autoencoder final}
+  \centering
+  \includegraphics[width=\textwidth]{artifacts/autoencoder_architecture.pdf}
+  \vspace{-0.15cm}
+
+  \small Tres convoluciones comprimen la imagen y tres convoluciones
+  transpuestas recuperan su resolución.
 \end{frame}
 
 \begin{frame}{Una puntuación transparente}

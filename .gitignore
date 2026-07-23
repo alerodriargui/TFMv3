@@ -2,7 +2,10 @@ __pycache__/
 .ruff_cache/
 .venv/
 *.py[cod]
-artifacts/
+artifacts/*
+!artifacts/autoencoder_architecture.svg
+!artifacts/autoencoder_architecture.pdf
+!artifacts/autoencoder_architecture.png
 .tools/
 *.aux
 *.bbl
@@ -12,3 +15,6 @@ artifacts/
 *.out
 *.run.xml
 *.toc
+*.nav
+*.snm
+*-blx.bib
