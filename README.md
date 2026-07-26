@@ -69,6 +69,23 @@ python control.py   # controles estadísticos
 El AE usa tres épocas, batch 32 y Adam con tasa `1e-3`. VAE y GANomaly se
 conservan como comparaciones de la propuesta original y usan 20 épocas.
 
+### Ejecución en Google Colab con GPU
+
+El notebook `TFMv3_colab.ipynb` reproduce el experimento principal en una
+runtime GPU de Google Colab. Incluye clonación del repositorio, instalación de
+dependencias de apoyo, comprobación de CUDA/PyTorch, montaje de Google Drive,
+conteos del dataset, prueba reducida y ejecución completa del AE con semillas
+13, 42 y 73.
+
+Para usarlo:
+
+1. Abre `TFMv3_colab.ipynb` en Colab.
+2. Selecciona `Runtime > Change runtime type > GPU`.
+3. Coloca `Chest-RSNA` en Drive y ajusta `DATA_ROOT` si no está en
+   `/content/drive/MyDrive/datasets/Chest-RSNA`.
+4. Ejecuta todas las celdas. Los resultados se guardan también en
+   `/content/drive/MyDrive/TFMv3_colab_outputs/`.
+
 Para evaluar una radiografía con el autoencoder congelado:
 
 ```powershell
