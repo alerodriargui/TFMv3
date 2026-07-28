@@ -1,44 +1,134 @@
-\documentclass[10pt,a4paper]{article}
+\documentclass[10pt,a4paper,twocolumn]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[spanish,es-nodecimaldot]{babel}
-\usepackage{lmodern,microtype}
+\usepackage{newtxtext,newtxmath}
+\usepackage{microtype}
 \usepackage{geometry}
-\geometry{margin=2.15cm}
-\usepackage{amsmath,booktabs,graphicx,hyperref,xcolor,csquotes}
+\geometry{top=1.72cm,bottom=1.82cm,left=1.62cm,right=1.62cm,columnsep=0.55cm}
+\usepackage{amsmath,booktabs,graphicx,hyperref,xcolor,csquotes,caption}
+\usepackage{titlesec,fancyhdr,enumitem}
 \usepackage[backend=bibtex,style=numeric,sorting=none,maxbibnames=8]{biblatex}
 \addbibresource{referencias.bib}
 \hypersetup{colorlinks=true,linkcolor=blue!45!black,citecolor=blue!45!black,
 urlcolor=blue!45!black,pdftitle={Detección no supervisada de anomalías en radiografías de tórax},
 pdfauthor={Alejandro Rodríguez}}
-\setlength{\parindent}{0pt}
-\setlength{\parskip}{0.42em}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{0pt}
+\setlength{\columnsep}{0.55cm}
+\setlength{\emergencystretch}{1.5em}
+\setlist{nosep,leftmargin=*}
+\titleformat{\section}
+  {\normalfont\small\scshape\centering}{\thesection.}{0.5em}{}
+\titleformat{\subsection}
+  {\normalfont\small\itshape}{\thesubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{1.25ex plus .3ex}{0.75ex}
+\titlespacing*{\subsection}{0pt}{1.0ex plus .2ex}{0.4ex}
+\renewcommand{\thesection}{\Roman{section}}
+\renewcommand{\thesubsection}{\Alph{subsection}.}
+\captionsetup{font=footnotesize}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\footnotesize\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\setlength{\headheight}{12pt}
+\newcommand{\TFMtitle}{Detección no supervisada de anomalías en radiografías de tórax}
+\newcommand{\TFMauthor}{Alejandro Rodríguez}
+\newcommand{\TFMtutors}{Gabriel Moyà Alcover y Miquel Miró Nicolau}
 
 \begin{document}
+\hypersetup{pageanchor=false}
+\onecolumn
+\thispagestyle{empty}
 \begin{titlepage}
-  \centering
-  {\large Universitat de les Illes Balears\par}
-  \vspace{0.4cm}
-  {\large Máster Universitario en Sistemas Inteligentes\par}
-  \vfill
-  {\Large Trabajo Fin de Máster\par}
-  \vspace{0.8cm}
-  {\LARGE\bfseries Detección no supervisada de anomalías\\
-  en radiografías de tórax\par}
-  \vspace{0.5cm}
-  {\large Un autoencoder convolucional sencillo, reproducible y explicable\par}
-  \vfill
-  \begin{tabular}{rl}
-    Autor: & Alejandro Rodríguez \\
-    Tutores: & Gabriel Moyà Alcover \\
-             & Miquel Miró Nicolau \\
-  \end{tabular}
-  \vfill
-  {\large Curso 2025--2026\\Palma, julio de 2026\par}
+  \raggedright
+  \vspace*{0.8cm}
+  \includegraphics[width=9.2cm]{artifacts/uib-logo.png}
+  \vspace{2.0cm}
+
+  {\Large\bfseries TRABAJO FIN DE MÁSTER\par}
+  \vspace{1.75cm}
+
+  \begin{flushright}
+    \begin{minipage}{0.69\textwidth}
+      \centering
+      {\LARGE\bfseries\scshape \TFMtitle\par}
+    \end{minipage}
+  \end{flushright}
+  \vspace{1.45cm}
+
+  {\LARGE\bfseries \TFMauthor\par}
+  \vspace{2.0cm}
+
+  {\large\bfseries Máster Universitario en Sistemas Inteligentes (MUSI)\par}
+  {\large\bfseries Especialidad en Inteligencia Artificial y Ciencia de Datos\par}
+  \vspace{0.65cm}
+  {\large\bfseries Centro de Estudios de Posgrado\par}
+  \vspace{1.25cm}
+  {\large\bfseries Curso académico 2025/26\par}
 \end{titlepage}
 
-\begin{abstract}
-Este trabajo desarrolla un detector no supervisado de anomalías en radiografías
+\begin{titlepage}
+  \thispagestyle{empty}
+  \raggedright
+  \vspace*{1.5cm}
+  {\LARGE\bfseries\scshape \TFMtitle\par}
+  \vskip 0.7cm
+  {\LARGE\bfseries \TFMauthor\par}
+  \vskip 0.75cm
+  {\Large\bfseries TRABAJO FIN DE MÁSTER\par}
+  \noindent\rule{0pt}{0.55cm}\par
+  {\Large\bfseries Centro de Estudios de Posgrado\par}
+  \vskip 0.3cm
+  {\Large\bfseries Universitat de les Illes Balears\par}
+  \vskip 0.3cm
+  {\large\bfseries Curso académico 2025/26\par}
+  \vskip 1.3cm
+  {\bfseries Palabras clave:\par}
+  \vskip 0.35cm
+  Detección de anomalías, radiografía de tórax, autoencoder,
+  aprendizaje no supervisado, imagen médica
+  \vfill
+  {\bfseries\itshape Tutor(es): \TFMtutors.\par}
+\end{titlepage}
+
+\begin{titlepage}
+  \thispagestyle{empty}
+  \vspace*{\fill}
+  \hrule
+  \vspace{0.75cm}
+  \begin{center}
+    Esta obra se distribuye bajo una licencia Creative Commons Reconocimiento 4.0.
+
+    \vspace{0.7cm}
+    \includegraphics[width=5.7cm]{artifacts/cc-by.png}
+  \end{center}
+  \vspace{1.6cm}
+\end{titlepage}
+
+\setcounter{page}{3}
+\hypersetup{pageanchor=true}
+\twocolumn[
+\begin{@twocolumnfalse}
+  \begin{center}
+    {\fontsize{20}{22}\selectfont
+    Detección no supervisada de anomalías\\
+    en radiografías de tórax\par}
+    \vspace{0.4em}
+    {\large \TFMauthor\par}
+    {\normalsize\textbf{Tutor(es):} \TFMtutors\par}
+    {\normalsize Trabajo Fin de Máster del Máster Universitario
+    en Sistemas Inteligentes (MUSI)\par}
+    {\normalsize Universitat de les Illes Balears, 07122 Palma,
+    Illes Balears, España\par}
+  \end{center}
+  \vspace{0.8em}
+\end{@twocolumnfalse}
+]
+
+\begingroup
+\small\bfseries
+\noindent\textit{Resumen---}Este trabajo desarrolla un detector no supervisado de anomalías en radiografías
 de tórax. Los pesos se aprenden exclusivamente a partir de 8.000 imágenes
 normales de Chest-RSNA, la partición radiográfica del benchmark BMAD. Se
 implementan las tres familias previstas en la propuesta: autoencoder (AE),
@@ -54,7 +144,11 @@ control estadístico de gradiente ($0{,}5981$). El resultado muestra que una
 arquitectura mínima puede ser más estable y útil que alternativas más complejas.
 Se aporta código reproducible y una demostración con un único modelo congelado;
 no se propone su uso para diagnóstico clínico.
-\end{abstract}
+
+\smallskip
+\noindent\textit{Palabras clave---}detección de anomalías, radiografía
+de tórax, autoencoder, aprendizaje no supervisado, imagen médica.
+\endgroup
 
 \section{Contextualización y motivación}
 
@@ -158,7 +252,7 @@ su comportamiento \cite{nguyen2024vae}.
 
 \begin{figure}[ht]
   \centering
-  \includegraphics[width=\textwidth]{artifacts/autoencoder_architecture.pdf}
+  \includegraphics[width=\columnwidth]{artifacts/autoencoder_architecture.pdf}
   \caption{Arquitectura del autoencoder final. Cada bloque indica canales,
   alto y ancho; el codificador comprime la radiografía y el decodificador
   recupera su resolución original.}

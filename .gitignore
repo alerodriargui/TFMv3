@@ -6,6 +6,12 @@ artifacts/*
 !artifacts/autoencoder_architecture.svg
 !artifacts/autoencoder_architecture.pdf
 !artifacts/autoencoder_architecture.png
+!artifacts/uib-logo.png
+!artifacts/cc-by.png
+!artifacts/resultados_principales.tex
+!artifacts/resultados_principales.pdf
+!artifacts/estabilidad_semillas.tex
+!artifacts/estabilidad_semillas.pdf
 .tools/
 *.aux
 *.bbl
