@@ -1,4 +1,4 @@
-"""Train and evaluate one or more models under an identical protocol."""
+"""Train and evaluate the autoencoder."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import argparse
 import csv
 import json
 import statistics
-from collections import defaultdict
 from pathlib import Path
 
 from data import resolve_data_root
@@ -14,117 +13,75 @@ from experiment import ExperimentConfig, run
 
 
 def summarize(output_root: Path, report_path: Path) -> None:
-    """Write the individual and aggregated final result tables."""
-    previous = {}
-    if report_path.is_file():
-        with report_path.open(newline="", encoding="utf-8") as handle:
-            previous = {
-                row["model"]: row
-                for row in csv.DictReader(handle)
-                if row["model"] in {"ae", "vae", "ganomaly"}
-            }
+    """Write the aggregated AE result."""
     rows = []
-    for path in sorted(output_root.glob("*/metrics.json")):
+    for path in sorted(output_root.glob("ae_seed*/metrics.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
         if not report.get("scientific_run", False):
             continue
-        test = report["test"]
-        rows.append(
-            {
-                "model": report["config"]["model"],
-                "seed": report["config"]["seed"],
-                "auroc": test["auroc"],
-                "balanced_accuracy": test["balanced_accuracy"],
-                "elapsed_seconds": report["elapsed_seconds"],
-            }
-        )
+        rows.append(report["test"])
     if not rows:
         return
-    grouped = defaultdict(list)
-    for row in rows:
-        grouped[row["model"]].append(row)
-    summary = dict(previous)
-    for model, model_rows in sorted(grouped.items()):
-        item = {"model": model, "runs": len(model_rows)}
-        for metric in ("auroc", "balanced_accuracy"):
-            values = [float(row[metric]) for row in model_rows]
-            item[f"{metric}_mean"] = statistics.mean(values)
-        previous_runs = int(previous.get(model, {}).get("runs", 0))
-        if len(model_rows) >= previous_runs:
-            summary[model] = item
     with report_path.open("w", newline="", encoding="utf-8") as handle:
-        rows = [summary[model] for model in sorted(summary)]
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=("model", "runs", "auroc_mean", "balanced_accuracy_mean"),
+        )
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerow(
+            {
+                "model": "ae",
+                "runs": len(rows),
+                "auroc_mean": statistics.mean(row["auroc"] for row in rows),
+                "balanced_accuracy_mean": statistics.mean(
+                    row["balanced_accuracy"] for row in rows
+                ),
+            }
+        )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--models",
-        nargs="+",
-        choices=("ae", "vae", "ganomaly"),
-        default=("ae", "vae", "ganomaly"),
-    )
+    parser = argparse.ArgumentParser(description="Entrena y evalúa el autoencoder.")
     parser.add_argument("--data-root", type=Path)
     parser.add_argument(
         "--output-root", type=Path, default=Path("artifacts/experiments")
     )
-    parser.add_argument("--epochs", type=int)
-    parser.add_argument("--batch-size", type=int)
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--image-size", type=int, default=64)
-    parser.add_argument("--latent-dim", type=int, default=64)
-    parser.add_argument("--learning-rate", type=float)
+    parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
-    parser.add_argument("--vae-beta", type=float, default=1e-4)
     args = parser.parse_args()
+
     root = resolve_data_root(args.data_root)
     for seed in args.seeds:
-        for model in args.models:
-            epochs = (
-                args.epochs if args.epochs is not None else (3 if model == "ae" else 20)
-            )
-            batch_size = (
-                args.batch_size
-                if args.batch_size is not None
-                else (32 if model == "ae" else 64)
-            )
-            learning_rate = (
-                args.learning_rate
-                if args.learning_rate is not None
-                else (1e-3 if model == "ae" else 2e-4)
-            )
-            output_dir = args.output_root / f"{model}_seed{seed}"
-            metrics_path = output_dir / "metrics.json"
-            if metrics_path.is_file():
-                previous = json.loads(metrics_path.read_text(encoding="utf-8"))
-                if previous.get("scientific_run", False):
-                    print(f"SKIP {model} seed={seed}: ya está completo")
-                    continue
-            config = ExperimentConfig(
-                model=model,
-                data_root=root,
-                output_dir=output_dir,
-                epochs=epochs,
-                batch_size=batch_size,
-                image_size=args.image_size,
-                latent_dim=args.latent_dim,
-                learning_rate=learning_rate,
-                seed=seed,
-                max_train_images=args.max_train_images,
-                max_eval_images_per_class=args.max_eval_images_per_class,
-                vae_beta=args.vae_beta,
-            )
-            report = run(config)
-            test = report["test"]
-            print(
-                f"RESULT {model} seed={seed}: AUROC={test['auroc']:.4f} "
-                f"balanced_accuracy={test['balanced_accuracy']:.4f}",
-                flush=True,
-            )
+        output_dir = args.output_root / f"ae_seed{seed}"
+        metrics_path = output_dir / "metrics.json"
+        if metrics_path.is_file():
+            previous = json.loads(metrics_path.read_text(encoding="utf-8"))
+            if previous.get("scientific_run", False):
+                print(f"SKIP AE seed={seed}: ya está completo")
+                continue
+        config = ExperimentConfig(
+            data_root=root,
+            output_dir=output_dir,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            image_size=args.image_size,
+            learning_rate=args.learning_rate,
+            seed=seed,
+            max_train_images=args.max_train_images,
+            max_eval_images_per_class=args.max_eval_images_per_class,
+        )
+        report = run(config)
+        test = report["test"]
+        print(
+            f"RESULT AE seed={seed}: AUROC={test['auroc']:.4f} "
+            f"balanced_accuracy={test['balanced_accuracy']:.4f}",
+            flush=True,
+        )
     summarize(args.output_root, Path("resultados.csv"))
     return 0
 

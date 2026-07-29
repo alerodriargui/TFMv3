@@ -62,12 +62,10 @@ congelados.
 ## Ejecución
 
 ```powershell
-python run.py       # AE, VAE y GANomaly; semillas 13, 42 y 73
-python control.py   # controles estadísticos
+python run.py       # AE; semillas 13, 42 y 73
 ```
 
-El AE usa tres épocas, batch 32 y Adam con tasa `1e-3`. VAE y GANomaly se
-conservan como comparaciones de la propuesta original y usan 20 épocas.
+El AE usa tres épocas, batch 32 y Adam con tasa `1e-3`.
 
 ### Ejecución en Google Colab con GPU
 
@@ -108,11 +106,8 @@ experimental y no constituye un diagnóstico.
 
 ## Resultados
 
-| Método no supervisado | AUROC | Balanced accuracy |
+| Modelo | AUROC | Balanced accuracy |
 |---|---:|---:|
-| VAE | 0,4506 | 0,5064 |
-| GANomaly | 0,5636 | 0,5484 |
-| Control de gradiente | 0,5981 | 0,5894 |
 | **AE final calibrado** | **0,7608** | **0,6790** |
 
 El resultado se repite en las tres semillas: 0,7608, 0,7603 y 0,7614. No se

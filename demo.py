@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from models import build_model
+from models import ConvAutoencoder
 
 
 @dataclass(frozen=True)
@@ -200,11 +200,11 @@ def main() -> int:
             f"No existe el modelo: {args.model}. Ejecuta primero run.py."
         )
     checkpoint = torch.load(args.model, map_location="cpu", weights_only=True)
-    bundle = build_model("ae")
-    bundle.model.load_state_dict(checkpoint["model_state"])
-    bundle.model.eval()
+    model = ConvAutoencoder()
+    model.load_state_dict(checkpoint["model_state"])
+    model.eval()
     image = load_image(args.image, int(checkpoint["image_size"]))
-    result = evaluate_image(image, bundle.model, checkpoint)
+    result = evaluate_image(image, model, checkpoint)
     create_figure(image, result, args.output, args.show)
 
     print(f"Imagen: {args.image}")
