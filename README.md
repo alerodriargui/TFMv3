@@ -1,8 +1,8 @@
 # TFM: detección no supervisada de anomalías
 
-Sistema sencillo para detectar radiografías anómalas aprendiendo únicamente
-con imágenes normales. El modelo final es un autoencoder convolucional de
-16.281 parámetros y tres bloques de bajada/subida.
+Sistema para detectar radiografías anómalas aprendiendo únicamente con
+imágenes normales. El autoencoder procesa las imágenes originales a
+1024×1024 para conservar estructuras pequeñas y textura radiográfica.
 
 ## Instalación
 
@@ -21,12 +21,14 @@ TFMv3/
 |   |-- data.py        Lectura y preparación de radiografías
 |   |-- experiment.py  Entrenamiento, calibración y evaluación
 |   |-- metrics.py     Métricas y selección del umbral
+|   |-- scoring.py     Puntuaciones compartidas por entrenamiento y demo
 |   |-- train.py       Comando de entrenamiento
 |   `-- demo.py        Evaluación de una sola imagen
 |-- checkpoints/       Pesos congelados del modelo
 |-- results/           Métricas, experimentos y figuras generadas
 |-- notebooks/         Notebook para Google Colab
-|-- docs/              Memoria, presentación, bibliografía y recursos
+|-- docs/              Documentación del experimento actual
+|-- legacy/64x64/      Pesos, resultados y documentos anteriores
 |-- README.md          Guía del proyecto
 `-- requirements*.txt Dependencias
 ```
@@ -60,16 +62,20 @@ $env:TFM_DATA_ROOT = 'D:\datasets\Chest-RSNA'
 ## Modelo final
 
 ```text
-radiografía 64x64
+radiografía 1024x1024
       ↓
-Conv 1→8 → Conv 8→16 → Conv 16→32
+Conv 1→8→16→32→64→128→128
       ↓
-ConvTranspose 32→16 → 16→8 → 8→1
+representación 128×16×16
+      ↓
+ConvTranspose 128→128→64→32→16→8→1
       ↓
 reconstrucción
 ```
 
-Los pesos se ajustan exclusivamente con las 8.000 radiografías normales. La
+Los seis bloques de bajada comprimen espacialmente 1024→16. La arquitectura
+tiene 682.425 parámetros. Los pesos se ajustan exclusivamente con las 8.000
+radiografías normales. La
 puntuación final promedia dos señales tipificadas:
 
 ```text
@@ -98,10 +104,13 @@ train.py
    └── experiment.py
          │
          ├── models.py
-         │     Construye y entrena el autoencoder
+         │     Define la arquitectura del autoencoder
          │
          ├── data.py
          │     Entrega los lotes de imágenes
+         │
+         ├── scoring.py
+         │     Calcula las puntuaciones de anomalía
          │
          ├── metrics.py
          │     Calcula umbral, AUROC y balanced accuracy
@@ -109,7 +118,10 @@ train.py
          └── Guarda resultados
 ```
 
-El AE usa tres épocas, batch 32 y Adam con tasa `1e-3`.
+El AE usa tres épocas, batch 2 y Adam con tasa `1e-3`. El batch se reduce
+porque las imágenes 1024×1024 requieren mucha más memoria que las de 64×64.
+Se recomienda una GPU. Si aparece un error de memoria, puede ejecutarse con
+`--batch-size 1`.
 
 ### Ejecución en Google Colab con GPU
 
@@ -134,14 +146,15 @@ Para evaluar una radiografía con el autoencoder congelado:
 python -m tfm_ae.demo D:\radiografias\ejemplo.png
 ```
 
-La demo usa por defecto `checkpoints/modelo_autoencoder.pt` y guarda la figura
+Después de entrenar, la demo usa por defecto
+`checkpoints/modelo_autoencoder.pt` y guarda la figura
 en `results/demo_resultado.png`. Ambas rutas se pueden cambiar con `--model` y
 `--output`.
 
 La consola conserva el error de reconstrucción, la puntuación, el umbral y la
 clase. Además, el PNG generado contiene cuatro paneles:
 
-1. imagen original preprocesada a 64×64;
+1. imagen original preprocesada a 1024×1024;
 2. reconstrucción producida por el autoencoder;
 3. mapa de error absoluto por píxel, con escala de color y MAE;
 4. puntuación de anomalía comparada con el umbral congelado de validación.
@@ -154,20 +167,19 @@ experimental y no constituye un diagnóstico.
 
 ## Resultados
 
-| Modelo | AUROC | Balanced accuracy |
-|---|---:|---:|
-| **AE final calibrado** | **0,7608** | **0,6790** |
+Las métricas 1024×1024 están pendientes de volver a ejecutar las semillas 13,
+42 y 73. `results/resultados.csv` se generará automáticamente al terminar.
 
-El resultado se repite en las tres semillas: 0,7608, 0,7603 y 0,7614. No se
-utiliza ningún clasificador supervisado, ensamble ni red preentrenada.
+El checkpoint, las métricas y los documentos del experimento anterior a
+64×64 se conservan en `legacy/64x64/`; no deben confundirse con resultados
+de la arquitectura actual.
 
 ## Entregables
 
 | Ruta | Función |
 |---|---|
-| `docs/memoria.pdf` | Memoria final |
-| `docs/presentacion.pdf` | Diapositivas |
-| `docs/assets/` | Diagramas, imágenes y recursos de los documentos |
+| `docs/` | Documentación pendiente del experimento 1024×1024 |
 | `notebooks/TFMv3_colab.ipynb` | Ejecución reproducible en Colab |
-| `checkpoints/modelo_autoencoder.pt` | Único modelo congelado |
-| `results/resultados.csv` | Resultados de tres semillas |
+| `checkpoints/modelo_autoencoder.pt` | Modelo 1024×1024 generado al entrenar |
+| `results/resultados.csv` | Resultados 1024×1024 generados al entrenar |
+| `legacy/64x64/` | Entregables históricos del experimento anterior |

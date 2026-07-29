@@ -1,13 +1,15 @@
-"""Convolutional autoencoder used for anomaly detection."""
+"""Convolutional autoencoder for full-resolution radiographs."""
 
 from __future__ import annotations
 
 import torch
 from torch import nn
 
+ARCHITECTURE_VERSION = "ae_1024_v1"
+
 
 class ConvAutoencoder(nn.Module):
-    """Small autoencoder for 64 × 64 grayscale radiographs."""
+    """Autoencoder for 1024 × 1024 grayscale radiographs."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -18,8 +20,20 @@ class ConvAutoencoder(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(16, 32, 3, 2, 1),
             nn.ReLU(inplace=True),
+            nn.Conv2d(32, 64, 3, 2, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 128, 3, 2, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, 3, 2, 1),
+            nn.ReLU(inplace=True),
         )
         self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(128, 128, 4, 2, 1),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(64, 32, 4, 2, 1),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(32, 16, 4, 2, 1),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(16, 8, 4, 2, 1),
@@ -36,12 +50,3 @@ class ConvAutoencoder(nn.Module):
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         return self.decode(self.encode(images))
-
-
-def per_image_scores(
-    model: ConvAutoencoder, images: torch.Tensor
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Return the reconstruction MAE and reconstructed images."""
-    reconstructed = model(images)
-    scores = torch.mean(torch.abs(reconstructed - images), dim=(1, 2, 3))
-    return scores, reconstructed

@@ -48,8 +48,8 @@ def main() -> int:
         "--output-root", type=Path, default=PROJECT_ROOT / "results/experiments"
     )
     parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--image-size", type=int, default=64)
+    parser.add_argument("--batch-size", type=int, default=2)
+    parser.add_argument("--image-size", type=int, default=1024)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)

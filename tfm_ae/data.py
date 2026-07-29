@@ -78,7 +78,7 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         self,
         paths: list[Path],
         labels: list[int],
-        image_size: int = 64,
+        image_size: int = 1024,
     ) -> None:
         if len(paths) != len(labels) or not paths:
             raise ValueError("paths y labels deben tener la misma longitud no vacía")
@@ -90,7 +90,7 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
     def normal_only(
         cls,
         split_root: Path,
-        image_size: int = 64,
+        image_size: int = 1024,
         limit: int | None = None,
         seed: int = 42,
     ) -> "RadiographDataset":
@@ -103,7 +103,7 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
     def labeled(
         cls,
         split_root: Path,
-        image_size: int = 64,
+        image_size: int = 1024,
         limit_per_class: int | None = None,
         seed: int = 42,
     ) -> "RadiographDataset":
@@ -128,8 +128,9 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         path = self.paths[index]
         with Image.open(path) as image:
             image = image.convert("L")
-            image = image.resize(
-                (self.image_size, self.image_size), Image.Resampling.BILINEAR
-            )
+            if image.size != (self.image_size, self.image_size):
+                image = image.resize(
+                    (self.image_size, self.image_size), Image.Resampling.LANCZOS
+                )
             pixels = np.asarray(image, dtype=np.float32).copy() / 255.0
         return torch.from_numpy(pixels).unsqueeze(0), self.labels[index], str(path)

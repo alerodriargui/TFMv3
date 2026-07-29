@@ -4,8 +4,10 @@ __pycache__/
 *.py[cod]
 results/*
 !results/resultados.csv
+!results/README.md
 checkpoints/*
 !checkpoints/modelo_autoencoder.pt
+!checkpoints/README.md
 .tools/
 *.aux
 *.bbl

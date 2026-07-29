@@ -11,7 +11,8 @@ import torch
 from PIL import Image
 
 from . import PROJECT_ROOT
-from .models import ConvAutoencoder
+from .models import ARCHITECTURE_VERSION, ConvAutoencoder
+from .scoring import center_border_difference
 
 
 @dataclass(frozen=True)
@@ -29,7 +30,8 @@ def load_image(path: Path, image_size: int) -> torch.Tensor:
         raise FileNotFoundError(f"No existe la imagen: {path}")
     with Image.open(path) as image:
         image = image.convert("L")
-        image = image.resize((image_size, image_size), Image.Resampling.BILINEAR)
+        if image.size != (image_size, image_size):
+            image = image.resize((image_size, image_size), Image.Resampling.LANCZOS)
         pixels = np.asarray(image, dtype=np.float32).copy() / 255.0
     return torch.from_numpy(pixels).unsqueeze(0).unsqueeze(0)
 
@@ -45,11 +47,7 @@ def evaluate_image(
         absolute_error = torch.abs(reconstructed - image)
         mae = float(torch.mean(absolute_error).item())
 
-    pixels = image.squeeze(0).squeeze(0)
-    center = float(pixels[16:48, 16:48].mean())
-    border_mask = torch.ones((64, 64), dtype=torch.bool)
-    border_mask[8:56, 8:56] = False
-    center_border = center - float(pixels[border_mask].mean())
+    center_border = float(center_border_difference(image).item())
     calibration = checkpoint["calibration"]
     ae_score = (
         mae * float(calibration["ae_sign"]) - float(calibration["ae_location"])
@@ -206,6 +204,11 @@ def main() -> int:
             "python -m tfm_ae.train."
         )
     checkpoint = torch.load(args.model, map_location="cpu", weights_only=True)
+    if checkpoint.get("architecture") != ARCHITECTURE_VERSION:
+        raise ValueError(
+            "El checkpoint no pertenece a la arquitectura 1024×1024 actual. "
+            "Vuelve a entrenar con python -m tfm_ae.train."
+        )
     model = ConvAutoencoder()
     model.load_state_dict(checkpoint["model_state"])
     model.eval()

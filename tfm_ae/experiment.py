@@ -18,7 +18,8 @@ from torch.utils.data import DataLoader
 from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
 from .metrics import auroc, best_balanced_threshold, evaluate
-from .models import ConvAutoencoder, per_image_scores
+from .models import ARCHITECTURE_VERSION, ConvAutoencoder
+from .scoring import center_border_difference, reconstruction_scores
 
 
 @dataclass(frozen=True)
@@ -26,8 +27,8 @@ class ExperimentConfig:
     data_root: Path
     output_dir: Path
     epochs: int = 3
-    batch_size: int = 32
-    image_size: int = 64
+    batch_size: int = 2
+    image_size: int = 1024
     learning_rate: float = 1e-3
     seed: int = 42
     max_train_images: int | None = None
@@ -75,7 +76,7 @@ def _normal_validation_loss(
     count = 0
     for images, _labels, _paths in loader:
         images = images.to(device)
-        scores, _ = per_image_scores(model, images)
+        scores, _ = reconstruction_scores(model, images)
         total += float(scores.sum())
         count += len(images)
     return total / max(count, 1)
@@ -146,6 +147,7 @@ def train(
     torch.save(
         {
             "model_name": "ae",
+            "architecture": ARCHITECTURE_VERSION,
             "image_size": config.image_size,
             "model_state": best_state["model"],
             "selected_epoch": best_state["epoch"],
@@ -170,7 +172,7 @@ def score_dataset(
     loader = _loader(dataset, batch_size, False)
     for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
         device_images = images.to(device)
-        batch_scores, reconstructed = per_image_scores(model, device_images)
+        batch_scores, reconstructed = reconstruction_scores(model, device_images)
         scores.append(batch_scores.cpu().numpy())
         labels.append(batch_labels.numpy())
         paths.extend(batch_paths)
@@ -190,13 +192,8 @@ def score_dataset(
 def center_border_scores(dataset: RadiographDataset, batch_size: int) -> np.ndarray:
     """Return the mean intensity difference between image center and border."""
     values = []
-    border_mask = torch.ones((64, 64), dtype=torch.bool)
-    border_mask[8:56, 8:56] = False
     for images, _labels, _paths in _loader(dataset, batch_size, False):
-        pixels = images.squeeze(1)
-        center = pixels[:, 16:48, 16:48].mean(dim=(1, 2))
-        border = pixels[:, border_mask].mean(dim=1)
-        values.append((center - border).numpy())
+        values.append(center_border_difference(images).numpy())
     return np.concatenate(values)
 
 
@@ -275,8 +272,8 @@ def _save_reconstructions(
 
 
 def run(config: ExperimentConfig) -> dict:
-    if config.image_size != 64:
-        raise ValueError("El autoencoder requiere --image-size 64")
+    if config.image_size < 64 or config.image_size % 64:
+        raise ValueError("--image-size debe ser múltiplo de 64 y al menos 64")
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
@@ -336,6 +333,7 @@ def run(config: ExperimentConfig) -> dict:
         "elapsed_seconds": time.perf_counter() - started,
         "scientific_run": (
             config.epochs >= 3
+            and config.image_size == 1024
             and config.max_train_images is None
             and config.max_eval_images_per_class is None
         ),
@@ -350,6 +348,7 @@ def run(config: ExperimentConfig) -> dict:
                     key: value.detach().cpu()
                     for key, value in model.state_dict().items()
                 },
+                "architecture": ARCHITECTURE_VERSION,
                 "image_size": config.image_size,
                 "threshold": float(threshold),
                 "calibration": calibration,
