@@ -19,6 +19,20 @@ NORMAL_NAMES = ("good", "normal")
 ANOMALY_NAMES = ("Ungood", "ungood", "abnormal", "anomalous")
 
 
+def load_radiograph(path: Path, image_size: int) -> torch.Tensor:
+    """Load one radiograph as a normalized 1 × H × W tensor."""
+    if not path.is_file():
+        raise FileNotFoundError(f"No existe la imagen: {path}")
+    with Image.open(path) as image:
+        image = image.convert("L")
+        if image.size != (image_size, image_size):
+            image = image.resize(
+                (image_size, image_size), Image.Resampling.LANCZOS
+            )
+        pixels = np.asarray(image, dtype=np.float32).copy() / 255.0
+    return torch.from_numpy(pixels).unsqueeze(0)
+
+
 def resolve_data_root(explicit: Path | None = None) -> Path:
     """Find Chest-RSNA from an argument, environment variable or known paths."""
     candidates = [explicit] if explicit else []
@@ -126,11 +140,5 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int, str]:
         path = self.paths[index]
-        with Image.open(path) as image:
-            image = image.convert("L")
-            if image.size != (self.image_size, self.image_size):
-                image = image.resize(
-                    (self.image_size, self.image_size), Image.Resampling.LANCZOS
-                )
-            pixels = np.asarray(image, dtype=np.float32).copy() / 255.0
-        return torch.from_numpy(pixels).unsqueeze(0), self.labels[index], str(path)
+        image = load_radiograph(path, self.image_size)
+        return image, self.labels[index], str(path)

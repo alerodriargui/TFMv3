@@ -19,7 +19,11 @@ from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
 from .metrics import auroc, best_balanced_threshold, evaluate
 from .models import ARCHITECTURE_VERSION, ConvAutoencoder
-from .scoring import center_border_difference, reconstruction_scores
+from .scoring import (
+    anomaly_components,
+    apply_calibration,
+    center_border_difference,
+)
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,27 @@ def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataL
     )
 
 
+def _cpu_state_dict(model: ConvAutoencoder) -> dict[str, torch.Tensor]:
+    return {
+        key: value.detach().cpu().clone()
+        for key, value in model.state_dict().items()
+    }
+
+
+def _checkpoint_payload(
+    model_state: dict[str, torch.Tensor],
+    image_size: int,
+    **metadata: object,
+) -> dict:
+    return {
+        "model_name": "ae",
+        "architecture": ARCHITECTURE_VERSION,
+        "image_size": image_size,
+        "model_state": model_state,
+        **metadata,
+    }
+
+
 def _train_batch(
     model: ConvAutoencoder,
     images: torch.Tensor,
@@ -76,15 +101,15 @@ def _normal_validation_loss(
     count = 0
     for images, _labels, _paths in loader:
         images = images.to(device)
-        scores, _ = reconstruction_scores(model, images)
-        total += float(scores.sum())
+        components = anomaly_components(model, images)
+        total += float(components.reconstruction_mae.sum())
         count += len(images)
     return total / max(count, 1)
 
 
 def train(
     config: ExperimentConfig, device: torch.device
-) -> tuple[ConvAutoencoder, list[dict], int]:
+) -> tuple[ConvAutoencoder, list[dict], int, np.ndarray]:
     train_set = RadiographDataset.normal_only(
         split_dir(config.data_root, "train"),
         config.image_size,
@@ -104,6 +129,7 @@ def train(
     best_value = float("inf")
     history: list[dict] = []
     best_state: dict | None = None
+    train_center: list[np.ndarray] = []
 
     for epoch in range(1, config.epochs + 1):
         model.train()
@@ -112,6 +138,10 @@ def train(
         seen = 0
         for images, _labels, _paths in train_loader:
             images = images.to(device)
+            if epoch == 1:
+                train_center.append(
+                    center_border_difference(images).detach().cpu().numpy()
+                )
             loss = _train_batch(model, images, optimizer)
             total_loss += loss * len(images)
             seen += len(images)
@@ -134,10 +164,7 @@ def train(
         if improved:
             best_value = validation_value
             best_state = {
-                "model": {
-                    key: value.detach().cpu().clone()
-                    for key, value in model.state_dict().items()
-                },
+                "model": _cpu_state_dict(model),
                 "epoch": epoch,
             }
 
@@ -145,16 +172,19 @@ def train(
     model.load_state_dict(best_state["model"])
     config.output_dir.mkdir(parents=True, exist_ok=True)
     torch.save(
-        {
-            "model_name": "ae",
-            "architecture": ARCHITECTURE_VERSION,
-            "image_size": config.image_size,
-            "model_state": best_state["model"],
-            "selected_epoch": best_state["epoch"],
-        },
+        _checkpoint_payload(
+            best_state["model"],
+            config.image_size,
+            selected_epoch=best_state["epoch"],
+        ),
         config.output_dir / "model.pt",
     )
-    return model, history, int(best_state["epoch"])
+    return (
+        model,
+        history,
+        int(best_state["epoch"]),
+        np.concatenate(train_center),
+    )
 
 
 @torch.no_grad()
@@ -163,21 +193,29 @@ def score_dataset(
     dataset: RadiographDataset,
     batch_size: int,
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray, list[str], tuple[torch.Tensor, torch.Tensor]]:
+) -> tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    list[str],
+    tuple[torch.Tensor, torch.Tensor],
+]:
     model.eval()
-    scores: list[np.ndarray] = []
+    reconstruction_values: list[np.ndarray] = []
+    center_values: list[np.ndarray] = []
     labels: list[np.ndarray] = []
     paths: list[str] = []
     samples: tuple[torch.Tensor, torch.Tensor] | None = None
     loader = _loader(dataset, batch_size, False)
     for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
         device_images = images.to(device)
-        batch_scores, reconstructed = reconstruction_scores(model, device_images)
-        scores.append(batch_scores.cpu().numpy())
+        components = anomaly_components(model, device_images)
+        reconstruction_values.append(components.reconstruction_mae.cpu().numpy())
+        center_values.append(components.center_border.cpu().numpy())
         labels.append(batch_labels.numpy())
         paths.extend(batch_paths)
         if samples is None:
-            samples = (images[:8], reconstructed.cpu()[:8])
+            samples = (images[:8], components.reconstructed.cpu()[:8])
         if batch_index % 50 == 0 or batch_index == len(loader):
             print(
                 f"score progress={batch_index}/{len(loader)} "
@@ -185,63 +223,44 @@ def score_dataset(
                 flush=True,
             )
     assert samples is not None
-    return np.concatenate(labels), np.concatenate(scores), paths, samples
-
-
-@torch.no_grad()
-def center_border_scores(dataset: RadiographDataset, batch_size: int) -> np.ndarray:
-    """Return the mean intensity difference between image center and border."""
-    values = []
-    for images, _labels, _paths in _loader(dataset, batch_size, False):
-        values.append(center_border_difference(images).numpy())
-    return np.concatenate(values)
+    return (
+        np.concatenate(labels),
+        np.concatenate(reconstruction_values),
+        np.concatenate(center_values),
+        paths,
+        samples,
+    )
 
 
 def calibrate_ae_scores(
-    config: ExperimentConfig,
-    validation: RadiographDataset,
-    test: RadiographDataset,
+    train_center: np.ndarray,
     val_labels: np.ndarray,
     raw_val_scores: np.ndarray,
     raw_test_scores: np.ndarray,
+    val_center: np.ndarray,
+    test_center: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, dict]:
     """Combine calibrated reconstruction and center-border scores equally."""
-    train = RadiographDataset.normal_only(
-        split_dir(config.data_root, "train"),
-        config.image_size,
-        config.max_train_images,
-        config.seed,
-    )
-    train_center = center_border_scores(train, config.batch_size)
-    val_center = center_border_scores(validation, config.batch_size)
-    test_center = center_border_scores(test, config.batch_size)
-
     ae_sign = -1.0 if auroc(val_labels, raw_val_scores) < 0.5 else 1.0
     center_sign = -1.0 if auroc(val_labels, val_center) < 0.5 else 1.0
-    val_ae = raw_val_scores * ae_sign
-    test_ae = raw_test_scores * ae_sign
-    normal_ae = val_ae[val_labels == 0]
+    normal_ae = (raw_val_scores * ae_sign)[val_labels == 0]
     ae_location = float(normal_ae.mean())
     ae_scale = max(float(normal_ae.std()), 1e-8)
     center_location = float((train_center * center_sign).mean())
     center_scale = max(float(train_center.std()), 1e-8)
-
-    val_ae = (val_ae - ae_location) / ae_scale
-    test_ae = (test_ae - ae_location) / ae_scale
-    val_center = (val_center * center_sign - center_location) / center_scale
-    test_center = (test_center * center_sign - center_location) / center_scale
+    calibration = {
+        "score": "0.5 * calibrated_MAE + 0.5 * calibrated_center_border",
+        "ae_sign": ae_sign,
+        "ae_location": ae_location,
+        "ae_scale": ae_scale,
+        "center_sign": center_sign,
+        "center_location": center_location,
+        "center_scale": center_scale,
+    }
     return (
-        0.5 * val_ae + 0.5 * val_center,
-        0.5 * test_ae + 0.5 * test_center,
-        {
-            "score": "0.5 * calibrated_MAE + 0.5 * calibrated_center_border",
-            "ae_sign": ae_sign,
-            "ae_location": ae_location,
-            "ae_scale": ae_scale,
-            "center_sign": center_sign,
-            "center_location": center_location,
-            "center_scale": center_scale,
-        },
+        apply_calibration(raw_val_scores, val_center, calibration),
+        apply_calibration(raw_test_scores, test_center, calibration),
+        calibration,
     )
 
 
@@ -277,7 +296,7 @@ def run(config: ExperimentConfig) -> dict:
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
-    model, history, selected_epoch = train(config, device)
+    model, history, selected_epoch, train_center = train(config, device)
 
     validation = RadiographDataset.labeled(
         split_dir(config.data_root, "val"),
@@ -291,19 +310,19 @@ def run(config: ExperimentConfig) -> dict:
         config.max_eval_images_per_class,
         config.seed,
     )
-    val_labels, val_scores, val_paths, samples = score_dataset(
+    val_labels, val_scores, val_center, val_paths, samples = score_dataset(
         model, validation, config.batch_size, device
     )
-    test_labels, test_scores, test_paths, _ = score_dataset(
+    test_labels, test_scores, test_center, test_paths, _ = score_dataset(
         model, test, config.batch_size, device
     )
     val_scores, test_scores, calibration = calibrate_ae_scores(
-        config,
-        validation,
-        test,
+        train_center,
         val_labels,
         val_scores,
         test_scores,
+        val_center,
+        test_center,
     )
     threshold, _ = best_balanced_threshold(val_labels, val_scores)
     validation_metrics = evaluate(val_labels, val_scores, threshold)
@@ -343,18 +362,14 @@ def run(config: ExperimentConfig) -> dict:
         handle.write("\n")
     if report["scientific_run"] and config.seed == 42:
         torch.save(
-            {
-                "model_state": {
-                    key: value.detach().cpu()
-                    for key, value in model.state_dict().items()
-                },
-                "architecture": ARCHITECTURE_VERSION,
-                "image_size": config.image_size,
-                "threshold": float(threshold),
-                "calibration": calibration,
-                "validation_auroc": float(validation_metrics["auroc"]),
-                "test_auroc": float(test_metrics["auroc"]),
-            },
+            _checkpoint_payload(
+                _cpu_state_dict(model),
+                config.image_size,
+                threshold=float(threshold),
+                calibration=calibration,
+                validation_auroc=float(validation_metrics["auroc"]),
+                test_auroc=float(test_metrics["auroc"]),
+            ),
             PROJECT_ROOT / "checkpoints/modelo_autoencoder.pt",
         )
     return report

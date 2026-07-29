@@ -6,13 +6,12 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
 import torch
-from PIL import Image
 
 from . import PROJECT_ROOT
+from .data import load_radiograph
 from .models import ARCHITECTURE_VERSION, ConvAutoencoder
-from .scoring import center_border_difference
+from .scoring import anomaly_components, apply_calibration
 
 
 @dataclass(frozen=True)
@@ -25,43 +24,24 @@ class DemoResult:
     label: str
 
 
-def load_image(path: Path, image_size: int) -> torch.Tensor:
-    if not path.is_file():
-        raise FileNotFoundError(f"No existe la imagen: {path}")
-    with Image.open(path) as image:
-        image = image.convert("L")
-        if image.size != (image_size, image_size):
-            image = image.resize((image_size, image_size), Image.Resampling.LANCZOS)
-        pixels = np.asarray(image, dtype=np.float32).copy() / 255.0
-    return torch.from_numpy(pixels).unsqueeze(0).unsqueeze(0)
-
-
 def evaluate_image(
     image: torch.Tensor,
-    model: torch.nn.Module,
+    model: ConvAutoencoder,
     checkpoint: dict,
 ) -> DemoResult:
     """Apply the frozen model and its original calibration to one image."""
     with torch.inference_mode():
-        reconstructed = model(image)
-        absolute_error = torch.abs(reconstructed - image)
-        mae = float(torch.mean(absolute_error).item())
+        components = anomaly_components(model, image)
 
-    center_border = float(center_border_difference(image).item())
+    mae = float(components.reconstruction_mae.item())
+    center_border = float(components.center_border.item())
     calibration = checkpoint["calibration"]
-    ae_score = (
-        mae * float(calibration["ae_sign"]) - float(calibration["ae_location"])
-    ) / float(calibration["ae_scale"])
-    center_score = (
-        center_border * float(calibration["center_sign"])
-        - float(calibration["center_location"])
-    ) / float(calibration["center_scale"])
-    anomaly_score = 0.5 * ae_score + 0.5 * center_score
+    anomaly_score = float(apply_calibration(mae, center_border, calibration))
     threshold = float(checkpoint["threshold"])
     label = "ANÓMALA" if anomaly_score >= threshold else "NORMAL"
     return DemoResult(
-        reconstructed=reconstructed,
-        absolute_error=absolute_error,
+        reconstructed=components.reconstructed,
+        absolute_error=components.absolute_error,
         mae=mae,
         anomaly_score=anomaly_score,
         threshold=threshold,
@@ -212,7 +192,9 @@ def main() -> int:
     model = ConvAutoencoder()
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
-    image = load_image(args.image, int(checkpoint["image_size"]))
+    image = load_radiograph(
+        args.image, int(checkpoint["image_size"])
+    ).unsqueeze(0)
     result = evaluate_image(image, model, checkpoint)
     create_figure(image, result, args.output, args.show)
 
