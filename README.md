@@ -12,6 +12,28 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
+## Estructura del proyecto
+
+```text
+TFMv3/
+|-- tfm_ae/            Código ejecutable del autoencoder
+|   |-- models.py      Arquitectura de la red
+|   |-- data.py        Lectura y preparación de radiografías
+|   |-- experiment.py  Entrenamiento, calibración y evaluación
+|   |-- metrics.py     Métricas y selección del umbral
+|   |-- train.py       Comando de entrenamiento
+|   `-- demo.py        Evaluación de una sola imagen
+|-- checkpoints/       Pesos congelados del modelo
+|-- results/           Métricas, experimentos y figuras generadas
+|-- notebooks/         Notebook para Google Colab
+|-- docs/              Memoria, presentación, bibliografía y recursos
+|-- README.md          Guía del proyecto
+`-- requirements*.txt Dependencias
+```
+
+La raíz contiene únicamente los archivos habituales de configuración. Cada
+carpeta agrupa elementos con una responsabilidad concreta.
+
 ## Dataset
 
 Se utiliza RSNA Pneumonia Detection Challenge con la reorganización de
@@ -62,14 +84,36 @@ congelados.
 ## Ejecución
 
 ```powershell
-python run.py       # AE; semillas 13, 42 y 73
+python -m tfm_ae.train
+```
+
+El orden interno del entrenamiento es:
+
+```text
+train.py
+   │
+   ├── data.py
+   │     Carga train, valid y test
+   │
+   └── experiment.py
+         │
+         ├── models.py
+         │     Construye y entrena el autoencoder
+         │
+         ├── data.py
+         │     Entrega los lotes de imágenes
+         │
+         ├── metrics.py
+         │     Calcula umbral, AUROC y balanced accuracy
+         │
+         └── Guarda resultados
 ```
 
 El AE usa tres épocas, batch 32 y Adam con tasa `1e-3`.
 
 ### Ejecución en Google Colab con GPU
 
-El notebook `TFMv3_colab.ipynb` reproduce el experimento principal en una
+El notebook `notebooks/TFMv3_colab.ipynb` reproduce el experimento principal en una
 runtime GPU de Google Colab. Incluye clonación del repositorio, instalación de
 dependencias de apoyo, comprobación de CUDA/PyTorch, montaje de Google Drive,
 conteos del dataset, prueba reducida y ejecución completa del AE con semillas
@@ -77,7 +121,7 @@ conteos del dataset, prueba reducida y ejecución completa del AE con semillas
 
 Para usarlo:
 
-1. Abre `TFMv3_colab.ipynb` en Colab.
+1. Abre `notebooks/TFMv3_colab.ipynb` en Colab.
 2. Selecciona `Runtime > Change runtime type > GPU`.
 3. Coloca `Chest-RSNA` en Drive y ajusta `DATA_ROOT` si no está en
    `/content/drive/MyDrive/datasets/Chest-RSNA`.
@@ -87,8 +131,12 @@ Para usarlo:
 Para evaluar una radiografía con el autoencoder congelado:
 
 ```powershell
-python demo.py D:\radiografias\ejemplo.png --output demo_resultado.png
+python -m tfm_ae.demo D:\radiografias\ejemplo.png
 ```
+
+La demo usa por defecto `checkpoints/modelo_autoencoder.pt` y guarda la figura
+en `results/demo_resultado.png`. Ambas rutas se pueden cambiar con `--model` y
+`--output`.
 
 La consola conserva el error de reconstrucción, la puntuación, el umbral y la
 clase. Además, el PNG generado contiene cuatro paneles:
@@ -115,20 +163,11 @@ utiliza ningún clasificador supervisado, ensamble ni red preentrenada.
 
 ## Entregables
 
-| Archivo | Función |
+| Ruta | Función |
 |---|---|
-| `memoria.pdf` | Memoria final |
-| `presentacion.pdf` | Diapositivas |
-| `demo.py` | Demostración con una imagen |
-| `modelo_autoencoder.pt` | Único modelo congelado |
-| `generate_architecture_diagram.py` | Regenera el diagrama del AE desde `models.py` |
-| `artifacts/autoencoder_architecture.{svg,pdf,png}` | Diagrama vectorial/editable y versión de uso directo |
-| `run.py` | Entrenamiento y evaluación |
-| `resultados.csv` | Resultados de tres semillas |
-| `referencias.bib` | Bibliografía |
-
-El diagrama se regenera con:
-
-```bash
-python generate_architecture_diagram.py
-```
+| `docs/memoria.pdf` | Memoria final |
+| `docs/presentacion.pdf` | Diapositivas |
+| `docs/assets/` | Diagramas, imágenes y recursos de los documentos |
+| `notebooks/TFMv3_colab.ipynb` | Ejecución reproducible en Colab |
+| `checkpoints/modelo_autoencoder.pt` | Único modelo congelado |
+| `results/resultados.csv` | Resultados de tres semillas |

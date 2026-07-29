@@ -8,8 +8,9 @@ import json
 import statistics
 from pathlib import Path
 
-from data import resolve_data_root
-from experiment import ExperimentConfig, run
+from . import PROJECT_ROOT
+from .data import resolve_data_root
+from .experiment import ExperimentConfig, run
 
 
 def summarize(output_root: Path, report_path: Path) -> None:
@@ -44,7 +45,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Entrena y evalúa el autoencoder.")
     parser.add_argument("--data-root", type=Path)
     parser.add_argument(
-        "--output-root", type=Path, default=Path("artifacts/experiments")
+        "--output-root", type=Path, default=PROJECT_ROOT / "results/experiments"
     )
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -82,7 +83,7 @@ def main() -> int:
             f"balanced_accuracy={test['balanced_accuracy']:.4f}",
             flush=True,
         )
-    summarize(args.output_root, Path("resultados.csv"))
+    summarize(args.output_root, PROJECT_ROOT / "results/resultados.csv")
     return 0
 
 

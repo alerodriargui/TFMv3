@@ -12,6 +12,8 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
+from . import PROJECT_ROOT
+
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 NORMAL_NAMES = ("good", "normal")
 ANOMALY_NAMES = ("Ungood", "ungood", "abnormal", "anomalous")
@@ -24,8 +26,8 @@ def resolve_data_root(explicit: Path | None = None) -> Path:
         candidates.append(Path(value))
     candidates.extend(
         (
-            Path("data/raw/rsna_bmad/Chest-RSNA"),
-            Path("../TFMv2/data/raw/rsna_bmad/Chest-RSNA"),
+            PROJECT_ROOT / "data/raw/rsna_bmad/Chest-RSNA",
+            PROJECT_ROOT.parent / "TFMv2/data/raw/rsna_bmad/Chest-RSNA",
         )
     )
     for candidate in candidates:

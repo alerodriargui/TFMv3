@@ -10,7 +10,8 @@ import numpy as np
 import torch
 from PIL import Image
 
-from models import ConvAutoencoder
+from . import PROJECT_ROOT
+from .models import ConvAutoencoder
 
 
 @dataclass(frozen=True)
@@ -181,12 +182,16 @@ def main() -> int:
         description="Detecta si una radiografía se desvía de la normalidad."
     )
     parser.add_argument("image", type=Path, help="Ruta de la radiografía")
-    parser.add_argument("--model", type=Path, default=Path("modelo_autoencoder.pt"))
+    parser.add_argument(
+        "--model",
+        type=Path,
+        default=PROJECT_ROOT / "checkpoints/modelo_autoencoder.pt",
+    )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("demo_resultado.png"),
-        help="Ruta del PNG generado (por defecto: demo_resultado.png)",
+        default=PROJECT_ROOT / "results/demo_resultado.png",
+        help="Ruta del PNG generado (por defecto: results/demo_resultado.png)",
     )
     parser.add_argument(
         "--show",
@@ -197,7 +202,8 @@ def main() -> int:
 
     if not args.model.is_file():
         raise FileNotFoundError(
-            f"No existe el modelo: {args.model}. Ejecuta primero run.py."
+            f"No existe el modelo: {args.model}. Ejecuta primero "
+            "python -m tfm_ae.train."
         )
     checkpoint = torch.load(args.model, map_location="cpu", weights_only=True)
     model = ConvAutoencoder()

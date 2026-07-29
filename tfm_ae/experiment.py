@@ -15,9 +15,10 @@ from PIL import Image, ImageDraw
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from data import RadiographDataset, split_dir
-from metrics import auroc, best_balanced_threshold, evaluate
-from models import ConvAutoencoder, per_image_scores
+from . import PROJECT_ROOT
+from .data import RadiographDataset, split_dir
+from .metrics import auroc, best_balanced_threshold, evaluate
+from .models import ConvAutoencoder, per_image_scores
 
 
 @dataclass(frozen=True)
@@ -355,6 +356,6 @@ def run(config: ExperimentConfig) -> dict:
                 "validation_auroc": float(validation_metrics["auroc"]),
                 "test_auroc": float(test_metrics["auroc"]),
             },
-            "modelo_autoencoder.pt",
+            PROJECT_ROOT / "checkpoints/modelo_autoencoder.pt",
         )
     return report

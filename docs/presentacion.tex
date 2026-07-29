@@ -66,7 +66,7 @@
 
 \begin{frame}{Arquitectura del autoencoder final}
   \centering
-  \includegraphics[width=\textwidth]{artifacts/autoencoder_architecture.pdf}
+  \includegraphics[width=\textwidth]{assets/autoencoder_architecture.pdf}
   \vspace{-0.15cm}
 
   \small Tres convoluciones comprimen la imagen y tres convoluciones
@@ -122,10 +122,10 @@
 
 \begin{frame}{Demostración y reproducibilidad}
   \begin{block}{Entrenamiento completo}
-    \texttt{python run.py}
+    \texttt{python -m tfm\_ae.train}
   \end{block}
   \begin{block}{Una radiografía}
-    \texttt{python demo.py ruta/a/imagen.png}
+    \texttt{python -m tfm\_ae.demo ruta/a/imagen.png}
   \end{block}
   La demo carga \texttt{modelo\_autoencoder.pt}, reconstruye la imagen, calcula
   la puntuación y la compara con el umbral congelado. Se entregan configuración,
