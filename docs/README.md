@@ -1,5 +1,8 @@
 # Documentación 1024×1024
 
+- [`guia_defensa.md`](guia_defensa.md): explicación técnica, preguntas
+  probables y plan de estudio del código actual.
+
 Esta carpeta queda preparada para la memoria, presentación y diagramas del
 nuevo experimento a resolución completa.
 
