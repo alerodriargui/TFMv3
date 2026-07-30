@@ -19,8 +19,8 @@ TFMv3/
 |-- tfm_ae/            Código ejecutable del autoencoder
 |   |-- models.py      Arquitectura de la red
 |   |-- data.py        Lectura y preparación de radiografías
-|   |-- experiment.py  Entrenamiento, calibración y evaluación
-|   |-- metrics.py     Métricas y selección del umbral
+|   |-- experiment.py  Entrenamiento y evaluación
+|   |-- metrics.py     AUROC, matriz de confusión y métricas
 |   |-- scoring.py     Puntuaciones compartidas por entrenamiento y demo
 |   |-- train.py       Comando de entrenamiento
 |   `-- demo.py        Evaluación de una sola imagen
@@ -75,17 +75,17 @@ reconstrucción
 
 Los seis bloques de bajada comprimen espacialmente 1024→16. La arquitectura
 tiene 682.425 parámetros. Los pesos se ajustan exclusivamente con las 8.000
-radiografías normales. La
-puntuación final promedia dos señales tipificadas:
+radiografías normales. La puntuación de anomalía es directamente el error
+absoluto medio de reconstrucción:
 
 ```text
-0,5 × error de reconstrucción calibrado
-+ 0,5 × diferencia de intensidad centro–borde
+score(x) = media(|x - AE(x)|)
 ```
 
-Validación selecciona la dirección de ambas señales y el umbral; nunca se usa
-para actualizar los pesos. El test se evalúa con modelo, calibración y umbral
-congelados.
+El umbral es el percentil 95 de ese error en las radiografías normales de
+validación. Las etiquetas de anomalía solo se usan después para calcular
+métricas; no intervienen en los pesos, la puntuación ni el umbral. El test se
+evalúa con modelo y umbral congelados.
 
 ## Ejecución
 
@@ -113,7 +113,7 @@ train.py
          │     Calcula las puntuaciones de anomalía
          │
          ├── metrics.py
-         │     Calcula umbral, AUROC y balanced accuracy
+         │     Calcula AUROC y balanced accuracy
          │
          └── Guarda resultados
 ```
@@ -121,7 +121,8 @@ train.py
 El AE usa tres épocas, batch 2 y Adam con tasa `1e-3`. El batch se reduce
 porque las imágenes 1024×1024 requieren mucha más memoria que las de 64×64.
 Se recomienda una GPU. Si aparece un error de memoria, puede ejecutarse con
-`--batch-size 1`.
+`--batch-size 1`. El percentil normal del umbral puede cambiarse con
+`--threshold-quantile`; el valor reproducible por defecto es `0.95`.
 
 ### Ejecución en Google Colab con GPU
 

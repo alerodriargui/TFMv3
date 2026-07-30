@@ -2,6 +2,8 @@
 
 - [`guia_defensa.md`](guia_defensa.md): explicación técnica, preguntas
   probables y plan de estudio del código actual.
+- [`assets/arquitectura_ae.svg`](assets/arquitectura_ae.svg): diagrama capa por
+  capa de la arquitectura actual del autoencoder a 1024×1024.
 
 Esta carpeta queda preparada para la memoria, presentación y diagramas del
 nuevo experimento a resolución completa.

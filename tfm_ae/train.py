@@ -11,6 +11,7 @@ from pathlib import Path
 from . import PROJECT_ROOT
 from .data import resolve_data_root
 from .experiment import ExperimentConfig, run
+from .scoring import SCORE_NAME
 
 
 def summarize(output_root: Path, report_path: Path) -> None:
@@ -18,7 +19,10 @@ def summarize(output_root: Path, report_path: Path) -> None:
     rows = []
     for path in sorted(output_root.glob("ae_seed*/metrics.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
-        if not report.get("scientific_run", False):
+        if (
+            not report.get("scientific_run", False)
+            or report.get("score") != SCORE_NAME
+        ):
             continue
         rows.append(report["test"])
     if not rows:
@@ -51,6 +55,12 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--image-size", type=int, default=1024)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument(
+        "--threshold-quantile",
+        type=float,
+        default=0.95,
+        help="Percentil de MAE normal usado como umbral (por defecto: 0.95)",
+    )
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
@@ -62,7 +72,12 @@ def main() -> int:
         metrics_path = output_dir / "metrics.json"
         if metrics_path.is_file():
             previous = json.loads(metrics_path.read_text(encoding="utf-8"))
-            if previous.get("scientific_run", False):
+            if (
+                previous.get("scientific_run", False)
+                and previous.get("score") == SCORE_NAME
+                and previous.get("config", {}).get("threshold_quantile")
+                == args.threshold_quantile
+            ):
                 print(f"SKIP AE seed={seed}: ya está completo")
                 continue
         config = ExperimentConfig(
@@ -72,6 +87,7 @@ def main() -> int:
             batch_size=args.batch_size,
             image_size=args.image_size,
             learning_rate=args.learning_rate,
+            threshold_quantile=args.threshold_quantile,
             seed=seed,
             max_train_images=args.max_train_images,
             max_eval_images_per_class=args.max_eval_images_per_class,

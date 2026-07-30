@@ -11,7 +11,7 @@ import torch
 from . import PROJECT_ROOT
 from .data import load_radiograph
 from .models import ARCHITECTURE_VERSION, ConvAutoencoder
-from .scoring import anomaly_components, apply_calibration
+from .scoring import SCORE_NAME, reconstruction_score
 
 
 @dataclass(frozen=True)
@@ -29,19 +29,17 @@ def evaluate_image(
     model: ConvAutoencoder,
     checkpoint: dict,
 ) -> DemoResult:
-    """Apply the frozen model and its original calibration to one image."""
+    """Apply the frozen model and reconstruction threshold to one image."""
     with torch.inference_mode():
-        components = anomaly_components(model, image)
+        score = reconstruction_score(model, image)
 
-    mae = float(components.reconstruction_mae.item())
-    center_border = float(components.center_border.item())
-    calibration = checkpoint["calibration"]
-    anomaly_score = float(apply_calibration(mae, center_border, calibration))
+    mae = float(score.reconstruction_mae.item())
+    anomaly_score = mae
     threshold = float(checkpoint["threshold"])
     label = "ANÓMALA" if anomaly_score >= threshold else "NORMAL"
     return DemoResult(
-        reconstructed=components.reconstructed,
-        absolute_error=components.absolute_error,
+        reconstructed=score.reconstructed,
+        absolute_error=score.absolute_error,
         mae=mae,
         anomaly_score=anomaly_score,
         threshold=threshold,
@@ -97,7 +95,7 @@ def create_figure(
     lower = min(values) - 0.25 * span
     upper = max(values) + 0.25 * span
     score_axis.set_xlim(lower, upper)
-    score_axis.set_xlabel("Escala de puntuación calibrada")
+    score_axis.set_xlabel("Error de reconstrucción (MAE)")
     score_axis.axvline(
         result.threshold,
         color="tab:orange",
@@ -187,6 +185,11 @@ def main() -> int:
     if checkpoint.get("architecture") != ARCHITECTURE_VERSION:
         raise ValueError(
             "El checkpoint no pertenece a la arquitectura 1024×1024 actual. "
+            "Vuelve a entrenar con python -m tfm_ae.train."
+        )
+    if checkpoint.get("score") != SCORE_NAME:
+        raise ValueError(
+            "El checkpoint usa una puntuación anterior. "
             "Vuelve a entrenar con python -m tfm_ae.train."
         )
     model = ConvAutoencoder()

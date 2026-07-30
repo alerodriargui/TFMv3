@@ -17,13 +17,9 @@ from torch.utils.data import DataLoader
 
 from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
-from .metrics import auroc, best_balanced_threshold, evaluate
+from .metrics import evaluate
 from .models import ARCHITECTURE_VERSION, ConvAutoencoder
-from .scoring import (
-    anomaly_components,
-    apply_calibration,
-    center_border_difference,
-)
+from .scoring import SCORE_NAME, reconstruction_score
 
 
 @dataclass(frozen=True)
@@ -34,6 +30,7 @@ class ExperimentConfig:
     batch_size: int = 2
     image_size: int = 1024
     learning_rate: float = 1e-3
+    threshold_quantile: float = 0.95
     seed: int = 42
     max_train_images: int | None = None
     max_eval_images_per_class: int | None = None
@@ -75,6 +72,7 @@ def _checkpoint_payload(
         "model_name": "ae",
         "architecture": ARCHITECTURE_VERSION,
         "image_size": image_size,
+        "score": SCORE_NAME,
         "model_state": model_state,
         **metadata,
     }
@@ -101,15 +99,15 @@ def _normal_validation_loss(
     count = 0
     for images, _labels, _paths in loader:
         images = images.to(device)
-        components = anomaly_components(model, images)
-        total += float(components.reconstruction_mae.sum())
+        score = reconstruction_score(model, images)
+        total += float(score.reconstruction_mae.sum())
         count += len(images)
     return total / max(count, 1)
 
 
 def train(
     config: ExperimentConfig, device: torch.device
-) -> tuple[ConvAutoencoder, list[dict], int, np.ndarray]:
+) -> tuple[ConvAutoencoder, list[dict], int]:
     train_set = RadiographDataset.normal_only(
         split_dir(config.data_root, "train"),
         config.image_size,
@@ -129,8 +127,6 @@ def train(
     best_value = float("inf")
     history: list[dict] = []
     best_state: dict | None = None
-    train_center: list[np.ndarray] = []
-
     for epoch in range(1, config.epochs + 1):
         model.train()
         started = time.perf_counter()
@@ -138,10 +134,6 @@ def train(
         seen = 0
         for images, _labels, _paths in train_loader:
             images = images.to(device)
-            if epoch == 1:
-                train_center.append(
-                    center_border_difference(images).detach().cpu().numpy()
-                )
             loss = _train_batch(model, images, optimizer)
             total_loss += loss * len(images)
             seen += len(images)
@@ -179,12 +171,7 @@ def train(
         ),
         config.output_dir / "model.pt",
     )
-    return (
-        model,
-        history,
-        int(best_state["epoch"]),
-        np.concatenate(train_center),
-    )
+    return model, history, int(best_state["epoch"])
 
 
 @torch.no_grad()
@@ -196,26 +183,23 @@ def score_dataset(
 ) -> tuple[
     np.ndarray,
     np.ndarray,
-    np.ndarray,
     list[str],
     tuple[torch.Tensor, torch.Tensor],
 ]:
     model.eval()
     reconstruction_values: list[np.ndarray] = []
-    center_values: list[np.ndarray] = []
     labels: list[np.ndarray] = []
     paths: list[str] = []
     samples: tuple[torch.Tensor, torch.Tensor] | None = None
     loader = _loader(dataset, batch_size, False)
     for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
         device_images = images.to(device)
-        components = anomaly_components(model, device_images)
-        reconstruction_values.append(components.reconstruction_mae.cpu().numpy())
-        center_values.append(components.center_border.cpu().numpy())
+        score = reconstruction_score(model, device_images)
+        reconstruction_values.append(score.reconstruction_mae.cpu().numpy())
         labels.append(batch_labels.numpy())
         paths.extend(batch_paths)
         if samples is None:
-            samples = (images[:8], components.reconstructed.cpu()[:8])
+            samples = (images[:8], score.reconstructed.cpu()[:8])
         if batch_index % 50 == 0 or batch_index == len(loader):
             print(
                 f"score progress={batch_index}/{len(loader)} "
@@ -226,41 +210,8 @@ def score_dataset(
     return (
         np.concatenate(labels),
         np.concatenate(reconstruction_values),
-        np.concatenate(center_values),
         paths,
         samples,
-    )
-
-
-def calibrate_ae_scores(
-    train_center: np.ndarray,
-    val_labels: np.ndarray,
-    raw_val_scores: np.ndarray,
-    raw_test_scores: np.ndarray,
-    val_center: np.ndarray,
-    test_center: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, dict]:
-    """Combine calibrated reconstruction and center-border scores equally."""
-    ae_sign = -1.0 if auroc(val_labels, raw_val_scores) < 0.5 else 1.0
-    center_sign = -1.0 if auroc(val_labels, val_center) < 0.5 else 1.0
-    normal_ae = (raw_val_scores * ae_sign)[val_labels == 0]
-    ae_location = float(normal_ae.mean())
-    ae_scale = max(float(normal_ae.std()), 1e-8)
-    center_location = float((train_center * center_sign).mean())
-    center_scale = max(float(train_center.std()), 1e-8)
-    calibration = {
-        "score": "0.5 * calibrated_MAE + 0.5 * calibrated_center_border",
-        "ae_sign": ae_sign,
-        "ae_location": ae_location,
-        "ae_scale": ae_scale,
-        "center_sign": center_sign,
-        "center_location": center_location,
-        "center_scale": center_scale,
-    }
-    return (
-        apply_calibration(raw_val_scores, val_center, calibration),
-        apply_calibration(raw_test_scores, test_center, calibration),
-        calibration,
     )
 
 
@@ -293,11 +244,19 @@ def _save_reconstructions(
 def run(config: ExperimentConfig) -> dict:
     if config.image_size < 64 or config.image_size % 64:
         raise ValueError("--image-size debe ser múltiplo de 64 y al menos 64")
+    if not 0.0 < config.threshold_quantile < 1.0:
+        raise ValueError("--threshold-quantile debe estar entre 0 y 1")
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
-    model, history, selected_epoch, train_center = train(config, device)
+    model, history, selected_epoch = train(config, device)
 
+    normal_validation = RadiographDataset.normal_only(
+        split_dir(config.data_root, "val"),
+        config.image_size,
+        None,
+        config.seed,
+    )
     validation = RadiographDataset.labeled(
         split_dir(config.data_root, "val"),
         config.image_size,
@@ -310,21 +269,16 @@ def run(config: ExperimentConfig) -> dict:
         config.max_eval_images_per_class,
         config.seed,
     )
-    val_labels, val_scores, val_center, val_paths, samples = score_dataset(
+    _normal_labels, normal_scores, _normal_paths, _normal_samples = score_dataset(
+        model, normal_validation, config.batch_size, device
+    )
+    threshold = float(np.quantile(normal_scores, config.threshold_quantile))
+    val_labels, val_scores, val_paths, samples = score_dataset(
         model, validation, config.batch_size, device
     )
-    test_labels, test_scores, test_center, test_paths, _ = score_dataset(
+    test_labels, test_scores, test_paths, _ = score_dataset(
         model, test, config.batch_size, device
     )
-    val_scores, test_scores, calibration = calibrate_ae_scores(
-        train_center,
-        val_labels,
-        val_scores,
-        test_scores,
-        val_center,
-        test_center,
-    )
-    threshold, _ = best_balanced_threshold(val_labels, val_scores)
     validation_metrics = evaluate(val_labels, val_scores, threshold)
     test_metrics = evaluate(test_labels, test_scores, threshold)
 
@@ -346,13 +300,15 @@ def run(config: ExperimentConfig) -> dict:
         "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
         "history": history,
         "selected_epoch": selected_epoch,
-        "calibration": calibration,
+        "score": SCORE_NAME,
+        "threshold_method": "normal_validation_quantile",
         "validation": validation_metrics,
         "test": test_metrics,
         "elapsed_seconds": time.perf_counter() - started,
         "scientific_run": (
             config.epochs >= 3
             and config.image_size == 1024
+            and config.threshold_quantile == 0.95
             and config.max_train_images is None
             and config.max_eval_images_per_class is None
         ),
@@ -366,7 +322,8 @@ def run(config: ExperimentConfig) -> dict:
                 _cpu_state_dict(model),
                 config.image_size,
                 threshold=float(threshold),
-                calibration=calibration,
+                threshold_method="normal_validation_quantile",
+                threshold_quantile=config.threshold_quantile,
                 validation_auroc=float(validation_metrics["auroc"]),
                 test_auroc=float(test_metrics["auroc"]),
             ),

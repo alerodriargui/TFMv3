@@ -12,23 +12,19 @@ pregunta.
 
 El objetivo es detectar radiografías que se apartan de la distribución normal.
 Se entrena un autoencoder convolucional exclusivamente con 8.000 radiografías
-normales. Aprende a comprimirlas y reconstruirlas. En inferencia se calculan:
+normales. Aprende a comprimirlas y reconstruirlas. En inferencia se usa como
+puntuación el error absoluto medio entre imagen y reconstrucción.
 
-1. el error absoluto medio entre imagen y reconstrucción;
-2. la diferencia de intensidad media entre centro y borde.
-
-Ambas señales se orientan, tipifican y promedian. Con las etiquetas de
-validación se fija su dirección y el umbral que maximiza la exactitud
-balanceada. Después, modelo, calibración y umbral se congelan para test.
+El umbral se fija como el percentil 95 del error sobre las radiografías normales
+de validación. Después, modelo y umbral se congelan para test.
 
 La descripción metodológica exacta es:
 
-> **Aprendizaje de la representación no supervisado con normales y calibración
-> supervisada de la decisión.**
+> **Detección no supervisada de anomalías mediante error de reconstrucción.**
 
-No digas que todo el sistema es completamente no supervisado: las etiquetas
-de validación intervienen en el signo de las señales y el umbral, aunque nunca
-entrenan los pesos del autoencoder.
+Las etiquetas de validación y test solo se usan para informar AUROC, sensibilidad,
+especificidad y balanced accuracy. No intervienen en los pesos, la puntuación ni
+el umbral.
 
 ## 2. Recorrido completo de una imagen
 
@@ -40,7 +36,7 @@ entrenan los pesos del autoencoder.
 6. El encoder reduce la resolución seis veces.
 7. El decoder recupera la resolución original.
 8. En entrenamiento, se calcula L1 y se propaga el gradiente.
-9. En evaluación, se calcula la puntuación combinada.
+9. En evaluación, el MAE de reconstrucción es la puntuación.
 10. Se declara anómala si `puntuación >= umbral`.
 
 ## 3. Arquitectura capa por capa
@@ -194,8 +190,9 @@ distintas aún pueden causar pequeñas diferencias.
 
 | Split | Normales | Anómalas | Uso |
 |---|---:|---:|---|
-| Train | 8.000 | 0 | Pesos y referencia centro–borde |
-| Validación | 70 | 1.420 | Época, signos y umbral |
+| Train | 8.000 | 0 | Ajuste de los pesos |
+| Validación normal | 70 | 0 | Época y umbral no supervisado |
+| Validación etiquetada | 70 | 1.420 | Métricas |
 | Test | 781 | 16.413 | Evaluación final congelada |
 
 Se entrena solo con normales porque es detección one-class: no requiere conocer
@@ -215,17 +212,18 @@ se puede afirmar que mejore la detección hasta completar la comparación.
 
 ### ¿Hay fuga de datos?
 
-El pipeline final no modifica nada después de entrar en test. Sin embargo:
+El pipeline final no modifica nada después de entrar en test:
 
-- validación sirve tanto para escoger época como para calibrar;
-- los signos usan etiquetas de validación;
+- las normales de validación sirven para escoger época y fijar el umbral;
+- las anomalías de validación solo sirven para informar métricas;
+- ninguna etiqueta ajusta los pesos, la puntuación o el umbral;
 - según la memoria histórica, durante el desarrollo se consultó test.
 
 Por ello no es validación clínica independiente. La prueba rigurosa sería
 congelar todo y evaluar una sola vez en un dataset externo, preferiblemente de
 otro centro.
 
-## 6. Puntuación y calibración
+## 6. Puntuación y umbral
 
 ### MAE de reconstrucción
 
@@ -236,47 +234,21 @@ r(x) = media(|x̂ - x|)
 Condensa el mapa a un escalar. Una lesión pequeña puede diluirse entre más de
 un millón de píxeles. El mapa visual marca discrepancia, no una lesión.
 
-### Centro menos borde
-
-El centro es la mitad central en cada eje (512×512). El borde es todo lo que
-queda fuera de la región interior obtenida al retirar un octavo por cada lado:
-
-```text
-c(x) = media(centro) - media(borde exterior)
-```
-
-Puede capturar contraste o encuadre. Ayudar al benchmark no demuestra que mida
-patología; también puede revelar sesgo de adquisición.
-
-### Orientación
-
-Se calcula el AUROC de cada señal en validación. Si es menor que 0,5, se
-multiplica por −1 para que «más» signifique «más anómala». Esto usa etiquetas
-y muestra que el error de reconstrucción no siempre sigue la intuición clásica.
-
-### Tipificación y combinación
-
-```text
-z = (valor_orientado - media_referencia) / desviación_referencia
-s(x) = 0,5·z(MAE) + 0,5·z(centro-borde)
-```
-
-Tipificar evita que domine la señal con escala numérica mayor. En el código,
-MAE usa las normales de validación como referencia; centro–borde usa las
-normales de train. Los signos usan todas las etiquetas de validación.
-
-Los pesos 0,5/0,5 evitan ajustar otro hiperparámetro. No son necesariamente
-óptimos. Una ablación debería comparar cada componente solo y varios pesos.
+No se orienta, tipifica ni combina con ninguna señal auxiliar: cuanto mayor es
+el MAE, mayor es la puntuación de anomalía. Esta regla queda fijada antes de
+consultar las etiquetas.
 
 ### Umbral
 
-Se elige en validación el valor que maximiza:
+Se calcula exclusivamente con errores de radiografías normales de validación:
 
 ```text
-balanced accuracy = (sensibilidad + especificidad) / 2
+umbral = percentil 95 { r(x) : x es normal de validación }
 ```
 
-En empate se favorece la especificidad. Ese umbral se congela para test.
+Esto fija aproximadamente un 5 % de falsos positivos sobre esas normales, sin
+necesitar ejemplos anómalos. Ese umbral se congela para la validación etiquetada,
+el test y la demo.
 
 ## 7. Métricas imprescindibles
 
@@ -347,15 +319,11 @@ Solo las métricas pueden validar la hipótesis.
 Puede ser más homogénea, tener menos textura o parecerse a una salida suavizada
 del decoder. El error no mide patología directamente.
 
-### «¿Centro–borde detecta neumonía?»
-
-No necesariamente. Mide intensidad global y puede capturar adquisición,
-contraste o encuadre. Es interpretable y, a la vez, un posible sesgo.
-
 ### «¿Por qué usas anomalías en validación si dices no supervisado?»
 
-Los pesos solo ven normales; las anomalías de validación calibran la decisión.
-Por eso digo aprendizaje no supervisado con calibración supervisada.
+No se usan para aprender ni decidir. Solo permiten medir a posteriori AUROC,
+sensibilidad y balanced accuracy. La puntuación y el umbral se obtienen
+únicamente a partir de normales.
 
 ### «¿Qué pasa en otro hospital?»
 
@@ -370,7 +338,7 @@ clasifica patologías y carece de validación clínica.
 ### «¿Qué mejorarías primero?»
 
 Ejecutar y auditar la campaña 1024. Después, ablaciones de resolución, L1/L2,
-componentes de puntuación y capacidad. Finalmente, validación externa,
+percentil del umbral y capacidad. Finalmente, validación externa,
 intervalos de confianza y análisis por subgrupos.
 
 ## 10. Frases peligrosas
@@ -379,7 +347,7 @@ intervalos de confianza y análisis por subgrupos.
 |---|---|
 | «Adam es el mejor» | «Es práctico; no se ha demostrado óptimo aquí» |
 | «1024 mejora» | «Conserva detalle; falta medir la mejora» |
-| «Es totalmente no supervisado» | «Los pesos sí; la calibración usa etiquetas» |
+| «Las etiquetas optimizan el modelo» | «Solo se usan para calcular métricas» |
 | «El mapa localiza la lesión» | «Localiza discrepancia de reconstrucción» |
 | «0,7608 es del modelo actual» | «Es del legado 64×64» |
 | «Tres épocas bastan» | «Es el presupuesto; hay que mirar las curvas» |
@@ -392,9 +360,9 @@ intervalos de confianza y análisis por subgrupos.
 |---|---|
 | `tfm_ae/data.py` | ¿Cómo entran y se transforman los datos? |
 | `tfm_ae/models.py` | ¿Qué capas hay? |
-| `tfm_ae/experiment.py` | ¿Cómo se entrena, calibra y evalúa? |
+| `tfm_ae/experiment.py` | ¿Cómo se entrena y evalúa? |
 | `tfm_ae/scoring.py` | ¿Cómo se obtiene la puntuación? |
-| `tfm_ae/metrics.py` | ¿Cómo se calculan umbral y métricas? |
+| `tfm_ae/metrics.py` | ¿Cómo se calculan las métricas? |
 | `tfm_ae/train.py` | ¿Qué configuración usa la campaña? |
 | `tfm_ae/demo.py` | ¿Cómo se aplica el checkpoint? |
 
@@ -415,8 +383,9 @@ z: 128×16×16
 x̂: 1×1024×1024
 
 L = media |x - x̂|
-s = 0,5·z(MAE) + 0,5·z(centro-borde)
-anómala ⇔ s ≥ umbral de validación
+s = media |x - x̂|
+umbral = percentil 95 del MAE normal de validación
+anómala ⇔ s ≥ umbral
 ```
 
 Plan de seis sesiones:
