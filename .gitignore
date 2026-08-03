@@ -9,6 +9,7 @@ checkpoints/*
 !checkpoints/modelo_autoencoder.pt
 !checkpoints/README.md
 .tools/
+.codex_tmp/
 *.aux
 *.bbl
 *.bcf
