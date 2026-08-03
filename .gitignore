@@ -10,6 +10,7 @@ checkpoints/*
 !checkpoints/README.md
 .tools/
 .codex_tmp/
+data/
 *.aux
 *.bbl
 *.bcf
