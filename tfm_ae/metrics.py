@@ -62,6 +62,45 @@ def auroc(y_true: np.ndarray, scores: np.ndarray) -> float:
     return (rank_sum - n_positive * (n_positive + 1) / 2) / (n_positive * n_negative)
 
 
+def best_balanced_threshold(
+    y_true: np.ndarray, scores: np.ndarray
+) -> tuple[float, float]:
+    """Find the validation threshold in O(n log n), preferring specificity."""
+    order = np.argsort(-scores, kind="mergesort")
+    labels = y_true[order]
+    sorted_scores = scores[order]
+    positives = int(np.sum(labels == 1))
+    negatives = len(labels) - positives
+    if not positives or not negatives:
+        raise ValueError("La seleccion de umbral requiere ambas clases")
+
+    tp = fp = 0
+    best_score = -1.0
+    best_specificity = -1.0
+    best_threshold = float(np.nextafter(sorted_scores[0], np.inf))
+    index = 0
+    while index < len(labels):
+        value = sorted_scores[index]
+        end = index
+        while end < len(labels) and sorted_scores[end] == value:
+            if labels[end] == 1:
+                tp += 1
+            else:
+                fp += 1
+            end += 1
+        sensitivity = tp / positives
+        specificity = (negatives - fp) / negatives
+        balanced = (sensitivity + specificity) / 2
+        if balanced > best_score or (
+            balanced == best_score and specificity > best_specificity
+        ):
+            best_score = balanced
+            best_specificity = specificity
+            best_threshold = float(value)
+        index = end
+    return best_threshold, best_score
+
+
 def evaluate(y_true: np.ndarray, scores: np.ndarray, threshold: float) -> dict:
     result = threshold_metrics(confusion(y_true, scores, threshold))
     result.update(
