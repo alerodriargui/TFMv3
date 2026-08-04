@@ -11,7 +11,8 @@ from pathlib import Path
 from . import PROJECT_ROOT
 from .data import resolve_data_root
 from .experiment import ExperimentConfig, run
-from .scoring import DEFAULT_ERROR_QUANTILE, SCORE_NAME
+from .losses import DEFAULT_SSIM_WEIGHT
+from .scoring import DEFAULT_ERROR_QUANTILE, DEFAULT_MAHALANOBIS_RIDGE, SCORE_NAME
 
 
 def summarize(output_root: Path, report_path: Path) -> None:
@@ -68,6 +69,29 @@ def main() -> int:
         help="Percentil del error por píxel usado como score de anomalía (por defecto: 0.99)",
     )
     parser.add_argument(
+        "--ssim-weight",
+        type=float,
+        default=DEFAULT_SSIM_WEIGHT,
+        help="Peso de la pérdida SSIM junto a L1 (por defecto: 0.5)",
+    )
+    parser.add_argument(
+        "--denoise-noise",
+        type=float,
+        default=0.05,
+        help="Desviación del ruido gaussiano añadido al entrenar (0 desactiva; por defecto: 0.05)",
+    )
+    parser.add_argument(
+        "--no-latent-score",
+        action="store_true",
+        help="Desactiva la puntuación Mahalanobis en el espacio latente del encoder",
+    )
+    parser.add_argument(
+        "--mahalanobis-ridge",
+        type=float,
+        default=DEFAULT_MAHALANOBIS_RIDGE,
+        help="Regularización de la covarianza latente (por defecto: 1e-3)",
+    )
+    parser.add_argument(
         "--flip-score",
         action="store_true",
         help="Invierte el signo del score si el AUROC de validación sale < 0.5",
@@ -96,6 +120,14 @@ def main() -> int:
                 == args.threshold_quantile
                 and previous.get("config", {}).get("error_quantile")
                 == args.error_quantile
+                and previous.get("config", {}).get("ssim_weight")
+                == args.ssim_weight
+                and previous.get("config", {}).get("denoise_noise")
+                == args.denoise_noise
+                and previous.get("config", {}).get("latent_score")
+                == (not args.no_latent_score)
+                and previous.get("config", {}).get("mahalanobis_ridge")
+                == args.mahalanobis_ridge
             ):
                 print(f"SKIP AE seed={seed}: ya está completo")
                 continue
@@ -108,6 +140,10 @@ def main() -> int:
             learning_rate=args.learning_rate,
             threshold_quantile=args.threshold_quantile,
             error_quantile=args.error_quantile,
+            ssim_weight=args.ssim_weight,
+            denoise_noise=args.denoise_noise,
+            latent_score=not args.no_latent_score,
+            mahalanobis_ridge=args.mahalanobis_ridge,
             flip_score=args.flip_score,
             num_workers=args.num_workers,
             seed=seed,

@@ -11,7 +11,13 @@ import torch
 from . import PROJECT_ROOT
 from .data import load_radiograph
 from .models import ARCHITECTURE_VERSION, ConvAutoencoder
-from .scoring import SCORE_NAME, reconstruction_score
+from .scoring import (
+    SCORE_NAME,
+    combine_components,
+    latent_vectors,
+    mahalanobis,
+    reconstruction_score,
+)
 
 
 @dataclass(frozen=True)
@@ -36,7 +42,20 @@ def evaluate_image(
         )
 
     mae = float(score.reconstruction_mae.item())
-    anomaly_score = float(score.anomaly_score.item())
+    recon_score = float(score.anomaly_score.item())
+    calibration = checkpoint.get("calibration")
+    latent_mean = checkpoint.get("latent_mean")
+    latent_inv_cov = checkpoint.get("latent_inv_cov")
+    if calibration and latent_mean is not None and latent_inv_cov is not None:
+        vectors = latent_vectors(model, image)
+        latent_score = float(
+            mahalanobis(vectors, latent_mean, latent_inv_cov).item()
+        )
+        anomaly_score = float(
+            combine_components(recon_score, latent_score, calibration)
+        )
+    else:
+        anomaly_score = recon_score
     threshold = float(checkpoint["threshold"])
     label = "ANÓMALA" if anomaly_score >= threshold else "NORMAL"
     return DemoResult(

@@ -74,18 +74,27 @@ reconstrucción
 ```
 
 Los seis bloques de bajada comprimen espacialmente 1024→16. La arquitectura
-tiene 682.425 parámetros. Los pesos se ajustan exclusivamente con las 8.000
-radiografías normales. La puntuación de anomalía es directamente el error
-absoluto medio de reconstrucción:
+tiene BatchNorm en todos los bloques y unos 700 mil parámetros. Los pesos se
+ajustan exclusivamente con las 8.000 radiografías normales. La pérdida combina
+L1 con SSIM (`--ssim-weight 0.5`) para reconstrucciones nítidas, y el
+entrenamiento añade ruido gaussiano a la entrada (`--denoise-noise 0.05`) para
+aprender la variedad normal en vez de copiar píxeles.
+
+La puntuación de anomalía combina dos señales, ambas sin etiquetas:
 
 ```text
-score(x) = media(|x - AE(x)|)
+score(x) = 0.5 * z(percentil99(|x - AE(x)|)) + 0.5 * z(distancia de Mahalanobis)
 ```
 
-El umbral es el percentil 95 de ese error en las radiografías normales de
-validación. Las etiquetas de anomalía solo se usan después para calcular
-métricas; no intervienen en los pesos, la puntuación ni el umbral. El test se
-evalúa con modelo y umbral congelados.
+El primer término es un percentil alto del error de reconstrucción por píxel,
+que concentra anomalías localizadas. El segundo usa el encoder como extractor:
+los descriptores latentes (media y máximo del cuello de botella) de las
+imágenes normales de entrenamiento fijan un gaussiano, y cada imagen se puntúa
+por su distancia de Mahalanobis a ese centro. El umbral es el percentil 95 de
+la puntuación combinada en las normales de validación. Las etiquetas de
+anomalía solo se usan después para calcular métricas; no intervienen en los
+pesos, la puntuación ni el umbral. El test se evalúa con modelo, calibración y
+umbral congelados.
 
 ## Ejecución
 
@@ -121,13 +130,12 @@ train.py
 El AE usa diez épocas, batch 4, Adam con tasa `1e-3` y decadencia
 coseno hasta `1e-4`. Se entrena con precisión mixta (AMP) cuando hay CUDA y con
 dos procesos de carga de datos; el lote es pequeño porque las imágenes
-1024×1024 consumen mucha memoria. La puntuación de anomalía es el percentil 99
-del error absoluto por píxel: concentra anomalías localizadas que la media de
-todo el píxel diluiría. Se recomienda una GPU. Si aparece un error de memoria,
-puede ejecutarse con `--batch-size 2`. El percentil normal del umbral puede
-cambiarse con `--threshold-quantile` (valor reproducible por defecto: `0.95`).
-Si el AUROC de validación sale por debajo de 0.5, el score está invertido y
-puede re-ejecutarse con `--flip-score` sin cambiar código.
+1024×1024 consumen mucha memoria. Se recomienda una GPU. Si aparece un error de
+memoria, puede ejecutarse con `--batch-size 2`. El percentil normal del umbral
+puede cambiarse con `--threshold-quantile` (valor reproducible por defecto:
+`0.95`). El score latente puede desactivarse con `--no-latent-score`, y si el
+AUROC de validación sale por debajo de 0.5, el score está invertido y puede
+re-ejecutarse con `--flip-score` sin cambiar código.
 
 ### Ejecución en Google Colab con GPU
 
