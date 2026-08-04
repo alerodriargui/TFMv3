@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import json
 import random
@@ -19,18 +20,21 @@ from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
 from .metrics import evaluate
 from .models import ARCHITECTURE_VERSION, ConvAutoencoder
-from .scoring import SCORE_NAME, reconstruction_score
+from .scoring import DEFAULT_ERROR_QUANTILE, SCORE_NAME, reconstruction_score
 
 
 @dataclass(frozen=True)
 class ExperimentConfig:
     data_root: Path
     output_dir: Path
-    epochs: int = 3
-    batch_size: int = 2
+    epochs: int = 10
+    batch_size: int = 4
     image_size: int = 1024
     learning_rate: float = 1e-3
     threshold_quantile: float = 0.95
+    error_quantile: float = DEFAULT_ERROR_QUANTILE
+    flip_score: bool = False
+    num_workers: int = 2
     seed: int = 42
     max_train_images: int | None = None
     max_eval_images_per_class: int | None = None
@@ -42,16 +46,27 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.benchmark = True
 
 
-def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataLoader:
+def _autocast(device: torch.device) -> contextlib.AbstractContextManager:
+    if device.type == "cuda":
+        return torch.autocast(device_type="cuda", dtype=torch.float16)
+    return contextlib.nullcontext()
+
+
+def _loader(
+    dataset: RadiographDataset,
+    batch_size: int,
+    shuffle: bool,
+    num_workers: int,
+) -> DataLoader:
     return DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
-        num_workers=0,
+        num_workers=num_workers,
+        persistent_workers=num_workers > 0,
         pin_memory=torch.cuda.is_available(),
     )
 
@@ -82,25 +97,38 @@ def _train_batch(
     model: ConvAutoencoder,
     images: torch.Tensor,
     optimizer: torch.optim.Optimizer,
+    scaler: torch.amp.GradScaler | None,
+    autocast: contextlib.AbstractContextManager,
 ) -> float:
     optimizer.zero_grad(set_to_none=True)
-    loss = F.l1_loss(model(images), images)
-    loss.backward()
-    optimizer.step()
+    with autocast:
+        loss = F.l1_loss(model(images), images)
+    if scaler is not None:
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+    else:
+        loss.backward()
+        optimizer.step()
     return float(loss.detach())
 
 
-@torch.no_grad()
+@torch.inference_mode()
 def _normal_validation_loss(
-    model: ConvAutoencoder, loader: DataLoader, device: torch.device
+    model: ConvAutoencoder,
+    loader: DataLoader,
+    device: torch.device,
+    error_quantile: float,
+    autocast: contextlib.AbstractContextManager,
 ) -> float:
     model.eval()
     total = 0.0
     count = 0
     for images, _labels, _paths in loader:
         images = images.to(device)
-        score = reconstruction_score(model, images)
-        total += float(score.reconstruction_mae.sum())
+        with autocast:
+            score = reconstruction_score(model, images, error_quantile)
+        total += float(score.reconstruction_mae.float().sum())
         count += len(images)
     return total / max(count, 1)
 
@@ -120,10 +148,17 @@ def train(
         None,
         config.seed,
     )
-    train_loader = _loader(train_set, config.batch_size, True)
-    validation_loader = _loader(validation_set, config.batch_size, False)
+    train_loader = _loader(train_set, config.batch_size, True, config.num_workers)
+    validation_loader = _loader(
+        validation_set, config.batch_size, False, config.num_workers
+    )
     model = ConvAutoencoder().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=config.epochs, eta_min=config.learning_rate / 10
+    )
+    scaler = torch.cuda.amp.GradScaler(enabled=device.type == "cuda")
+    autocast = _autocast(device)
     best_value = float("inf")
     history: list[dict] = []
     best_state: dict | None = None
@@ -134,15 +169,19 @@ def train(
         seen = 0
         for images, _labels, _paths in train_loader:
             images = images.to(device)
-            loss = _train_batch(model, images, optimizer)
+            loss = _train_batch(model, images, optimizer, scaler, autocast)
             total_loss += loss * len(images)
             seen += len(images)
 
-        validation_value = _normal_validation_loss(model, validation_loader, device)
+        scheduler.step()
+        validation_value = _normal_validation_loss(
+            model, validation_loader, device, config.error_quantile, autocast
+        )
         record = {
             "epoch": epoch,
             "train_loss": total_loss / seen,
             "validation_value": validation_value,
+            "learning_rate": scheduler.get_last_lr()[0],
             "seconds": time.perf_counter() - started,
         }
         history.append(record)
@@ -168,18 +207,23 @@ def train(
             best_state["model"],
             config.image_size,
             selected_epoch=best_state["epoch"],
+            error_quantile=config.error_quantile,
         ),
         config.output_dir / "model.pt",
     )
     return model, history, int(best_state["epoch"])
 
 
-@torch.no_grad()
+@torch.inference_mode()
 def score_dataset(
     model: ConvAutoencoder,
     dataset: RadiographDataset,
     batch_size: int,
     device: torch.device,
+    error_quantile: float,
+    flip_score: bool,
+    num_workers: int,
+    autocast: contextlib.AbstractContextManager,
 ) -> tuple[
     np.ndarray,
     np.ndarray,
@@ -191,15 +235,19 @@ def score_dataset(
     labels: list[np.ndarray] = []
     paths: list[str] = []
     samples: tuple[torch.Tensor, torch.Tensor] | None = None
-    loader = _loader(dataset, batch_size, False)
+    loader = _loader(dataset, batch_size, False, num_workers)
     for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
         device_images = images.to(device)
-        score = reconstruction_score(model, device_images)
-        reconstruction_values.append(score.reconstruction_mae.cpu().numpy())
+        with autocast:
+            score = reconstruction_score(model, device_images, error_quantile)
+        values = score.anomaly_score.float().cpu().numpy()
+        if flip_score:
+            values = -values
+        reconstruction_values.append(values)
         labels.append(batch_labels.numpy())
         paths.extend(batch_paths)
         if samples is None:
-            samples = (images[:8], score.reconstructed.cpu()[:8])
+            samples = (images[:8], score.reconstructed.float().cpu()[:8])
         if batch_index % 50 == 0 or batch_index == len(loader):
             print(
                 f"score progress={batch_index}/{len(loader)} "
@@ -246,8 +294,13 @@ def run(config: ExperimentConfig) -> dict:
         raise ValueError("--image-size debe ser múltiplo de 64 y al menos 64")
     if not 0.0 < config.threshold_quantile < 1.0:
         raise ValueError("--threshold-quantile debe estar entre 0 y 1")
+    if not 0.0 < config.error_quantile < 1.0:
+        raise ValueError("--error-quantile debe estar entre 0 y 1")
+    if config.num_workers < 0:
+        raise ValueError("--num-workers no puede ser negativo")
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    autocast = _autocast(device)
     started = time.perf_counter()
     model, history, selected_epoch = train(config, device)
 
@@ -270,14 +323,35 @@ def run(config: ExperimentConfig) -> dict:
         config.seed,
     )
     _normal_labels, normal_scores, _normal_paths, _normal_samples = score_dataset(
-        model, normal_validation, config.batch_size, device
+        model,
+        normal_validation,
+        config.batch_size,
+        device,
+        config.error_quantile,
+        config.flip_score,
+        config.num_workers,
+        autocast,
     )
     threshold = float(np.quantile(normal_scores, config.threshold_quantile))
     val_labels, val_scores, val_paths, samples = score_dataset(
-        model, validation, config.batch_size, device
+        model,
+        validation,
+        config.batch_size,
+        device,
+        config.error_quantile,
+        config.flip_score,
+        config.num_workers,
+        autocast,
     )
     test_labels, test_scores, test_paths, _ = score_dataset(
-        model, test, config.batch_size, device
+        model,
+        test,
+        config.batch_size,
+        device,
+        config.error_quantile,
+        config.flip_score,
+        config.num_workers,
+        autocast,
     )
     validation_metrics = evaluate(val_labels, val_scores, threshold)
     test_metrics = evaluate(test_labels, test_scores, threshold)
@@ -309,6 +383,8 @@ def run(config: ExperimentConfig) -> dict:
             config.epochs >= 3
             and config.image_size == 1024
             and config.threshold_quantile == 0.95
+            and config.error_quantile == DEFAULT_ERROR_QUANTILE
+            and not config.flip_score
             and config.max_train_images is None
             and config.max_eval_images_per_class is None
         ),
@@ -324,6 +400,7 @@ def run(config: ExperimentConfig) -> dict:
                 threshold=float(threshold),
                 threshold_method="normal_validation_quantile",
                 threshold_quantile=config.threshold_quantile,
+                error_quantile=config.error_quantile,
                 validation_auroc=float(validation_metrics["auroc"]),
                 test_auroc=float(test_metrics["auroc"]),
             ),

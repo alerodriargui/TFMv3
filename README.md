@@ -118,11 +118,16 @@ train.py
          └── Guarda resultados
 ```
 
-El AE usa tres épocas, batch 2 y Adam con tasa `1e-3`. El batch se reduce
-porque las imágenes 1024×1024 requieren mucha más memoria que las de 64×64.
-Se recomienda una GPU. Si aparece un error de memoria, puede ejecutarse con
-`--batch-size 1`. El percentil normal del umbral puede cambiarse con
-`--threshold-quantile`; el valor reproducible por defecto es `0.95`.
+El AE usa diez épocas, batch 4, Adam con tasa `1e-3` y decadencia
+coseno hasta `1e-4`. Se entrena con precisión mixta (AMP) cuando hay CUDA y con
+dos procesos de carga de datos; el lote es pequeño porque las imágenes
+1024×1024 consumen mucha memoria. La puntuación de anomalía es el percentil 99
+del error absoluto por píxel: concentra anomalías localizadas que la media de
+todo el píxel diluiría. Se recomienda una GPU. Si aparece un error de memoria,
+puede ejecutarse con `--batch-size 2`. El percentil normal del umbral puede
+cambiarse con `--threshold-quantile` (valor reproducible por defecto: `0.95`).
+Si el AUROC de validación sale por debajo de 0.5, el score está invertido y
+puede re-ejecutarse con `--flip-score` sin cambiar código.
 
 ### Ejecución en Google Colab con GPU
 

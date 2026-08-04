@@ -11,7 +11,7 @@ from pathlib import Path
 from . import PROJECT_ROOT
 from .data import resolve_data_root
 from .experiment import ExperimentConfig, run
-from .scoring import SCORE_NAME
+from .scoring import DEFAULT_ERROR_QUANTILE, SCORE_NAME
 
 
 def summarize(output_root: Path, report_path: Path) -> None:
@@ -51,15 +51,32 @@ def main() -> int:
     parser.add_argument(
         "--output-root", type=Path, default=PROJECT_ROOT / "results/experiments"
     )
-    parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--batch-size", type=int, default=2)
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--image-size", type=int, default=1024)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument(
         "--threshold-quantile",
         type=float,
         default=0.95,
-        help="Percentil de MAE normal usado como umbral (por defecto: 0.95)",
+        help="Percentil de score normal usado como umbral (por defecto: 0.95)",
+    )
+    parser.add_argument(
+        "--error-quantile",
+        type=float,
+        default=DEFAULT_ERROR_QUANTILE,
+        help="Percentil del error por píxel usado como score de anomalía (por defecto: 0.99)",
+    )
+    parser.add_argument(
+        "--flip-score",
+        action="store_true",
+        help="Invierte el signo del score si el AUROC de validación sale < 0.5",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=2,
+        help="Procesos de carga de datos (por defecto: 2)",
     )
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
@@ -77,6 +94,8 @@ def main() -> int:
                 and previous.get("score") == SCORE_NAME
                 and previous.get("config", {}).get("threshold_quantile")
                 == args.threshold_quantile
+                and previous.get("config", {}).get("error_quantile")
+                == args.error_quantile
             ):
                 print(f"SKIP AE seed={seed}: ya está completo")
                 continue
@@ -88,6 +107,9 @@ def main() -> int:
             image_size=args.image_size,
             learning_rate=args.learning_rate,
             threshold_quantile=args.threshold_quantile,
+            error_quantile=args.error_quantile,
+            flip_score=args.flip_score,
+            num_workers=args.num_workers,
             seed=seed,
             max_train_images=args.max_train_images,
             max_eval_images_per_class=args.max_eval_images_per_class,

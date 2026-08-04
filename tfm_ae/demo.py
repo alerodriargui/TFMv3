@@ -31,10 +31,12 @@ def evaluate_image(
 ) -> DemoResult:
     """Apply the frozen model and reconstruction threshold to one image."""
     with torch.inference_mode():
-        score = reconstruction_score(model, image)
+        score = reconstruction_score(
+            model, image, float(checkpoint.get("error_quantile", 0.99))
+        )
 
     mae = float(score.reconstruction_mae.item())
-    anomaly_score = mae
+    anomaly_score = float(score.anomaly_score.item())
     threshold = float(checkpoint["threshold"])
     label = "ANÓMALA" if anomaly_score >= threshold else "NORMAL"
     return DemoResult(
