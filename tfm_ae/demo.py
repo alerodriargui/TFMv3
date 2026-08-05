@@ -46,9 +46,10 @@ def evaluate_image(
         mae = float(torch.mean(absolute_error).item())
 
     pixels = image.squeeze(0).squeeze(0)
-    center = float(pixels[16:48, 16:48].mean())
-    border_mask = torch.ones((64, 64), dtype=torch.bool)
-    border_mask[8:56, 8:56] = False
+    size = pixels.shape[-1]
+    center = float(pixels[size // 4 : 3 * size // 4, size // 4 : 3 * size // 4].mean())
+    border_mask = torch.ones((size, size), dtype=torch.bool)
+    border_mask[size // 8 : 7 * size // 8, size // 8 : 7 * size // 8] = False
     center_border = center - float(pixels[border_mask].mean())
     calibration = checkpoint["calibration"]
     ae_score = (

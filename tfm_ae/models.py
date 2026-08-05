@@ -7,7 +7,7 @@ from torch import nn
 
 
 class ConvAutoencoder(nn.Module):
-    """Small autoencoder for 64 × 64 grayscale radiographs."""
+    """Small autoencoder for grayscale radiographs (size multiple of 8)."""
 
     def __init__(self) -> None:
         super().__init__()

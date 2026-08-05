@@ -186,15 +186,26 @@ def score_dataset(
     return np.concatenate(labels), np.concatenate(scores), paths, samples
 
 
+def _center_border_masks(
+    image_size: int,
+) -> tuple[torch.Tensor, slice, slice]:
+    """Máscaras centro (mitad central) y borde (anillo exterior) del tamaño dado."""
+    center = slice(image_size // 4, 3 * image_size // 4)
+    border_mask = torch.ones((image_size, image_size), dtype=torch.bool)
+    border_mask[image_size // 8 : 7 * image_size // 8, image_size // 8 : 7 * image_size // 8] = False
+    return border_mask, center, center
+
+
 @torch.no_grad()
-def center_border_scores(dataset: RadiographDataset, batch_size: int) -> np.ndarray:
+def center_border_scores(
+    dataset: RadiographDataset, batch_size: int, image_size: int
+) -> np.ndarray:
     """Return the mean intensity difference between image center and border."""
     values = []
-    border_mask = torch.ones((64, 64), dtype=torch.bool)
-    border_mask[8:56, 8:56] = False
+    border_mask, center_rows, center_cols = _center_border_masks(image_size)
     for images, _labels, _paths in _loader(dataset, batch_size, False):
         pixels = images.squeeze(1)
-        center = pixels[:, 16:48, 16:48].mean(dim=(1, 2))
+        center = pixels[:, center_rows, center_cols].mean(dim=(1, 2))
         border = pixels[:, border_mask].mean(dim=1)
         values.append((center - border).numpy())
     return np.concatenate(values)
@@ -215,9 +226,9 @@ def calibrate_ae_scores(
         config.max_train_images,
         config.seed,
     )
-    train_center = center_border_scores(train, config.batch_size)
-    val_center = center_border_scores(validation, config.batch_size)
-    test_center = center_border_scores(test, config.batch_size)
+    train_center = center_border_scores(train, config.batch_size, config.image_size)
+    val_center = center_border_scores(validation, config.batch_size, config.image_size)
+    test_center = center_border_scores(test, config.batch_size, config.image_size)
 
     ae_sign = -1.0 if auroc(val_labels, raw_val_scores) < 0.5 else 1.0
     center_sign = -1.0 if auroc(val_labels, val_center) < 0.5 else 1.0
@@ -275,8 +286,8 @@ def _save_reconstructions(
 
 
 def run(config: ExperimentConfig) -> dict:
-    if config.image_size != 64:
-        raise ValueError("El autoencoder requiere --image-size 64")
+    if config.image_size % 8 != 0:
+        raise ValueError("El autoencoder requiere --image-size múltiplo de 8")
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
