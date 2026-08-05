@@ -6,6 +6,7 @@ data/
 *.py[cod]
 results/*
 !results/resultados.csv
+!results/demo_*.png
 checkpoints/*
 !checkpoints/modelo_autoencoder.pt
 .tools/
