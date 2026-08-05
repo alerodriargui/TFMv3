@@ -1,5 +1,7 @@
 __pycache__/
 .ruff_cache/
+data/
+*.zip
 .venv/
 *.py[cod]
 results/*
