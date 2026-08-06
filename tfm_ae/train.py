@@ -16,10 +16,12 @@ from .experiment import ExperimentConfig, run
 def summarize(output_root: Path, report_path: Path) -> None:
     """Write the aggregated AE result."""
     rows = []
+    model = "ae"
     for path in sorted(output_root.glob("ae_seed*/metrics.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
         if not report.get("scientific_run", False):
             continue
+        model = report["config"]["model"]
         rows.append(report["test"])
     if not rows:
         return
@@ -31,7 +33,7 @@ def summarize(output_root: Path, report_path: Path) -> None:
         writer.writeheader()
         writer.writerow(
             {
-                "model": "ae",
+                "model": model,
                 "runs": len(rows),
                 "auroc_mean": statistics.mean(row["auroc"] for row in rows),
                 "balanced_accuracy_mean": statistics.mean(
@@ -50,6 +52,12 @@ def main() -> int:
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--image-size", type=int, default=64)
+    parser.add_argument(
+        "--model",
+        choices=("ae", "unet"),
+        default="ae",
+        help="Arquitectura: ae (autoencoder simple) o unet (U-Net con skips)",
+    )
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
@@ -71,6 +79,7 @@ def main() -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             image_size=args.image_size,
+            model_name=args.model,
             learning_rate=args.learning_rate,
             seed=seed,
             max_train_images=args.max_train_images,

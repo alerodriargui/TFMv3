@@ -11,7 +11,7 @@ import torch
 from PIL import Image
 
 from . import PROJECT_ROOT
-from .models import ConvAutoencoder
+from .models import build_model
 
 
 @dataclass(frozen=True)
@@ -207,7 +207,7 @@ def main() -> int:
             "python -m tfm_ae.train."
         )
     checkpoint = torch.load(args.model, map_location="cpu", weights_only=True)
-    model = ConvAutoencoder()
+    model = build_model(checkpoint.get("model_name", "ae"))
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
     image = load_image(args.image, int(checkpoint["image_size"]))

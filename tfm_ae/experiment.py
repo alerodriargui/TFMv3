@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
 from .metrics import auroc, best_balanced_threshold, evaluate
-from .models import ConvAutoencoder, per_image_scores
+from .models import build_model, per_image_scores
 
 
 @dataclass(frozen=True)
@@ -28,6 +28,7 @@ class ExperimentConfig:
     epochs: int = 3
     batch_size: int = 32
     image_size: int = 64
+    model_name: str = "ae"
     learning_rate: float = 1e-3
     seed: int = 42
     max_train_images: int | None = None
@@ -98,7 +99,7 @@ def train(
     )
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
-    model = ConvAutoencoder().to(device)
+    model = build_model(config.model_name).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     best_value = float("inf")
     history: list[dict] = []
@@ -145,7 +146,7 @@ def train(
     config.output_dir.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
-            "model_name": "ae",
+            "model_name": config.model_name,
             "image_size": config.image_size,
             "model_state": best_state["model"],
             "selected_epoch": best_state["epoch"],
@@ -286,8 +287,11 @@ def _save_reconstructions(
 
 
 def run(config: ExperimentConfig) -> dict:
-    if config.image_size % 8 != 0:
-        raise ValueError("El autoencoder requiere --image-size múltiplo de 8")
+    step = 16 if config.model_name == "unet" else 8
+    if config.image_size % step != 0:
+        raise ValueError(
+            f"El modelo {config.model_name} requiere --image-size múltiplo de {step}"
+        )
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
@@ -333,7 +337,7 @@ def run(config: ExperimentConfig) -> dict:
     report = {
         "config": {
             **asdict(config),
-            "model": "ae",
+            "model": config.model_name,
             "data_root": str(config.data_root),
             "output_dir": str(config.output_dir),
         },
@@ -361,6 +365,7 @@ def run(config: ExperimentConfig) -> dict:
                     key: value.detach().cpu()
                     for key, value in model.state_dict().items()
                 },
+                "model_name": config.model_name,
                 "image_size": config.image_size,
                 "threshold": float(threshold),
                 "calibration": calibration,
