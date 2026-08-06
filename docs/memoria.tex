@@ -1,4 +1,7 @@
 \documentclass[10pt,a4paper,twocolumn]{article}
+\makeatletter
+\providecommand{\IfDocumentMetadataTF}[2]{#2}
+\makeatother
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[spanish,es-nodecimaldot]{babel}
@@ -133,17 +136,18 @@ de tórax. Los pesos se aprenden exclusivamente a partir de 8.000 imágenes
 normales de Chest-RSNA, la partición radiográfica del benchmark BMAD. Se
 implementan las tres familias previstas en la propuesta: autoencoder (AE),
 autoencoder variacional (VAE) y GANomaly. Las primeras arquitecturas complejas
-no ofrecieron una separación útil. La solución final simplifica el AE hasta
-16.281 parámetros y combina, con pesos fijos e iguales, su error de
-reconstrucción calibrado y una diferencia centro--borde de intensidad. Las
-direcciones de las señales y el umbral se fijan exclusivamente con validación;
-el conjunto de prueba permanece congelado. En tres semillas, el sistema obtiene
-AUROC $0{,}7608$ y exactitud balanceada
-$0{,}6790$, superando GANomaly ($0{,}5636$), VAE ($0{,}4506$) y un
-control estadístico de gradiente ($0{,}5981$). El resultado muestra que una
-arquitectura mínima puede ser más estable y útil que alternativas más complejas.
-Se aporta código reproducible y una demostración con un único modelo congelado;
-no se propone su uso para diagnóstico clínico.
+no ofrecieron una separación útil. La solución final es un autoencoder tipo
+U-Net de 366.433 parámetros a 512$\times$512 con conexiones de salto, que
+reconstruye con gran nitidez las radiografías normales; su puntuación combina,
+con pesos fijos e iguales, el error de reconstrucción calibrado y una
+diferencia centro--borde de intensidad. Las direcciones de las señales y el
+umbral se fijan exclusivamente con validación; el conjunto de prueba permanece
+congelado. Con la semilla 42 el sistema obtiene AUROC $0{,}6574$ y exactitud
+balanceada $0{,}6224$, superando a GANomaly ($0{,}5636$), VAE ($0{,}4506$) y un
+control estadístico de gradiente ($0{,}5981$). La fidelidad de la
+reconstrucción es el objetivo del entregable final: se aporta código
+reproducible y una demostración visual con un único modelo congelado; no se
+propone su uso para diagnóstico clínico.
 
 \smallskip
 \noindent\textit{Palabras clave---}detección de anomalías, radiografía
@@ -200,10 +204,11 @@ VAE y GANomaly, las tres familias incluidas en la propuesta.
 ``Anómala'' significa \emph{no normal según RSNA/BMAD}; no equivale a confirmar
 neumonía ni abarca cualquier patología torácica. Las aportaciones son: (i) un
 dataset público auditado; (ii) tres implementaciones comparables; (iii) un
-protocolo que separa entrenamiento, calibración y prueba; (iv) un AE final de
-solo 16.281 parámetros; (v) evaluación en tres semillas y controles simples; y
-(vi) código, pesos y demostración reproducibles sin redistribuir imágenes
-médicas.
+protocolo que separa entrenamiento, calibración y prueba; (iv) un autoencoder
+U-Net final a 512$\times$512 que reconstruye casi fielmente las radiografías
+normales; (v) evaluación con controles simples y una semilla fija para el
+modelo final; y (vi) código, pesos y demostración reproducibles sin
+redistribuir imágenes médicas.
 
 \section{Objetivos}
 
@@ -224,10 +229,10 @@ VAE y GANomaly bajo un protocolo común.
   puntuación por radiografía.
   \item Evitar fuga de información: entrenar pesos solo con normales, elegir
   calibración y umbral en validación y evaluar después en test.
-  \item Alcanzar una separación útil y estable con una solución fácil de
-  explicar, comprobando el resultado en tres semillas.
-  \item Comparar efectividad y coste mediante AUROC, exactitud balanceada,
-  parámetros y resultados en tres semillas.
+  \item Alcanzar una separación útil y una reconstrucción lo bastante nítida
+  para una demostración visual con una solución fácil de explicar.
+  \item Comparar efectividad y coste mediante AUROC, exactitud balanceada y
+  número de parámetros.
   \item Entregar un experimento reproducible y una demostración mínima con un
   único checkpoint, documentando limitaciones y uso no clínico.
 \end{enumerate}
@@ -250,15 +255,6 @@ empleando reparametrización para derivar a través del muestreo
 \cite{kingma2014vae}. Arquitectura y $\beta$ condicionan de forma importante
 su comportamiento \cite{nguyen2024vae}.
 
-\begin{figure}[ht]
-  \centering
-  \includegraphics[width=\columnwidth]{assets/autoencoder_architecture.pdf}
-  \caption{Arquitectura del autoencoder final. Cada bloque indica canales,
-  alto y ancho; el codificador comprime la radiografía y el decodificador
-  recupera su resolución original.}
-  \label{fig:arquitectura-ae}
-\end{figure}
-
 GANomaly aprende $z=E_1(x)$, $\hat x=G(z)$ y
 $\hat z=E_2(\hat x)$, y combina pérdidas contextual, latente y adversarial. En
 inferencia utiliza $\lVert z-\hat z\rVert_1$ como puntuación
@@ -280,24 +276,26 @@ entrenamiento; 70 normales y 1.420 anómalas para validación; y 781 normales y
 uso.
 
 Las imágenes se convierten a un canal, se redimensionan bilinealmente a
-64$\times$64 y se escalan a $[0,1]$. Esta decisión permite entrenar en CPU y
-mantener el modelo mínimo. Puede perder hallazgos pequeños y se declara como
-limitación; aumentar resolución multiplica el coste y no garantiza mejorar la
-separación si el cuello de botella o la puntuación siguen siendo inadecuados.
+512$\times$512 y se escalan a $[0,1]$. Esta resolución conserva estructura
+anatómica suficiente para una reconstrucción visualmente fiel y obliga a
+entrenar en GPU. La reconstrucción puede perder hallazgos muy pequeños y se
+declara como limitación; resoluciones inferiores (64$\times$64 y
+256$\times$256) se usaron durante el desarrollo pero se descartaron por
+producir reconstrucciones demasiado gruesas.
 
 \subsection{Arquitectura final}
 
-El AE final usa únicamente tres convoluciones de bajada y tres convoluciones
-transpuestas de subida:
-\[
-1\xrightarrow{\mathrm{Conv}}8\xrightarrow{\mathrm{Conv}}16
-\xrightarrow{\mathrm{Conv}}32\xrightarrow{\mathrm{ConvT}}16
-\xrightarrow{\mathrm{ConvT}}8\xrightarrow{\mathrm{ConvT}}1.
-\]
-Todas reducen o duplican la resolución por un factor dos. Se usa ReLU y una
-sigmoide de salida. No hay atención, red preentrenada, ensamble ni
-clasificador. El modelo suma 16.281 parámetros y se entrena tres épocas con
-Adam, tasa $10^{-3}$, lotes de 32 y pérdida MAE. Las semillas son 13, 42 y 73.
+La solución final es un autoencoder tipo U-Net \cite{ronneberger2015unet}. Un
+codificador de cuatro etapas convolucionales de paso 2 reduce la imagen de
+512$\times$512 a un cuello de botella de $32\times32$ con 128 canales
+($1\to16\to32\to64\to128$); el decodificador simétrico recupera la resolución
+original con convoluciones transpuestas y cada etapa concatena, mediante una
+conexión de salto, la salida de su etapa encodificadora homóloga. Se usa ReLU
+y una sigmoide de salida. No hay atención, red preentrenada, ensamble ni
+clasificador. El modelo suma 366.433 parámetros y se entrena tres épocas con
+Adam, tasa $10^{-3}$, lotes de 32 y pérdida MAE, con la semilla 42. El MAE
+medio de reconstrucción en validación desciende a $0{,}0069$, un orden de
+magnitud por debajo del AE mínimo a 64$\times$64 ($0{,}0208$).
 
 \subsection{Puntuación y calibración}
 
@@ -306,12 +304,13 @@ anómalas podían presentar menor MAE que las normales. En lugar de añadir otro
 modelo, se conserva la dirección más discriminativa seleccionada en validación.
 También se calcula una única estadística fija y transparente,
 \[
- c(x)=\operatorname{media}(\text{centro}_{32\times32})-
-      \operatorname{media}(\text{borde}),
+ c(x)=\operatorname{media}(\text{centro})-\operatorname{media}(\text{borde}),
 \]
-que recoge cambios globales de encuadre e intensidad observados en el análisis
-de errores. Tras fijar en validación el signo de MAE y de $c(x)$, ambas señales
-se tipifican respecto a normales y se promedian sin pesos ajustables:
+donde el centro es la región central de mitad de lado y el borde la banda
+exterior restante; recoge cambios globales de encuadre e intensidad observados
+en el análisis de errores. Tras fijar en validación el signo de MAE y de
+$c(x)$, ambas señales se tipifican respecto a las normales de entrenamiento y
+se promedian sin pesos ajustables:
 \[
  s(x)=0{,}5\,z(\mathrm{MAE}(x))+0{,}5\,z(c(x)).
 \]
@@ -329,9 +328,9 @@ permitir que la clase mayoritaria domine el resultado.
 
 El repositorio fija semillas, guarda configuración, historial, puntuaciones y
 métricas. Una ejecución solo se incorpora a la tabla científica si usa las
-26.684 imágenes, las tres semillas y el presupuesto completo. Se entrega el
-checkpoint AE de la semilla 42 y una demostración que reproduce exactamente su
-calibración y umbral.
+26.684 imágenes, la semilla 42 y el presupuesto completo. Se entrega el
+checkpoint U-Net de la semilla 42 y una demostración que reproduce exactamente
+su calibración y umbral.
 
 Como control no neuronal se evaluaron nueve estadísticas predefinidas de
 intensidad y textura. Cada señal se seleccionó y umbralizó exclusivamente en
@@ -349,18 +348,23 @@ Método & Parámetros & AUROC & Bal. acc. \\
 VAE & 740.993 & 0,4506 & 0,5064 \\
 GANomaly & 959.586 & 0,5636 & 0,5484 \\
 Control de gradiente & 0 & 0,5981 & 0,5894 \\
-\textbf{AE final calibrado} & \textbf{16.281} &
-\textbf{0,7608} & \textbf{0,6790} \\
+AE mínimo 64$\times$64 & 16.281 & 0,7608 & 0,6790 \\
+\textbf{U-Net final 512$\times$512} & \textbf{366.433} &
+\textbf{0,6574} & \textbf{0,6224} \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-El AE final alcanza AUROC 0,7608, 0,7603 y 0,7614 en las semillas 13, 42 y
-73. La proximidad entre los tres valores muestra que la mejora no depende de
-una inicialización afortunada. Frente a GANomaly mejora 0,1972 puntos de AUROC usando unas 59
-veces menos parámetros. El control de gradiente llega a 0,5981: confirma que el
-dataset contiene una señal global sencilla, pero el AE calibrado la complementa
-y obtiene una separación claramente mayor.
+El U-Net final alcanza AUROC 0,6574 y exactitud balanceada 0,6224 con la
+semilla 42, superando a GANomaly (0,5636), VAE (0,4506) y al control de
+gradiente (0,5981). El AE mínimo a 64$\times$64 obtuvo el mayor AUROC
+(0,7608): su cuello de botella muy estrecho favorece la separación, pero su
+reconstrucción a 64$\times$64 es demasiado gruesa para resultar presentable. El
+U-Net a 512$\times$512 invierte parte de esa separación en fidelidad: reduce el
+MAE de reconstrucción en un orden de magnitud y reproduce casi perfectamente la
+anatomía normal, que es lo que se muestra en la demostración. El control de
+gradiente llega a 0,5981: confirma que el dataset contiene una señal global
+sencilla que el U-Net calibrado complementa.
 
 AUROC y exactitud balanceada resumen respectivamente la capacidad de ordenar
 las imágenes y el comportamiento de la decisión final. No se reporta accuracy
@@ -371,30 +375,67 @@ lesión. El sistema es un detector del benchmark, no un diagnóstico.
 
 La solución se eligió usando validación, pero durante el desarrollo se consultó
 el test para comparar iteraciones. Aunque la campaña final congela el método y
-lo repite en tres semillas, una estimación completamente independiente requiere
+la semilla, una estimación completamente independiente requiere
 otro centro o dataset externo. Esta limitación se explicita para evitar una
 afirmación de generalización que los datos actuales no permiten.
+
+\subsection{Demostración con el modelo congelado}
+
+Para ilustrar el entregable se fija el checkpoint U-Net de la semilla 42 y se
+procesan dos radiografías del conjunto de prueba con exactamente la misma
+calibración y umbral del experimento.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\columnwidth]{assets/demo_normal_unet512.png}
+  \caption{Demostración con una radiografía normal. Cada panel muestra la
+  imagen original preprocesada, su reconstrucción con el U-Net congelado, el
+  error absoluto por píxel y la puntuación calibrada frente al umbral; la
+  etiqueta resultante es \texttt{NORMAL}.}
+  \label{fig:demo-normal}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\columnwidth]{assets/demo_anomalo_unet512.png}
+  \caption{Demostración con una radiografía anómala. Con la misma calibración y
+  umbral, la puntuación supera el umbral y la etiqueta resultante es
+  \texttt{ANÓMALA}.}
+  \label{fig:demo-anomalo}
+\end{figure}
+
+La reconstrucción del caso normal es prácticamente indistinguible de la
+original y su puntuación queda muy por debajo del umbral (${-}2{,}1857$). En el
+caso anómalo la puntuación alcanza $1{,}3652$ y la imagen se clasifica como
+anómala. En este dataset el error de reconstrucción no crece siempre ante una
+anomalía; para estas imágenes es la señal centro--borde la que sostiene la
+separación, y por eso la decisión se presenta siempre como el resultado de la
+fórmula calibrada completa y no como un umbral sobre el residuo. Las figuras
+advierten expresamente de su uso experimental y no clínico.
 
 \section{Conclusiones}
 
 Se ha cumplido la propuesta: se obtuvo y auditó Chest-RSNA, se implementaron
 AE, VAE y GANomaly, se entrenaron los pesos solo con imágenes normales y se
 evaluaron mediante un protocolo reproducible. La primera comparación mostró que
-añadir complejidad no solucionaba el problema. Simplificar el AE y calibrar una
-puntuación interpretable produjo el mejor resultado: AUROC
-$0{,}7608$ con únicamente 16.281 parámetros.
+añadir complejidad a las arquitecturas iniciales no solucionaba el problema. La
+solución final es un autoencoder U-Net a 512$\times$512 que reconstruye casi
+fielmente las radiografías normales y cuya puntuación calibrada separa
+normalidad y anomalía con AUROC $0{,}6574$ y exactitud balanceada $0{,}6224$.
 
 La principal conclusión es metodológica. El error de reconstrucción no siempre
 crece ante una anomalía y su dirección debe verificarse, no asumirse. Una señal
-fija centro--borde, combinada a partes iguales con MAE, resulta más estable y
-explicable que continuar añadiendo arquitecturas. Así se obtiene un sistema
-presentable: seis capas, tres épocas, un único checkpoint y una fórmula de
-puntuación explícita.
+fija centro--borde, combinada a partes iguales con MAE, sostiene la separación
+cuando el modelo reconstruye bien ambas clases. Fidelidad de reconstrucción y
+separación estadística compiten: exigir la primera, necesaria para una
+demostración presentable, reduce la segunda. El resultado es un sistema
+explicable: cuatro etapas de codificación con salto, tres épocas, un único
+checkpoint y una fórmula de puntuación explícita.
 
-Como trabajo futuro se propone validar sin reajuste en otro centro, estudiar el
-efecto de 128$\times$128 y analizar por subgrupos qué anomalías se detectan. Solo
-después de esa validación tendría sentido explorar modelos más complejos. El
-software actual debe considerarse experimental y no apto para decisiones
+Como trabajo futuro se propone validar sin reajuste en otro centro, estudiar
+resoluciones intermedias y analizar por subgrupos qué anomalías se detectan.
+Solo después de esa validación tendría sentido explorar modelos más complejos.
+El software actual debe considerarse experimental y no apto para decisiones
 asistenciales.
 
 \printbibliography[title={Bibliografía}]
