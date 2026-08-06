@@ -125,8 +125,13 @@ Para usarlo:
 2. Selecciona `Runtime > Change runtime type > GPU`.
 3. Ejecuta todas las celdas. El dataset (`Chest-AD.zip`, ~9,6 GB) se descarga y
    extrae automáticamente en `/content`, sin necesidad de Google Drive. Los
-   resultados se guardan en `/content/TFMv3_colab_outputs/` (y en Drive solo si
-   está montado).
+   resultados se guardan en `/content/TFMv3_colab_outputs/`.
+
+La campaña completa respalda de forma incremental en Google Drive
+(`MyDrive/TFMv3_colab_backup/<fecha>/`): tras cada semilla copia resultados y
+checkpoint. Si la sesión se desconecta por inactividad, los artefactos pueden
+recuperarse desde esa carpeta sin volver a entrenar. Al terminar, la última
+celda descarga un zip con todo.
 
 Para evaluar una radiografía con el autoencoder congelado:
 
