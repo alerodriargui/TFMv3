@@ -71,8 +71,12 @@ def main() -> int:
         if metrics_path.is_file():
             previous = json.loads(metrics_path.read_text(encoding="utf-8"))
             if previous.get("scientific_run", False):
-                print(f"SKIP AE seed={seed}: ya está completo")
-                continue
+                previous_config = previous.get("config", {})
+                same_model = previous_config.get("model") == args.model
+                same_size = previous_config.get("image_size") == args.image_size
+                if same_model and same_size:
+                    print(f"SKIP AE seed={seed}: ya está completo")
+                    continue
         config = ExperimentConfig(
             data_root=root,
             output_dir=output_dir,
