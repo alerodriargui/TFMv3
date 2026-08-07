@@ -1,7 +1,4 @@
 \documentclass[10pt,a4paper,twocolumn]{article}
-\makeatletter
-\providecommand{\IfDocumentMetadataTF}[2]{#2}
-\makeatother
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[spanish,es-nodecimaldot]{babel}
@@ -133,21 +130,18 @@ pdfauthor={Alejandro Rodríguez}}
 \small\bfseries
 \noindent\textit{Resumen---}Este trabajo desarrolla un detector no supervisado de anomalías en radiografías
 de tórax. Los pesos se aprenden exclusivamente a partir de 8.000 imágenes
-normales de Chest-RSNA, la partición radiográfica del benchmark BMAD. Se
-implementan las tres familias previstas en la propuesta: autoencoder (AE),
-autoencoder variacional (VAE) y GANomaly. Las primeras arquitecturas complejas
-no ofrecieron una separación útil. La solución final es un autoencoder tipo
-U-Net de 366.433 parámetros a 512$\times$512 con conexiones de salto, que
-reconstruye con gran nitidez las radiografías normales; su puntuación combina,
-con pesos fijos e iguales, el error de reconstrucción calibrado y una
-diferencia centro--borde de intensidad. Las direcciones de las señales y el
-umbral se fijan exclusivamente con validación; el conjunto de prueba permanece
-congelado. Con la semilla 42 el sistema obtiene AUROC $0{,}6574$ y exactitud
-balanceada $0{,}6224$, superando a GANomaly ($0{,}5636$), VAE ($0{,}4506$) y un
-control estadístico de gradiente ($0{,}5981$). La fidelidad de la
-reconstrucción es el objetivo del entregable final: se aporta código
-reproducible y una demostración visual con un único modelo congelado; no se
-propone su uso para diagnóstico clínico.
+normales de Chest-RSNA, la partición radiográfica del benchmark BMAD. La
+solución es un autoencoder de reconstrucción tipo U-Net de 366.433 parámetros
+a 512$\times$512 con conexiones de salto, que reconstruye con gran nitidez las
+radiografías normales; su puntuación combina, con pesos fijos e iguales, el
+error de reconstrucción calibrado y una diferencia centro--borde de
+intensidad. Las direcciones de las señales y el umbral se fijan exclusivamente
+con validación; el conjunto de prueba permanece congelado. Con la semilla 42
+el sistema obtiene AUROC $0{,}6574$ y exactitud balanceada $0{,}6224$ sobre
+test, por encima de un control estadístico de gradiente ($0{,}5981$). La
+fidelidad de la reconstrucción es el objetivo del entregable final: se aporta
+código reproducible y una demostración visual con un único modelo congelado;
+no se propone su uso para diagnóstico clínico.
 
 \smallskip
 \noindent\textit{Palabras clave---}detección de anomalías, radiografía
@@ -196,18 +190,18 @@ complejidad, no obstante, no implica automáticamente un mejor resultado.
 
 \subsection{Pregunta, alcance y aportaciones}
 
-La pregunta principal es: \emph{¿puede un modelo sencillo, entrenado solo con
-radiografías normales, separar de forma útil y reproducible las imágenes
-normales de las no normales en Chest-RSNA?} Como comparativa se mantienen AE,
-VAE y GANomaly, las tres familias incluidas en la propuesta.
+La pregunta principal es: \emph{¿puede un autoencoder sencillo, entrenado solo
+con radiografías normales, separar de forma útil y reproducible las imágenes
+normales de las no normales en Chest-RSNA?} La comparativa se limita a un
+control estadístico no neuronal y a la propia historia del modelo.
 
 ``Anómala'' significa \emph{no normal según RSNA/BMAD}; no equivale a confirmar
 neumonía ni abarca cualquier patología torácica. Las aportaciones son: (i) un
-dataset público auditado; (ii) tres implementaciones comparables; (iii) un
-protocolo que separa entrenamiento, calibración y prueba; (iv) un autoencoder
-U-Net final a 512$\times$512 que reconstruye casi fielmente las radiografías
-normales; (v) evaluación con controles simples y una semilla fija para el
-modelo final; y (vi) código, pesos y demostración reproducibles sin
+dataset público auditado; (ii) una implementación reproducible del detector;
+(iii) un protocolo que separa entrenamiento, calibración y prueba; (iv) un
+autoencoder U-Net final a 512$\times$512 que reconstruye casi fielmente las
+radiografías normales; (v) evaluación con controles simples y una semilla fija
+para el modelo final; y (vi) código, pesos y demostración reproducibles sin
 redistribuir imágenes médicas.
 
 \section{Objetivos}
@@ -215,8 +209,8 @@ redistribuir imágenes médicas.
 \subsection{Objetivo general}
 
 Diseñar, implementar y evaluar un sistema no supervisado, sencillo y
-reproducible para detectar anomalías en radiografías de tórax, comparando AE,
-VAE y GANomaly bajo un protocolo común.
+reproducible para detectar anomalías en radiografías de tórax, basado en
+reconstrucción y bajo un protocolo común.
 
 \subsection{Objetivos específicos}
 
@@ -225,8 +219,8 @@ VAE y GANomaly bajo un protocolo común.
   sus supuestos, puntuaciones y riesgos mediante bibliografía.
   \item Obtener y auditar un conjunto con entrenamiento normal, validación y
   prueba, verificando conteos, formato y legibilidad de las imágenes.
-  \item Implementar AE, VAE y GANomaly con el mismo preprocesado y una
-  puntuación por radiografía.
+  \item Implementar el autoencoder de reconstrucción con un preprocesado común
+  y una puntuación por radiografía.
   \item Evitar fuga de información: entrenar pesos solo con normales, elegir
   calibración y umbral en validación y evaluar después en test.
   \item Alcanzar una separación útil y una reconstrucción lo bastante nítida
@@ -245,21 +239,18 @@ Estas extensiones dificultarían explicar y reproducir la contribución central.
 
 El AE minimiza el error de reconstrucción
 $\mathcal L_{AE}=\lVert x-g_\theta(f_\phi(x))\rVert_1$. Es la alternativa más
-directa, pero su cuello de botella no impone una distribución latente. El VAE
-optimiza
-\[
- \mathcal L_{VAE}=\lVert x-\hat x\rVert_1+
- \beta D_{KL}\!\left(q_\phi(z\mid x)\,\|\,\mathcal N(0,I)\right),
-\]
-empleando reparametrización para derivar a través del muestreo
-\cite{kingma2014vae}. Arquitectura y $\beta$ condicionan de forma importante
-su comportamiento \cite{nguyen2024vae}.
-
-GANomaly aprende $z=E_1(x)$, $\hat x=G(z)$ y
-$\hat z=E_2(\hat x)$, y combina pérdidas contextual, latente y adversarial. En
-inferencia utiliza $\lVert z-\hat z\rVert_1$ como puntuación
-\cite{akcay2019ganomaly}. Puede enriquecer la representación, pero añade coste
-e inestabilidad. Benchmarks como MVTec AD consolidaron protocolos comunes
+directa, pero su cuello de botella no impone una distribución latente y el
+residuo puede reflejar propiedades de adquisición en lugar de patología. La
+literatura ha explorado variantes más complejas: el autoencoder variacional
+regulariza el espacio latente mediante la divergencia de Kullback--Leibler
+\cite{kingma2014vae}, los modelos generativos adversariales enfrentan un
+generador y un discriminador \cite{goodfellow2014gan}, y AnoGAN y GANomaly
+adaptan ese aprendizaje a la detección de anomalías
+\cite{schlegl2017anogan,akcay2019ganomaly}. También se han estudiado
+autoencoders adversariales, VAE en cascada y modelos enmascarados en imagen
+médica \cite{zhang2022improved,guo2021cvad,georgescu2023masked,he2022mae}. Su
+mayor complejidad, no obstante, no implica automáticamente un mejor resultado.
+Benchmarks como MVTec AD consolidaron protocolos comunes
 \cite{bergmann2019mvtec}; BMAD trasladó esta evaluación a varios dominios
 médicos y quince algoritmos \cite{bao2024bmad}. Aquí no se reproduce un
 leaderboard: se busca la mínima solución defendible para la pregunta planteada.
@@ -297,6 +288,17 @@ Adam, tasa $10^{-3}$, lotes de 32 y pérdida MAE, con la semilla 42. El MAE
 medio de reconstrucción en validación desciende a $0{,}0069$, un orden de
 magnitud por debajo del AE mínimo a 64$\times$64 ($0{,}0208$).
 
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\columnwidth]{assets/unet_architecture.png}
+  \caption{Arquitectura del autoencoder final tipo U-Net. El codificador
+  reduce la radiografía con cuatro convoluciones de paso 2 hasta un cuello de
+  botella de $32\times32\times128$; el decodificador recupera la resolución
+  original con convoluciones transpuestas y concatena mediante conexiones de
+  salto la activación de su etapa encodificadora homóloga.}
+  \label{fig:unet-arch}
+\end{figure}
+
 \subsection{Puntuación y calibración}
 
 El experimento inicial mostró un resultado contraintuitivo: en este dataset las
@@ -318,11 +320,9 @@ La exactitud balanceada de validación determina el umbral. Las etiquetas de
 validación intervienen en esta calibración, pero nunca actualizan pesos; por
 ello el aprendizaje del modelo es no supervisado y la decisión es calibrada,
 no completamente libre de etiquetas. El test se evalúa después sin cambios.
-
-VAE y GANomaly se conservan como comparaciones de la propuesta original, con
-20 épocas, lotes de 64 y tasa $2\cdot10^{-4}$. La métrica principal es AUROC.
-La exactitud balanceada evalúa la decisión en el umbral seleccionado sin
-permitir que la clase mayoritaria domine el resultado.
+La métrica principal es AUROC. La exactitud balanceada evalúa la decisión en
+el umbral seleccionado sin permitir que la clase mayoritaria domine el
+resultado.
 
 \subsection{Reproducibilidad y controles}
 
@@ -345,8 +345,6 @@ globales del dataset.
 \toprule
 Método & Parámetros & AUROC & Bal. acc. \\
 \midrule
-VAE & 740.993 & 0,4506 & 0,5064 \\
-GANomaly & 959.586 & 0,5636 & 0,5484 \\
 Control de gradiente & 0 & 0,5981 & 0,5894 \\
 AE mínimo 64$\times$64 & 16.281 & 0,7608 & 0,6790 \\
 \textbf{U-Net final 512$\times$512} & \textbf{366.433} &
@@ -356,8 +354,8 @@ AE mínimo 64$\times$64 & 16.281 & 0,7608 & 0,6790 \\
 \end{center}
 
 El U-Net final alcanza AUROC 0,6574 y exactitud balanceada 0,6224 con la
-semilla 42, superando a GANomaly (0,5636), VAE (0,4506) y al control de
-gradiente (0,5981). El AE mínimo a 64$\times$64 obtuvo el mayor AUROC
+semilla 42, por encima del control de gradiente (0,5981). El AE mínimo a
+64$\times$64 obtuvo el mayor AUROC
 (0,7608): su cuello de botella muy estrecho favorece la separación, pero su
 reconstrucción a 64$\times$64 es demasiado gruesa para resultar presentable. El
 U-Net a 512$\times$512 invierte parte de esa separación en fidelidad: reduce el
@@ -415,13 +413,14 @@ advierten expresamente de su uso experimental y no clínico.
 
 \section{Conclusiones}
 
-Se ha cumplido la propuesta: se obtuvo y auditó Chest-RSNA, se implementaron
-AE, VAE y GANomaly, se entrenaron los pesos solo con imágenes normales y se
-evaluaron mediante un protocolo reproducible. La primera comparación mostró que
-añadir complejidad a las arquitecturas iniciales no solucionaba el problema. La
-solución final es un autoencoder U-Net a 512$\times$512 que reconstruye casi
-fielmente las radiografías normales y cuya puntuación calibrada separa
-normalidad y anomalía con AUROC $0{,}6574$ y exactitud balanceada $0{,}6224$.
+Se ha cumplido la propuesta: se obtuvo y auditó Chest-RSNA, se implementó el
+autoencoder de reconstrucción, se entrenaron los pesos solo con imágenes
+normales y se evaluó mediante un protocolo reproducible. Las primeras
+arquitecturas no ofrecieron una separación útil y la solución final combina la
+reconstrucción con una señal fija. El resultado es un autoencoder U-Net a
+512$\times$512 que reconstruye casi fielmente las radiografías normales y cuya
+puntuación calibrada separa normalidad y anomalía con AUROC $0{,}6574$ y
+exactitud balanceada $0{,}6224$.
 
 La principal conclusión es metodológica. El error de reconstrucción no siempre
 crece ante una anomalía y su dirección debe verificarse, no asumirse. Una señal

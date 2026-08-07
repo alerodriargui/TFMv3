@@ -1,8 +1,8 @@
 # TFM: detección no supervisada de anomalías
 
 Sistema sencillo para detectar radiografías anómalas aprendiendo únicamente
-con imágenes normales. El modelo final es un autoencoder convolucional de
-16.281 parámetros y tres bloques de bajada/subida.
+con imágenes normales. El modelo final es un autoencoder tipo U-Net de 366.433
+parámetros que reconstruye radiografías de 512×512 con conexiones de salto.
 
 ## Instalación
 
@@ -26,7 +26,7 @@ TFMv3/
 |-- checkpoints/       Pesos congelados del modelo
 |-- results/           Métricas, experimentos y figuras generadas
 |-- notebooks/         Notebook para Google Colab
-|-- docs/              Memoria, presentación, bibliografía y recursos
+|-- docs/              Memoria, bibliografía y recursos
 |-- README.md          Guía del proyecto
 `-- requirements*.txt Dependencias
 ```
@@ -60,17 +60,20 @@ $env:TFM_DATA_ROOT = 'D:\datasets\Chest-RSNA'
 ## Modelo final
 
 ```text
-radiografía 64x64
-      ↓
-Conv 1→8 → Conv 8→16 → Conv 16→32
-      ↓
-ConvTranspose 32→16 → 16→8 → 8→1
-      ↓
-reconstrucción
+radiografía 512x512
+      ↓  Conv 3×3, s2 (1→16)
+256x256x16 ─────────────┐
+      ↓  Conv 3×3, s2   │ salto (concat)
+128x128x32 ───────────┐ │
+      ↓  Conv 3×3, s2  │ │
+64x64x64 ───────────┐ │ │
+      ↓  Conv 3×3, s2 │ │ │
+32x32x128 (cuello de botella) ─→ ConvT 4×4, s2 + sigmoid → reconstrucción
 ```
 
-Los pesos se ajustan exclusivamente con las 8.000 radiografías normales. La
-puntuación final promedia dos señales tipificadas:
+El diagrama completo está en `docs/assets/unet_architecture.png`. Los pesos se
+ajustan exclusivamente con las 8.000 radiografías normales. La puntuación
+final promedia dos señales tipificadas:
 
 ```text
 0,5 × error de reconstrucción calibrado
@@ -117,7 +120,7 @@ El notebook `notebooks/TFMv3_colab.ipynb` reproduce el experimento principal en 
 runtime GPU de Google Colab. Incluye clonación del repositorio, instalación de
 dependencias de apoyo, comprobación de CUDA/PyTorch, descarga y extracción del
 dataset en el entorno de Colab, conteos del dataset, prueba reducida y ejecución
-completa del AE con semillas 13, 42 y 73.
+completa del AE U-Net con la semilla 42.
 
 Para usarlo:
 
@@ -146,7 +149,7 @@ en `results/demo_resultado.png`. Ambas rutas se pueden cambiar con `--model` y
 La consola conserva el error de reconstrucción, la puntuación, el umbral y la
 clase. Además, el PNG generado contiene cuatro paneles:
 
-1. imagen original preprocesada a 64×64;
+1. imagen original preprocesada a 512×512;
 2. reconstrucción producida por el autoencoder;
 3. mapa de error absoluto por píxel, con escala de color y MAE;
 4. puntuación de anomalía comparada con el umbral congelado de validación.
@@ -161,18 +164,19 @@ experimental y no constituye un diagnóstico.
 
 | Modelo | AUROC | Balanced accuracy |
 |---|---:|---:|
-| **AE final calibrado** | **0,7608** | **0,6790** |
+| Control de gradiente | 0,5981 | 0,5894 |
+| AE mínimo 64×64 | 0,7608 | 0,6790 |
+| **U-Net final 512×512** | **0,6574** | **0,6224** |
 
-El resultado se repite en las tres semillas: 0,7608, 0,7603 y 0,7614. No se
-utiliza ningún clasificador supervisado, ensamble ni red preentrenada.
+El resultado del modelo final corresponde a la semilla 42 con test congelado.
+No se utiliza ningún clasificador supervisado, ensamble ni red preentrenada.
 
 ## Entregables
 
 | Ruta | Función |
 |---|---|
 | `docs/memoria.pdf` | Memoria final |
-| `docs/presentacion.pdf` | Diapositivas |
-| `docs/assets/` | Diagramas, imágenes y recursos de los documentos |
+| `docs/assets/` | Diagramas, imágenes y recursos de la memoria |
 | `notebooks/TFMv3_colab.ipynb` | Ejecución reproducible en Colab |
-| `checkpoints/modelo_autoencoder.pt` | Único modelo congelado |
-| `results/resultados.csv` | Resultados de tres semillas |
+| `checkpoints/modelo_autoencoder.pt` | Único modelo congelado (U-Net 512, semilla 42) |
+| `results/resultados.csv` | Resultados de la campaña final |
