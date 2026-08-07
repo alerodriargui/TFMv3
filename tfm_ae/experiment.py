@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader
 
 from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
+from .features import GLOBAL_SIGNALS, feature_matrix
 from .metrics import auroc, best_balanced_threshold, evaluate
 from .models import build_model, per_image_scores
 
@@ -33,6 +34,9 @@ class ExperimentConfig:
     seed: int = 42
     max_train_images: int | None = None
     max_eval_images_per_class: int | None = None
+    noise_std: float = 0.0
+    bottleneck_channels: int = 32
+    score_mode: str = "ae_classic"
 
 
 def set_seed(seed: int) -> None:
@@ -59,9 +63,15 @@ def _train_batch(
     model: ConvAutoencoder,
     images: torch.Tensor,
     optimizer: torch.optim.Optimizer,
+    noise_std: float = 0.0,
 ) -> float:
     optimizer.zero_grad(set_to_none=True)
-    loss = F.l1_loss(model(images), images)
+    if noise_std > 0:
+        target = images
+        noisy = images + noise_std * torch.randn_like(images)
+        loss = F.l1_loss(model(noisy), target)
+    else:
+        loss = F.l1_loss(model(images), images)
     loss.backward()
     optimizer.step()
     return float(loss.detach())
@@ -99,7 +109,7 @@ def train(
     )
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
-    model = build_model(config.model_name).to(device)
+    model = build_model(config.model_name, config.bottleneck_channels).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     best_value = float("inf")
     history: list[dict] = []
@@ -112,7 +122,7 @@ def train(
         seen = 0
         for images, _labels, _paths in train_loader:
             images = images.to(device)
-            loss = _train_batch(model, images, optimizer)
+            loss = _train_batch(model, images, optimizer, config.noise_std)
             total_loss += loss * len(images)
             seen += len(images)
 
@@ -148,6 +158,7 @@ def train(
         {
             "model_name": config.model_name,
             "image_size": config.image_size,
+            "bottleneck_channels": config.bottleneck_channels,
             "model_state": best_state["model"],
             "selected_epoch": best_state["epoch"],
         },
@@ -260,6 +271,99 @@ def calibrate_ae_scores(
     )
 
 
+def _feature_scores(
+    dataset: RadiographDataset, batch_size: int
+) -> dict[str, np.ndarray]:
+    """Compute the global feature bank for every image in ``dataset``."""
+    values = {key: [] for key in GLOBAL_SIGNALS}
+    for images, _labels, _paths in _loader(dataset, batch_size, False):
+        bank = feature_matrix(images.squeeze(1).numpy())
+        for key in GLOBAL_SIGNALS:
+            values[key].extend(bank[key].tolist())
+    return {key: np.asarray(values[key]) for key in GLOBAL_SIGNALS}
+
+
+def calibrate_hybrid_scores(
+    config: ExperimentConfig,
+    validation: RadiographDataset,
+    test: RadiographDataset,
+    val_labels: np.ndarray,
+    raw_val_scores: np.ndarray,
+    raw_test_scores: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Combine calibrated global signals and AE MAE, weight chosen on validation.
+
+    Each signal is z-scored against its own distribution on normal training
+    images; the sign is set from the AUROC direction on validation. The mixing
+    weight ``w`` between the summed global signal and the MAE is selected on
+    validation by a coarse grid search, then frozen for the test set.
+    """
+    train = RadiographDataset.normal_only(
+        split_dir(config.data_root, "train"),
+        config.image_size,
+        config.max_train_images,
+        config.seed,
+    )
+    train_features = _feature_scores(train, config.batch_size)
+    val_features = _feature_scores(validation, config.batch_size)
+    test_features = _feature_scores(test, config.batch_size)
+
+    global_signs: dict[str, float] = {}
+    for key in GLOBAL_SIGNALS:
+        a = auroc(val_labels, val_features[key])
+        global_signs[key] = -1.0 if a < 0.5 else 1.0
+
+    def calibrate(features: dict[str, np.ndarray]) -> np.ndarray:
+        total = None
+        for key in GLOBAL_SIGNALS:
+            signed = features[key] * global_signs[key]
+            normal = train_features[key] * global_signs[key]
+            location = float(normal.mean())
+            scale = max(float(normal.std()), 1e-8)
+            z = (signed - location) / scale
+            total = z if total is None else total + z
+        assert total is not None
+        return total
+
+    val_global = calibrate(val_features)
+    test_global = calibrate(test_features)
+
+    ae_sign = -1.0 if auroc(val_labels, raw_val_scores) < 0.5 else 1.0
+    val_ae = raw_val_scores * ae_sign
+    test_ae = raw_test_scores * ae_sign
+    normal_ae = val_ae[val_labels == 0]
+    ae_location = float(normal_ae.mean())
+    ae_scale = max(float(normal_ae.std()), 1e-8)
+    val_ae = (val_ae - ae_location) / ae_scale
+    test_ae = (test_ae - ae_location) / ae_scale
+
+    best_w, best_va = 0.0, -float("inf")
+    for w in np.linspace(0.0, 1.0, 21):
+        combined = w * val_global + (1 - w) * val_ae
+        a = auroc(val_labels, combined)
+        if a > best_va:
+            best_va, best_w = a, w
+
+    val_combined = best_w * val_global + (1 - best_w) * val_ae
+    test_combined = best_w * test_global + (1 - best_w) * test_ae
+    return (
+        val_combined,
+        test_combined,
+        {
+            "score": "w * calibrated_global + (1-w) * calibrated_MAE",
+            "global_signals": list(GLOBAL_SIGNALS),
+            "global_signs": global_signs,
+            "ae_sign": ae_sign,
+            "ae_location": ae_location,
+            "ae_scale": ae_scale,
+            "weight": best_w,
+            "validation_auroc_global_only": float(auroc(val_labels, val_global)),
+            "validation_auroc_mae_only": float(auroc(val_labels, val_ae)),
+            "validation_auroc_hybrid": best_va,
+        },
+    )
+
+
 def _save_scores(
     path: Path, labels: np.ndarray, scores: np.ndarray, paths: list[str]
 ) -> None:
@@ -315,14 +419,24 @@ def run(config: ExperimentConfig) -> dict:
     test_labels, test_scores, test_paths, _ = score_dataset(
         model, test, config.batch_size, device
     )
-    val_scores, test_scores, calibration = calibrate_ae_scores(
-        config,
-        validation,
-        test,
-        val_labels,
-        val_scores,
-        test_scores,
-    )
+    if config.score_mode == "hybrid":
+        val_scores, test_scores, calibration = calibrate_hybrid_scores(
+            config,
+            validation,
+            test,
+            val_labels,
+            val_scores,
+            test_scores,
+        )
+    else:
+        val_scores, test_scores, calibration = calibrate_ae_scores(
+            config,
+            validation,
+            test,
+            val_labels,
+            val_scores,
+            test_scores,
+        )
     threshold, _ = best_balanced_threshold(val_labels, val_scores)
     validation_metrics = evaluate(val_labels, val_scores, threshold)
     test_metrics = evaluate(test_labels, test_scores, threshold)

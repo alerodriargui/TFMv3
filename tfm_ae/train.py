@@ -62,6 +62,14 @@ def main() -> int:
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
+    parser.add_argument("--noise-std", type=float, default=0.0)
+    parser.add_argument("--bottleneck", type=int, default=32)
+    parser.add_argument(
+        "--score-mode",
+        choices=("ae_classic", "hybrid"),
+        default="ae_classic",
+        help="ae_classic: MAE + center_border; hybrid: señales globales + MAE con peso en validación",
+    )
     args = parser.parse_args()
 
     root = resolve_data_root(args.data_root)
@@ -88,6 +96,9 @@ def main() -> int:
             seed=seed,
             max_train_images=args.max_train_images,
             max_eval_images_per_class=args.max_eval_images_per_class,
+            noise_std=args.noise_std,
+            bottleneck_channels=args.bottleneck,
+            score_mode=args.score_mode,
         )
         report = run(config)
         test = report["test"]

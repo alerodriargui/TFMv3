@@ -17,16 +17,18 @@ from . import PROJECT_ROOT
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 NORMAL_NAMES = ("good", "normal")
 ANOMALY_NAMES = ("Ungood", "ungood", "abnormal", "anomalous")
+NON_IMAGE_DIRS = ("label", "labels", "anomaly_mask", "mask", "masks")
 
 
 def resolve_data_root(explicit: Path | None = None) -> Path:
-    """Find Chest-RSNA from an argument, environment variable or known paths."""
+    """Find Chest-RSNA or BraTS2021 from an argument, env variable or known paths."""
     candidates = [explicit] if explicit else []
     if value := os.environ.get("TFM_DATA_ROOT"):
         candidates.append(Path(value))
     candidates.extend(
         (
             PROJECT_ROOT / "data/raw/rsna_bmad/Chest-RSNA",
+            PROJECT_ROOT / "data/raw/rsna_bmad/BraTS2021_slice",
             PROJECT_ROOT.parent / "TFMv2/data/raw/rsna_bmad/Chest-RSNA",
         )
     )
@@ -34,7 +36,7 @@ def resolve_data_root(explicit: Path | None = None) -> Path:
         root = candidate.expanduser().resolve()
         if (root / "train" / "good").is_dir() and (root / "test").is_dir():
             return root
-    raise FileNotFoundError("No se encontró Chest-RSNA. Usa --data-root.")
+    raise FileNotFoundError("No se encontró Chest-RSNA ni BraTS2021. Usa --data-root.")
 
 
 def split_dir(root: Path, split: str) -> Path:
@@ -51,7 +53,9 @@ def find_images(root: Path) -> list[Path]:
     return sorted(
         path
         for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        if path.is_file()
+        and path.suffix.lower() in IMAGE_EXTENSIONS
+        and all(part not in NON_IMAGE_DIRS for part in path.parts)
     )
 
 

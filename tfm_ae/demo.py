@@ -207,7 +207,7 @@ def main() -> int:
             "python -m tfm_ae.train."
         )
     checkpoint = torch.load(args.model, map_location="cpu", weights_only=True)
-    model = build_model(checkpoint.get("model_name", "ae"))
+    model = build_model(checkpoint.get("model_name", "ae"), checkpoint.get("bottleneck_channels", 32))
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
     image = load_image(args.image, int(checkpoint["image_size"]))
