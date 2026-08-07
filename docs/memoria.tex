@@ -136,12 +136,12 @@ a 512$\times$512 con conexiones de salto, que reconstruye con gran nitidez las
 radiografías normales; su puntuación combina, con pesos fijos e iguales, el
 error de reconstrucción calibrado y una diferencia centro--borde de
 intensidad. Las direcciones de las señales y el umbral se fijan exclusivamente
-con validación; el conjunto de prueba permanece congelado. Con la semilla 42
-el sistema obtiene AUROC $0{,}6574$ y exactitud balanceada $0{,}6224$ sobre
-test, por encima de un control estadístico de gradiente ($0{,}5981$). La
-fidelidad de la reconstrucción es el objetivo del entregable final: se aporta
-código reproducible y una demostración visual con un único modelo congelado;
-no se propone su uso para diagnóstico clínico.
+con validación; el conjunto de prueba permanece congelado. El sistema final
+obtiene AUROC $0{,}6574$ y exactitud balanceada $0{,}6224$ sobre test, por
+encima de un control estadístico de gradiente ($0{,}5981$). La fidelidad de la
+reconstrucción es el objetivo del entregable final: se aporta código
+reproducible y una demostración visual con un único modelo congelado; no se
+propone su uso para diagnóstico clínico.
 
 \smallskip
 \noindent\textit{Palabras clave---}detección de anomalías, radiografía
@@ -177,16 +177,9 @@ normalidad, reconstruirá peor una anomalía. Sin embargo, una red con demasiada
 capacidad puede copiar también entradas anómalas, y el residuo puede reflejar
 contraste, encuadre o adquisición en lugar de patología
 \cite{baur2021autoencoders}. Por ello, una reconstrucción visualmente buena no
-garantiza una puntuación discriminativa.
-
-El VAE regulariza el espacio latente mediante la divergencia de
-Kullback--Leibler \cite{kingma2014vae}. Las redes generativas adversariales
-enfrentan generador y discriminador \cite{goodfellow2014gan}; AnoGAN y GANomaly
-adaptan este aprendizaje a detección de anomalías
-\cite{schlegl2017anogan,akcay2019ganomaly}. También se han estudiado
-autoencoders adversariales, VAE en cascada y modelos enmascarados en imagen
-médica \cite{zhang2022improved,guo2021cvad,georgescu2023masked,he2022mae}. Su mayor
-complejidad, no obstante, no implica automáticamente un mejor resultado.
+garantiza una puntuación discriminativa. Las variantes que intentan reforzar
+esa hipótesis con regularización, adversariedad o enmascarado se revisan en la
+sección dedicada al estado del arte; ninguna elimina este supuesto.
 
 \subsection{Pregunta, alcance y aportaciones}
 
@@ -200,8 +193,8 @@ neumonía ni abarca cualquier patología torácica. Las aportaciones son: (i) un
 dataset público auditado; (ii) una implementación reproducible del detector;
 (iii) un protocolo que separa entrenamiento, calibración y prueba; (iv) un
 autoencoder U-Net final a 512$\times$512 que reconstruye casi fielmente las
-radiografías normales; (v) evaluación con controles simples y una semilla fija
-para el modelo final; y (vi) código, pesos y demostración reproducibles sin
+radiografías normales; (v) evaluación con controles simples y una campaña
+final con semilla fija; y (vi) código, pesos y demostración reproducibles sin
 redistribuir imágenes médicas.
 
 \section{Objetivos}
@@ -284,9 +277,9 @@ original con convoluciones transpuestas y cada etapa concatena, mediante una
 conexión de salto, la salida de su etapa encodificadora homóloga. Se usa ReLU
 y una sigmoide de salida. No hay atención, red preentrenada, ensamble ni
 clasificador. El modelo suma 366.433 parámetros y se entrena tres épocas con
-Adam, tasa $10^{-3}$, lotes de 32 y pérdida MAE, con la semilla 42. El MAE
-medio de reconstrucción en validación desciende a $0{,}0069$, un orden de
-magnitud por debajo del AE mínimo a 64$\times$64 ($0{,}0208$).
+Adam, tasa $10^{-3}$, lotes de 32 y pérdida MAE. El MAE medio de reconstrucción
+en validación desciende a $0{,}0069$, un orden de magnitud por debajo del AE
+mínimo a 64$\times$64 ($0{,}0208$).
 
 \begin{figure}[ht]
   \centering
@@ -327,10 +320,10 @@ resultado.
 \subsection{Reproducibilidad y controles}
 
 El repositorio fija semillas, guarda configuración, historial, puntuaciones y
-métricas. Una ejecución solo se incorpora a la tabla científica si usa las
-26.684 imágenes, la semilla 42 y el presupuesto completo. Se entrega el
-checkpoint U-Net de la semilla 42 y una demostración que reproduce exactamente
-su calibración y umbral.
+métricas. La campaña final usa la semilla 42; solo una ejecución con las
+26.684 imágenes, esa semilla y el presupuesto completo entra en la tabla
+científica. Se entrega el checkpoint del modelo final y una demostración que
+reproduce exactamente su calibración y umbral.
 
 Como control no neuronal se evaluaron nueve estadísticas predefinidas de
 intensidad y textura. Cada señal se seleccionó y umbralizó exclusivamente en
@@ -353,8 +346,8 @@ AE mínimo 64$\times$64 & 16.281 & 0,7608 & 0,6790 \\
 \end{tabular}
 \end{center}
 
-El U-Net final alcanza AUROC 0,6574 y exactitud balanceada 0,6224 con la
-semilla 42, por encima del control de gradiente (0,5981). El AE mínimo a
+El U-Net final alcanza AUROC $0{,}6574$ y exactitud balanceada $0{,}6224$, por
+encima del control de gradiente ($0{,}5981$). El AE mínimo a
 64$\times$64 obtuvo el mayor AUROC
 (0,7608): su cuello de botella muy estrecho favorece la separación, pero su
 reconstrucción a 64$\times$64 es demasiado gruesa para resultar presentable. El
@@ -372,14 +365,14 @@ puede reflejar protocolo, contraste, edad o encuadre, y no necesariamente una
 lesión. El sistema es un detector del benchmark, no un diagnóstico.
 
 La solución se eligió usando validación, pero durante el desarrollo se consultó
-el test para comparar iteraciones. Aunque la campaña final congela el método y
-la semilla, una estimación completamente independiente requiere
+el test para comparar iteraciones. Aunque la campaña final congela método,
+calibración y umbral, una estimación completamente independiente requiere
 otro centro o dataset externo. Esta limitación se explicita para evitar una
 afirmación de generalización que los datos actuales no permiten.
 
 \subsection{Demostración con el modelo congelado}
 
-Para ilustrar el entregable se fija el checkpoint U-Net de la semilla 42 y se
+Para ilustrar el entregable se fija el checkpoint del modelo final y se
 procesan dos radiografías del conjunto de prueba con exactamente la misma
 calibración y umbral del experimento.
 
