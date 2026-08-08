@@ -278,7 +278,10 @@ def main() -> int:
 
     if not args.metrics.is_file():
         raise FileNotFoundError(f"No existe metrics.json: {args.metrics}")
-    data_root = resolve_data_root(args.data_root)
+    report = json.loads(args.metrics.read_text(encoding="utf-8"))
+    data_root = resolve_data_root(
+        args.data_root or Path(report["config"]["data_root"])
+    )
     calibration = _load_calibration(args.metrics, data_root)
     model_path = args.metrics.parent / "model.pt"
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
