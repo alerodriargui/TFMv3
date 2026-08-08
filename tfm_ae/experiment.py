@@ -325,6 +325,13 @@ def calibrate_hybrid_scores(
         assert total is not None
         return total
 
+    global_location = {}
+    global_scale = {}
+    for key in GLOBAL_SIGNALS:
+        normal = train_features[key] * global_signs[key]
+        global_location[key] = float(normal.mean())
+        global_scale[key] = max(float(normal.std()), 1e-8)
+
     val_global = calibrate(val_features)
     test_global = calibrate(test_features)
 
@@ -353,6 +360,8 @@ def calibrate_hybrid_scores(
             "score": "w * calibrated_global + (1-w) * calibrated_MAE",
             "global_signals": list(GLOBAL_SIGNALS),
             "global_signs": global_signs,
+            "global_location": global_location,
+            "global_scale": global_scale,
             "ae_sign": ae_sign,
             "ae_location": ae_location,
             "ae_scale": ae_scale,
