@@ -59,6 +59,33 @@ def main() -> int:
         help="Arquitectura: ae (autoencoder simple) o unet (U-Net con skips)",
     )
     parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument(
+        "--score",
+        dest="score_type",
+        choices=("mae", "ssim", "mae_ssim"),
+        default="mae",
+        help="Señal de reconstrucción para la puntuación final",
+    )
+    parser.add_argument(
+        "--loss",
+        dest="loss_type",
+        choices=("l1", "ssim", "l1ssim"),
+        default="l1",
+        help="Pérdida de reconstrucción",
+    )
+    parser.add_argument(
+        "--denoise",
+        dest="denoise_sigma",
+        type=float,
+        default=0.0,
+        help="Desviación del ruido gaussiano añadido a la entrada en entrenamiento (0 = off)",
+    )
+    parser.add_argument(
+        "--center-weight",
+        type=float,
+        default=0.5,
+        help="Peso de la señal centro-borde en la puntuación final",
+    )
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
@@ -88,6 +115,10 @@ def main() -> int:
             seed=seed,
             max_train_images=args.max_train_images,
             max_eval_images_per_class=args.max_eval_images_per_class,
+            score_type=args.score_type,
+            loss_type=args.loss_type,
+            denoise_sigma=args.denoise_sigma,
+            center_weight=args.center_weight,
         )
         report = run(config)
         test = report["test"]

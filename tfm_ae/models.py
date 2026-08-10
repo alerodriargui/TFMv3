@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 
 class ConvAutoencoder(nn.Module):
@@ -38,13 +39,66 @@ class ConvAutoencoder(nn.Module):
         return self.decode(self.encode(images))
 
 
-def per_image_scores(
-    model: ConvAutoencoder, images: torch.Tensor
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Return the reconstruction MAE and reconstructed images."""
+def _gaussian_window(
+    window_size: int, sigma: float, reference: torch.Tensor
+) -> torch.Tensor:
+    """Return a normalized 2D Gaussian kernel as a conv2d filter."""
+    coords = (
+        torch.arange(window_size, dtype=reference.dtype, device=reference.device)
+        - window_size // 2
+    )
+    gauss = torch.exp(-(coords**2) / (2 * sigma**2))
+    gauss = gauss / gauss.sum()
+    kernel = torch.outer(gauss, gauss)
+    return kernel.view(1, 1, window_size, window_size)
+
+
+def ssim_map(
+    images: torch.Tensor,
+    reconstructed: torch.Tensor,
+    window_size: int = 11,
+    sigma: float = 1.5,
+    c1: float = 0.01,
+    c2: float = 0.03,
+) -> torch.Tensor:
+    """Per-pixel structural similarity map (1 = identical, 0 = unrelated)."""
+    c1 = (c1 * 1.0) ** 2
+    c2 = (c2 * 1.0) ** 2
+    window = _gaussian_window(window_size, sigma, images)
+    pad = window_size // 2
+    images_padded = F.pad(images, (pad, pad, pad, pad), mode="replicate")
+    reconstructed_padded = F.pad(reconstructed, (pad, pad, pad, pad), mode="replicate")
+    mu_images = F.conv2d(images_padded, window)
+    mu_reconstructed = F.conv2d(reconstructed_padded, window)
+    mu_images_sq = mu_images**2
+    mu_reconstructed_sq = mu_reconstructed**2
+    mu_products = mu_images * mu_reconstructed
+    sigma_images_sq = F.conv2d(images_padded**2, window) - mu_images_sq
+    sigma_reconstructed_sq = (
+        F.conv2d(reconstructed_padded**2, window) - mu_reconstructed_sq
+    )
+    sigma_products = (
+        F.conv2d(images_padded * reconstructed_padded, window) - mu_products
+    )
+    numerator = (2 * mu_products + c1) * (2 * sigma_products + c2)
+    denominator = (mu_images_sq + mu_reconstructed_sq + c1) * (
+        sigma_images_sq + sigma_reconstructed_sq + c2
+    )
+    return numerator / (denominator + 1e-8)
+
+
+def per_image_signals(
+    model: nn.Module, images: torch.Tensor
+) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
+    """Return raw anomaly signals and the reconstructed images.
+
+    Higher is more anomalous. ``mae`` is the mean absolute reconstruction
+    error; ``ssim`` is ``1 - SSIM`` averaged over pixels.
+    """
     reconstructed = model(images)
-    scores = torch.mean(torch.abs(reconstructed - images), dim=(1, 2, 3))
-    return scores, reconstructed
+    mae = torch.mean(torch.abs(reconstructed - images), dim=(1, 2, 3))
+    ssim = torch.mean(ssim_map(images, reconstructed), dim=(1, 2, 3))
+    return {"mae": mae, "ssim": 1.0 - ssim}, reconstructed
 
 
 class UNetAutoencoder(nn.Module):

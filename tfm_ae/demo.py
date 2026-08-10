@@ -11,7 +11,7 @@ import torch
 from PIL import Image
 
 from . import PROJECT_ROOT
-from .models import build_model
+from .models import build_model, ssim_map
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,10 @@ def evaluate_image(
         reconstructed = model(image)
         absolute_error = torch.abs(reconstructed - image)
         mae = float(torch.mean(absolute_error).item())
+        raw_signals = {
+            "mae": mae,
+            "ssim": float(torch.mean(1.0 - ssim_map(image, reconstructed)).item()),
+        }
 
     pixels = image.squeeze(0).squeeze(0)
     size = pixels.shape[-1]
@@ -52,14 +56,31 @@ def evaluate_image(
     border_mask[size // 8 : 7 * size // 8, size // 8 : 7 * size // 8] = False
     center_border = center - float(pixels[border_mask].mean())
     calibration = checkpoint["calibration"]
-    ae_score = (
-        mae * float(calibration["ae_sign"]) - float(calibration["ae_location"])
-    ) / float(calibration["ae_scale"])
     center_score = (
         center_border * float(calibration["center_sign"])
         - float(calibration["center_location"])
     ) / float(calibration["center_scale"])
-    anomaly_score = 0.5 * ae_score + 0.5 * center_score
+
+    center_weight = float(calibration.get("center_weight", 0.5))
+    score_type = calibration.get("score_type", "mae")
+    selected = {"mae": ("mae",), "ssim": ("ssim",), "mae_ssim": ("mae", "ssim")}.get(
+        score_type, ("mae",)
+    )
+    recon_score = 0.0
+    signals = calibration.get("signals")
+    if signals:
+        recon_weight = (1.0 - center_weight) / len(selected)
+        for name in selected:
+            part = signals[name]
+            recon_score += recon_weight * (
+                raw_signals[name] * float(part["sign"]) - float(part["location"])
+            ) / float(part["scale"])
+    else:
+        ae_score = (
+            mae * float(calibration["ae_sign"]) - float(calibration["ae_location"])
+        ) / float(calibration["ae_scale"])
+        recon_score = (1.0 - center_weight) * ae_score
+    anomaly_score = recon_score + center_weight * center_score
     threshold = float(checkpoint["threshold"])
     label = "ANÓMALA" if anomaly_score >= threshold else "NORMAL"
     return DemoResult(

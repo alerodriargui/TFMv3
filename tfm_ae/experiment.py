@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
 from .metrics import auroc, best_balanced_threshold, evaluate
-from .models import build_model, per_image_scores
+from .models import build_model, per_image_signals, ssim_map
 
 
 @dataclass(frozen=True)
@@ -33,6 +33,10 @@ class ExperimentConfig:
     seed: int = 42
     max_train_images: int | None = None
     max_eval_images_per_class: int | None = None
+    score_type: str = "mae"
+    loss_type: str = "l1"
+    denoise_sigma: float = 0.0
+    center_weight: float = 0.5
 
 
 def set_seed(seed: int) -> None:
@@ -55,13 +59,33 @@ def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataL
     )
 
 
+def _reconstruction_loss(
+    images: torch.Tensor, reconstructed: torch.Tensor, loss_type: str
+) -> torch.Tensor:
+    """L1, SSIM or a 0.5/0.5 combination as the reconstruction loss."""
+    if loss_type == "l1":
+        return F.l1_loss(reconstructed, images)
+    if loss_type == "ssim":
+        return 1.0 - torch.mean(ssim_map(images, reconstructed))
+    if loss_type == "l1ssim":
+        l1 = F.l1_loss(reconstructed, images)
+        ssim = 1.0 - torch.mean(ssim_map(images, reconstructed))
+        return 0.5 * l1 + 0.5 * ssim
+    raise ValueError(f"Tipo de pérdida desconocido: {loss_type}")
+
+
 def _train_batch(
     model: ConvAutoencoder,
     images: torch.Tensor,
     optimizer: torch.optim.Optimizer,
+    loss_type: str,
+    denoise_sigma: float,
 ) -> float:
     optimizer.zero_grad(set_to_none=True)
-    loss = F.l1_loss(model(images), images)
+    target = images
+    if denoise_sigma > 0.0:
+        images = images + denoise_sigma * torch.randn_like(images)
+    loss = _reconstruction_loss(images, model(images), loss_type)
     loss.backward()
     optimizer.step()
     return float(loss.detach())
@@ -76,8 +100,8 @@ def _normal_validation_loss(
     count = 0
     for images, _labels, _paths in loader:
         images = images.to(device)
-        scores, _ = per_image_scores(model, images)
-        total += float(scores.sum())
+        signals, _ = per_image_signals(model, images)
+        total += float(signals["mae"].sum())
         count += len(images)
     return total / max(count, 1)
 
@@ -112,7 +136,9 @@ def train(
         seen = 0
         for images, _labels, _paths in train_loader:
             images = images.to(device)
-            loss = _train_batch(model, images, optimizer)
+            loss = _train_batch(
+                model, images, optimizer, config.loss_type, config.denoise_sigma
+            )
             total_loss += loss * len(images)
             seen += len(images)
 
@@ -162,17 +188,18 @@ def score_dataset(
     dataset: RadiographDataset,
     batch_size: int,
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray, list[str], tuple[torch.Tensor, torch.Tensor]]:
+) -> tuple[np.ndarray, dict[str, np.ndarray], list[str], tuple[torch.Tensor, torch.Tensor]]:
     model.eval()
-    scores: list[np.ndarray] = []
+    signals: dict[str, list[np.ndarray]] = {}
     labels: list[np.ndarray] = []
     paths: list[str] = []
     samples: tuple[torch.Tensor, torch.Tensor] | None = None
     loader = _loader(dataset, batch_size, False)
     for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
         device_images = images.to(device)
-        batch_scores, reconstructed = per_image_scores(model, device_images)
-        scores.append(batch_scores.cpu().numpy())
+        batch_signals, reconstructed = per_image_signals(model, device_images)
+        for name, values in batch_signals.items():
+            signals.setdefault(name, []).append(values.cpu().numpy())
         labels.append(batch_labels.numpy())
         paths.extend(batch_paths)
         if samples is None:
@@ -184,7 +211,12 @@ def score_dataset(
                 flush=True,
             )
     assert samples is not None
-    return np.concatenate(labels), np.concatenate(scores), paths, samples
+    return (
+        np.concatenate(labels),
+        {name: np.concatenate(values) for name, values in signals.items()},
+        paths,
+        samples,
+    )
 
 
 def _center_border_masks(
@@ -212,15 +244,25 @@ def center_border_scores(
     return np.concatenate(values)
 
 
+def _z_score(
+    raw: np.ndarray, sign: float, location: float, scale: float
+) -> np.ndarray:
+    return (raw * sign - location) / scale
+
+
 def calibrate_ae_scores(
     config: ExperimentConfig,
     validation: RadiographDataset,
     test: RadiographDataset,
     val_labels: np.ndarray,
-    raw_val_scores: np.ndarray,
-    raw_test_scores: np.ndarray,
+    signals: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> tuple[np.ndarray, np.ndarray, dict]:
-    """Combine calibrated reconstruction and center-border scores equally."""
+    """Combine calibrated reconstruction signals and the center-border signal.
+
+    Each reconstruction signal is sign-adjusted and z-scored against the
+    normal distribution of validation. The final score is
+    ``(1 - center_weight) * mean(signal z-scores) + center_weight * center z``.
+    """
     train = RadiographDataset.normal_only(
         split_dir(config.data_root, "train"),
         config.image_size,
@@ -231,31 +273,55 @@ def calibrate_ae_scores(
     val_center = center_border_scores(validation, config.batch_size, config.image_size)
     test_center = center_border_scores(test, config.batch_size, config.image_size)
 
-    ae_sign = -1.0 if auroc(val_labels, raw_val_scores) < 0.5 else 1.0
+    signal_parts: dict[str, dict[str, float]] = {}
+    for name, (raw_val, raw_test) in signals.items():
+        sign = -1.0 if auroc(val_labels, raw_val) < 0.5 else 1.0
+        normal = (raw_val * sign)[val_labels == 0]
+        location = float(normal.mean())
+        scale = max(float(normal.std()), 1e-8)
+        signal_parts[name] = {"sign": sign, "location": location, "scale": scale}
+
     center_sign = -1.0 if auroc(val_labels, val_center) < 0.5 else 1.0
-    val_ae = raw_val_scores * ae_sign
-    test_ae = raw_test_scores * ae_sign
-    normal_ae = val_ae[val_labels == 0]
-    ae_location = float(normal_ae.mean())
-    ae_scale = max(float(normal_ae.std()), 1e-8)
     center_location = float((train_center * center_sign).mean())
     center_scale = max(float(train_center.std()), 1e-8)
 
-    val_ae = (val_ae - ae_location) / ae_scale
-    test_ae = (test_ae - ae_location) / ae_scale
-    val_center = (val_center * center_sign - center_location) / center_scale
-    test_center = (test_center * center_sign - center_location) / center_scale
+    recon_weight = 1.0 - config.center_weight
+    signal_weight = recon_weight / len(signal_parts)
+    _, raw_test_reference = next(iter(signals.values()))
+    val_recon = np.zeros(len(val_labels), dtype=np.float64)
+    test_recon = np.zeros(len(raw_test_reference), dtype=np.float64)
+    for name, (raw_val, raw_test) in signals.items():
+        part = signal_parts[name]
+        val_recon += signal_weight * _z_score(
+            raw_val, part["sign"], part["location"], part["scale"]
+        )
+        test_recon += signal_weight * _z_score(
+            raw_test, part["sign"], part["location"], part["scale"]
+        )
+    val_final = val_recon + config.center_weight * _z_score(
+        val_center, center_sign, center_location, center_scale
+    )
+    test_final = test_recon + config.center_weight * _z_score(
+        test_center, center_sign, center_location, center_scale
+    )
+    names = " + ".join(
+        f"{signal_weight:.3f} * z({name})" for name in signals
+    ) + f" + {config.center_weight:.3f} * z(center_border)"
+    primary = "mae" if "mae" in signal_parts else next(iter(signal_parts))
     return (
-        0.5 * val_ae + 0.5 * val_center,
-        0.5 * test_ae + 0.5 * test_center,
+        val_final,
+        test_final,
         {
-            "score": "0.5 * calibrated_MAE + 0.5 * calibrated_center_border",
-            "ae_sign": ae_sign,
-            "ae_location": ae_location,
-            "ae_scale": ae_scale,
+            "score": names,
+            "score_type": config.score_type,
+            "center_weight": config.center_weight,
+            "signals": signal_parts,
             "center_sign": center_sign,
             "center_location": center_location,
             "center_scale": center_scale,
+            "ae_sign": signal_parts[primary]["sign"],
+            "ae_location": signal_parts[primary]["location"],
+            "ae_scale": signal_parts[primary]["scale"],
         },
     )
 
@@ -292,6 +358,15 @@ def run(config: ExperimentConfig) -> dict:
         raise ValueError(
             f"El modelo {config.model_name} requiere --image-size múltiplo de {step}"
         )
+    score_types = {
+        "mae": ("mae",),
+        "ssim": ("ssim",),
+        "mae_ssim": ("mae", "ssim"),
+    }
+    if config.score_type not in score_types:
+        raise ValueError(f"Tipo de puntuación desconocido: {config.score_type}")
+    if config.loss_type not in ("l1", "ssim", "l1ssim"):
+        raise ValueError(f"Tipo de pérdida desconocido: {config.loss_type}")
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
@@ -309,19 +384,22 @@ def run(config: ExperimentConfig) -> dict:
         config.max_eval_images_per_class,
         config.seed,
     )
-    val_labels, val_scores, val_paths, samples = score_dataset(
+    val_labels, val_signals, val_paths, samples = score_dataset(
         model, validation, config.batch_size, device
     )
-    test_labels, test_scores, test_paths, _ = score_dataset(
+    test_labels, test_signals, test_paths, _ = score_dataset(
         model, test, config.batch_size, device
     )
+    signals = {
+        name: (val_signals[name], test_signals[name])
+        for name in score_types[config.score_type]
+    }
     val_scores, test_scores, calibration = calibrate_ae_scores(
         config,
         validation,
         test,
         val_labels,
-        val_scores,
-        test_scores,
+        signals,
     )
     threshold, _ = best_balanced_threshold(val_labels, val_scores)
     validation_metrics = evaluate(val_labels, val_scores, threshold)
