@@ -179,30 +179,23 @@ if __name__ == "__main__":
 
     output_dir = Path(r"C:\Users\Alex\OneDrive\Documentos\GitHub\TFMv3\results\brain_v2_final")
 
-    # Demo 1: Normal (score bajo = claramente normal)
-    img_path = data_root / "test/good/img/01221_99.png"
-    image = load_image(img_path, calibration["_image_size"])
-    result = evaluate_image(image, model, calibration)
-    print(f"Demo NORMAL: score={result['anomaly_score']:.3f} -> {result['label']}")
-    create_tfm_figure(image, result, output_dir / "demo_tfm_normal.png", " - Caso Normal")
+    demos = [
+        ("test/good/img/00066_60.png", "demo_11_normal"),
+        ("test/good/img/00072_96.png", "demo_12_normal"),
+        ("test/good/img/00089_60.png", "demo_13_normal"),
+        ("test/good/img/00139_95.png", "demo_14_normal"),
+        ("test/good/img/00204_60.png", "demo_15_normal"),
+        ("test/Ungood/img/00010_60.png", "demo_16_anomalia"),
+        ("test/Ungood/img/00015_60.png", "demo_17_anomalia"),
+        ("test/Ungood/img/00020_60.png", "demo_18_anomalia"),
+        ("test/Ungood/img/00025_60.png", "demo_19_anomalia"),
+        ("test/Ungood/img/00030_60.png", "demo_20_anomalia"),
+    ]
 
-    # Demo 2: Anomalia clara (score alto)
-    img_path = data_root / "test/Ungood/img/00006_60.png"
-    image = load_image(img_path, calibration["_image_size"])
-    result = evaluate_image(image, model, calibration)
-    print(f"Demo ANOMALY: score={result['anomaly_score']:.3f} -> {result['label']}")
-    create_tfm_figure(image, result, output_dir / "demo_tfm_anomaly.png", " - Caso Anomalo")
-
-    # Demo 3: Otro normal
-    img_path = data_root / "test/good/img/00000_96.png"
-    image = load_image(img_path, calibration["_image_size"])
-    result = evaluate_image(image, model, calibration)
-    print(f"Demo NORMAL 2: score={result['anomaly_score']:.3f} -> {result['label']}")
-    create_tfm_figure(image, result, output_dir / "demo_tfm_normal2.png", " - Caso Normal (2)")
-
-    # Demo 4: Otra anomalia
-    img_path = data_root / "test/Ungood/img/00002_68.png"
-    image = load_image(img_path, calibration["_image_size"])
-    result = evaluate_image(image, model, calibration)
-    print(f"Demo ANOMALY 2: score={result['anomaly_score']:.3f} -> {result['label']}")
-    create_tfm_figure(image, result, output_dir / "demo_tfm_anomaly2.png", " - Caso Anomalo (2)")
+    for img_rel, name in demos:
+        img_path = data_root / img_rel
+        image = load_image(img_path, calibration["_image_size"])
+        result = evaluate_image(image, model, calibration)
+        label_tag = "Normal" if result['label'] == "NORMAL" else "Anomalo"
+        print(f"{name}: score={result['anomaly_score']:.3f} -> {result['label']}")
+        create_tfm_figure(image, result, output_dir / f"{name}.png", f" - {label_tag} ({img_rel.split('/')[-1]})")
