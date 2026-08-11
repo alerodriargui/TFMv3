@@ -66,9 +66,9 @@ def create_tfm_figure(image, result, output_path, title_suffix=""):
         'axes.labelsize': 11,
     })
 
-    fig = plt.figure(figsize=(14, 9))
+    fig = plt.figure(figsize=(14, 7))
     fig.patch.set_facecolor('#f8f9fa')
-    gs = GridSpec(3, 4, figure=fig, height_ratios=[1, 1, 0.8], hspace=0.35, wspace=0.3)
+    gs = GridSpec(2, 4, figure=fig, height_ratios=[1, 1], hspace=0.35, wspace=0.3)
 
     original = image.squeeze().numpy()
     reconstructed = result["reconstructed"].squeeze().numpy()
@@ -119,8 +119,9 @@ def create_tfm_figure(image, result, output_path, title_suffix=""):
     is_anomaly = score >= threshold
 
     gauge_colors = ['#2ecc71', '#f39c12', '#e74c3c']
-    labels_gauge = ['Normal', 'Dudoso', 'Anomala']
     bounds = [0, threshold * 0.7, threshold * 1.3, max(score * 1.2, threshold * 2)]
+    result_color = '#e74c3c' if is_anomaly else '#2ecc71'
+    result_text = "ANOMALA" if is_anomaly else "NORMAL"
 
     for i in range(3):
         ax6.barh(0, bounds[i+1] - bounds[i], left=bounds[i], color=gauge_colors[i], 
@@ -129,31 +130,9 @@ def create_tfm_figure(image, result, output_path, title_suffix=""):
     ax6.axvline(x=threshold, color='red', linestyle='--', linewidth=2, label=f'Umbral={threshold:.2f}')
     ax6.set_xlim(bounds[0], bounds[-1])
     ax6.set_ylim(-0.5, 0.5)
-    ax6.set_title(f"6. Score de anomalia: {score:.3f}", fontweight='bold')
+    ax6.set_title(f"6. Score: {score:.3f}  ->  {result_text}", fontweight='bold', color=result_color)
     ax6.set_yticks([])
     ax6.legend(loc='upper right', fontsize=10)
-
-    # Row 3: Summary box
-    ax7 = fig.add_subplot(gs[2, :])
-    ax7.axis('off')
-    
-    result_color = '#e74c3c' if is_anomaly else '#2ecc71'
-    result_text = "ANOMALA" if is_anomaly else "NORMAL"
-    
-    summary_text = (
-        f"RESULTADO: {result_text}\n\n"
-        f"Score global (senales): {result['global_score']:.3f}  |  "
-        f"Score MAE (reconstruccion): {result['mae_score']:.3f}  |  "
-        f"Score final ponderado: {score:.3f}  |  "
-        f"Umbral: {threshold:.3f}\n\n"
-        f"El modelo autoencoder entrenado con cortes cerebrales normales reconstruye mal las zonas con anomalias. "
-        f"El score hibrido combina senales globales (kurtosis, correlacion, gradiente, entropia) con el error de reconstruccion (MAE)."
-    )
-    
-    ax7.text(0.5, 0.5, summary_text, transform=ax7.transAxes, fontsize=11,
-            verticalalignment='center', horizontalalignment='center',
-            bbox=dict(boxstyle='round,pad=0.8', facecolor=result_color, alpha=0.15, edgecolor=result_color, linewidth=2),
-            fontfamily='sans-serif')
 
     fig.suptitle(f"Deteccion de anomalias en corte cerebral - TFM{title_suffix}", 
                 fontsize=16, fontweight='bold', y=0.98)
@@ -180,16 +159,8 @@ if __name__ == "__main__":
     output_dir = Path(r"C:\Users\Alex\OneDrive\Documentos\GitHub\TFMv3\results\brain_v2_final")
 
     demos = [
-        ("test/good/img/00066_60.png", "demo_11_normal"),
-        ("test/good/img/00072_96.png", "demo_12_normal"),
-        ("test/good/img/00089_60.png", "demo_13_normal"),
-        ("test/good/img/00139_95.png", "demo_14_normal"),
-        ("test/good/img/00204_60.png", "demo_15_normal"),
-        ("test/Ungood/img/00002_84.png", "demo_16_anomalia"),
-        ("test/Ungood/img/00006_76.png", "demo_17_anomalia"),
-        ("test/Ungood/img/00009_60.png", "demo_18_anomalia"),
-        ("test/Ungood/img/00009_76.png", "demo_19_anomalia"),
-        ("test/Ungood/img/00012_60.png", "demo_20_anomalia"),
+        ("test/good/img/01221_99.png", "demo_normal"),
+        ("test/Ungood/img/00006_60.png", "demo_anomaly"),
     ]
 
     for img_rel, name in demos:

@@ -264,12 +264,47 @@ reconstrucción:
   s(x)=w\cdot z(\text{global}) + (1-w)\cdot z(\text{MAE}).
 \]
 
+\subsubsection*{Señales globales}
+
 Las señales globales (\texttt{features.py}) son cuatro estadísticos calculados
-sobre cada imagen: kurtosis, tamaño de la región brillante más grande
-(\textit{cc\_largest}), gradiente medio y entropía. Cada señal se tipifica con
-la media y desviación de las normales de entrenamiento; su signo se fija por
-la dirección del AUROC en validación. El peso $w$ se busca en validación con
-una rejilla de 21 valores entre 0 y 1.
+sobre cada imagen que capturan propiedades de su distribución de intensidades:
+
+\begin{itemize}
+  \item \textbf{Kurtosis}: mide la \emph{coludad} de la distribución de
+    intensidades. Valores altos indican colas pesadas o picos pronunciados,
+    típicos de estructuras anómalas con contraste extremo.
+  \item \textbf{Región brillante más grande (\textit{cc\_largest})}: tamaño
+    (en píxeles) de la componente conexa más grande por encima de un umbral
+    de intensidad. Captura la presencia de regiones brillantes patológicas
+    como edema o tumores con realce.
+  \item \textbf{Grado medio}: media del magnitud del gradiente de la imagen.
+    Refleja la cantidad de bordes y texturas; las anomalías suelen generar
+    patrones de borde adicionales por la presencia de lesiones.
+  \item \textbf{Entropía}: mide la incertidumbre o desorden en la distribución
+    de intensidades. Lesiones y estructuras anómalas pueden alterar la entropía
+    global de la imagen.
+\end{itemize}
+
+Cada señal se tipifica con la media y desviación de las normales de
+entrenamiento; su signo se fija por la dirección del AUROC en validación.
+El peso $w$ se busca en validación con una rejilla de 21 valores entre 0 y 1.
+
+\subsubsection*{Métricas de evaluación}
+
+\begin{itemize}
+  \item \textbf{AUROC} (área bajo la curva ROC): probabilidad de que el
+    sistema asigne mayor puntuación a una imagen anómala que a una normal.
+    Es la métrica principal porque es independiente del umbral elegido.
+  \item \textbf{Balanced accuracy}: media de sensitivity y specificity.
+    Evita que la clase mayoritaria (anómalas, 83\% del test) domine la
+    métrica.
+  \item \textbf{Sensitivity (recall)}: proporción de anómalas detectadas.
+    $TP/(TP+FN)$.
+  \item \textbf{Specificity}: proporción de normales correctamente
+    identificadas. $TN/(TN+FP)$.
+  \item \textbf{Umbral}: puntuación que maximiza la balanced accuracy en
+    validación. Se congela y aplica sin cambios en test.
+\end{itemize}
 
 La exactitud balanceada de validación determina el umbral. Las etiquetas de
 validación intervienen en esta calibración, pero nunca actualizan pesos; por
@@ -279,7 +314,7 @@ El test se evalúa después sin cambios.
 \subsection{Reproducibilidad}
 
 El repositorio fija semillas, guarda configuración, historial, puntuaciones y
-métricas. La campaña final usa la semilla 42 con 20 épocas y data augmentation.
+métricas. La campaña final usa la semilla 42 con 10 épocas y data augmentation.
 Se entrega el checkpoint del modelo final y una demostración que reproduce
 exactamente su calibración y umbral.
 
@@ -289,22 +324,47 @@ exactamente su calibración y umbral.
 \small
 \begin{tabular}{lrr}
 \toprule
-Métrica & Valor \\
+Métrica & Valor & Interpretación \\
 \midrule
-AUROC & 0,9029 \\
-Balanced accuracy & 0,8332 \\
-Sensitivity & 0,7554 \\
-Specificity & 0,9109 \\
-Peso híbrido ($w$) & 0,95 \\
-Épocas & 20 \\
-Parámetros & 16.281 \\
+AUROC & 0,9029 & 90\% de probabilidad de separar normal/anómalo \\
+Balanced accuracy & 0,8332 & Media de sensitivity y specificity \\
+Sensitivity & 0,7554 & 75\% de anómalas detectadas \\
+Specificity & 0,9109 & 91\% de normales correctamente identificadas \\
+Peso híbrido ($w$) & 0,95 & 95\% señales globales + 5\% MAE \\
+Épocas & 20 & Convergencia en entrenamiento \\
+Parámetros & 16.281 & Modelo ligero \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 El peso híbrido seleccionado en validación es $w=0{,}95$: las señales globales
-dominan la separación y el MAE actúa como señal complementaria. La specificity
-en test supera el 91\% mientras la sensitivity se mantiene por encima del 75\%.
+dominan la separación y el MAE actúa como señal complementaria. Esto indica
+que las características estadísticas de la imagen (kurtosis, región brillante,
+gradiente, entropía) contienen más información discriminativa que el error
+de reconstrucción del autoencoder. La specificity en test supera el 91\%
+mientras la sensitivity se mtiene por encima del 75\%.
+
+La tabla de señales globales seleccionadas por el modelo muestra los signos
+fijados en validación (Tabla~\ref{tab:features}), que determinan la dirección
+en la que cada señal contribuye a la detección de anomalías.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lc}
+\toprule
+Señal global & Signo \\
+\midrule
+Kurtosis & $+1$ (más kurtosis $\rightarrow$ más anómalo) \\
+Región brillante más grande & $+1$ (región más grande $\rightarrow$ más anómalo) \\
+Grado medio & $-1$ (menos gradiente $\rightarrow$ más anómalo) \\
+Entropía & $+1$ (más entropía $\rightarrow$ más anómalo) \\
+\bottomrule
+\end{tabular}
+\caption{Signos de las señales globales fijados en validación según la
+dirección del AUROC.}
+\label{tab:features}
+\end{table}
 
 \begin{figure}[ht]
   \centering
@@ -350,7 +410,7 @@ Se ha cumplido la propuesta: se obtuvo y auditó BraTS2021, se implementó el
 autoencoder convolucional con data augmentation, se entrenaron los pesos solo
 con imágenes normales y se evaluó mediante un protocolo reproducible. El
 resultado es un sistema explicable: tres etapas de codificación, 16.281
-parámetros, 20 épocas, y una fórmula de puntuación híbrida explícita con
+parámetros, 10 épocas, y una fórmula de puntuación híbrida explícita con
 AUROC $0{,}9029$ y exactitud balanceada $0{,}8332$.
 
 La principal conclusión es que un autoencoder sencillo, combinado con señales
