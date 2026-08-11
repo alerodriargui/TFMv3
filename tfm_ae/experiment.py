@@ -16,7 +16,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
 from . import PROJECT_ROOT
-from .data import RadiographDataset, split_dir
+from .data import RandomFlipRotate, RadiographDataset, split_dir
 from .features import GLOBAL_SIGNALS, feature_matrix
 from .metrics import auroc, best_balanced_threshold, evaluate
 from .models import build_model, per_image_scores
@@ -95,11 +95,13 @@ def _normal_validation_loss(
 def train(
     config: ExperimentConfig, device: torch.device
 ) -> tuple[ConvAutoencoder, list[dict], int]:
+    augmentation = RandomFlipRotate(seed=config.seed)
     train_set = RadiographDataset.normal_only(
         split_dir(config.data_root, "train"),
         config.image_size,
         config.max_train_images,
         config.seed,
+        transform=augmentation,
     )
     validation_set = RadiographDataset.normal_only(
         split_dir(config.data_root, "val"),
