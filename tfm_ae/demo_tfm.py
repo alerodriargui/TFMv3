@@ -185,11 +185,11 @@ if __name__ == "__main__":
         ("test/good/img/00089_60.png", "demo_13_normal"),
         ("test/good/img/00139_95.png", "demo_14_normal"),
         ("test/good/img/00204_60.png", "demo_15_normal"),
-        ("test/Ungood/img/00010_60.png", "demo_16_anomalia"),
-        ("test/Ungood/img/00015_60.png", "demo_17_anomalia"),
-        ("test/Ungood/img/00020_60.png", "demo_18_anomalia"),
-        ("test/Ungood/img/00025_60.png", "demo_19_anomalia"),
-        ("test/Ungood/img/00030_60.png", "demo_20_anomalia"),
+        ("test/Ungood/img/00002_84.png", "demo_16_anomalia"),
+        ("test/Ungood/img/00006_76.png", "demo_17_anomalia"),
+        ("test/Ungood/img/00009_60.png", "demo_18_anomalia"),
+        ("test/Ungood/img/00009_76.png", "demo_19_anomalia"),
+        ("test/Ungood/img/00012_60.png", "demo_20_anomalia"),
     ]
 
     for img_rel, name in demos:
