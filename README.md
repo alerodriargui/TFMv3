@@ -1,8 +1,12 @@
 # TFM: detección no supervisada de anomalías
 
-Sistema sencillo para detectar radiografías anómalas aprendiendo únicamente
-con imágenes normales. El modelo final es un autoencoder tipo U-Net de 366.433
-parámetros que reconstruye radiografías de 512×512 con conexiones de salto.
+Sistema no supervisado para detectar anomalías en imágenes médicas aprendiendo
+únicamente con muestras normales. El modelo final es un autoencoder
+convencional de 16.281 parámetros que reconstruye cortes cerebrales de
+240×240 (BraTS2021) y 256×256 (Chest-RSNA). La puntuación combina el error de
+reconstrucción calibrado con señales globales de la imagen (kurtosis, región
+brillante más grande, gradiente medio, entropía), con un peso calibrado en
+validación.
 
 ## Instalación
 
@@ -16,167 +20,150 @@ python -m pip install -r requirements.txt
 
 ```text
 TFMv3/
-|-- tfm_ae/            Código ejecutable del autoencoder
-|   |-- models.py      Arquitectura de la red
-|   |-- data.py        Lectura y preparación de radiografías
-|   |-- experiment.py  Entrenamiento, calibración y evaluación
-|   |-- metrics.py     Métricas y selección del umbral
-|   |-- train.py       Comando de entrenamiento
-|   `-- demo.py        Evaluación de una sola imagen
-|-- checkpoints/       Pesos congelados del modelo
-|-- results/           Métricas, experimentos y figuras generadas
-|-- notebooks/         Notebook para Google Colab
-|-- docs/              Memoria, bibliografía y recursos
-|-- README.md          Guía del proyecto
-`-- requirements*.txt Dependencias
+|-- tfm_ae/              Código ejecutable
+|   |-- models.py        Arquitecturas (ConvAutoencoder, UNetAutoencoder)
+|   |-- data.py          Carga determinista de imágenes
+|   |-- features.py      Señales globales de imagen
+|   |-- metrics.py       AUROC, umbral y métricas
+|   |-- experiment.py    Entrenamiento, calibración y evaluación
+|   |-- train.py         Comando de entrenamiento
+|   |-- demo.py          Demo original (U-Net 512, Chest-RSNA)
+|   `-- demo_hybrid.py   Demo del score híbrido (AE, BraTS2021)
+|-- checkpoints/         Pesos congelados
+|-- results/             Métricas, experimentos y figuras
+|   |-- brain_v2_final/  Campaña Cerebro v2 (Colab GPU, 10 épocas)
+|   `-- brain_hybrid_full/ Campaña híbrida local (256×256, 3 épocas)
+|-- notebooks/           Notebooks de Google Colab
+|-- docs/                Memoria en LaTeX y recursos
+|-- data/raw/rsna_bmad/  Datos locales (Chest-RSNA y BraTS2021)
+`-- requirements*.txt    Dependencias
 ```
 
-La raíz contiene únicamente los archivos habituales de configuración. Cada
-carpeta agrupa elementos con una responsabilidad concreta.
+## Datos
 
-## Dataset
+El código soporta dos datasets organizados por BMAD:
 
-Se utiliza RSNA Pneumonia Detection Challenge con la reorganización de
-[BMAD](https://github.com/DorisBao/BMAD). `Chest-AD.zip` se descarga desde el
-Google Drive enlazado por BMAD, aceptando las condiciones de la
-[fuente RSNA](https://www.rsna.org/artificial-intelligence/ai-image-challenge/rsna-pneumonia-detection-challenge-2018).
+- **Chest-RSNA**: radiografías de tórax (8.000 train, ~1.490 valid, ~17.194 test)
+- **BraTS2021_slice**: cortes cerebrales FLAIR (7.500 train, 39 normales + 44 anómalos valid, 640 normales + 3.075 anómalos test)
 
-```text
-Chest-RSNA/
-├── train/good/
-├── valid/good/
-├── valid/Ungood/
-├── test/good/
-└── test/Ungood/
-```
-
-La copia empleada contiene 8.000 imágenes de entrenamiento, 1.490 de
-validación y 17.194 de test. Para indicar su ubicación:
+Para indicar su ubicación:
 
 ```powershell
-$env:TFM_DATA_ROOT = 'D:\datasets\Chest-RSNA'
+$env:TFM_DATA_ROOT = 'D:\datasets\BraTS2021_slice'
 ```
 
-## Modelo final
+El módulo `data.py` resuelve automáticamente la ruta entre variables de entorno,
+argumentos o ubicaciones conocidas.
 
-```text
-radiografía 512x512
-      ↓  Conv 3×3, s2 (1→16)
-256x256x16 ─────────────┐
-      ↓  Conv 3×3, s2   │ salto (concat)
-128x128x32 ───────────┐ │
-      ↓  Conv 3×3, s2  │ │
-64x64x64 ───────────┐ │ │
-      ↓  Conv 3×3, s2 │ │ │
-32x32x128 (cuello de botella) ─→ ConvT 4×4, s2 + sigmoid → reconstrucción
-```
+## Modelos
 
-El diagrama completo está en `docs/assets/unet_architecture.png`. Los pesos se
-ajustan exclusivamente con las 8.000 radiografías normales. La puntuación
-final promedia dos señales tipificadas:
+| Modelo | Parámetros | Resolución | Uso |
+|---|---:|---:|---|
+| `ae` (ConvAutoencoder) | 16.281 | 64–256 | Modelo principal |
+| `unet` (UNetAutoencoder) | 366.433 | 512 | Demo original Chest-RSNA |
 
-```text
-0,5 × error de reconstrucción calibrado
-+ 0,5 × diferencia de intensidad centro–borde
-```
+El AE simple tiene tres etapas convolucionales (1→8→16→32 canales) con
+decodificador simétrico. El U-Net añade conexiones de salto en cuatro etapas
+(1→16→32→64→128).
 
-Validación selecciona la dirección de ambas señales y el umbral; nunca se usa
-para actualizar los pesos. El test se evalúa con modelo, calibración y umbral
-congelados.
+## Puntuación
+
+El experimento admite dos modos de puntuación seleccionables con `--score-mode`:
+
+- **ae_classic**: `0,5 × MAE calibrado + 0,5 × centro-borde calibrado`
+- **hybrid**: `w × señales globales calibradas + (1-w) × MAE calibrado`
+
+Las señales globales (`features.py`) son cuatro estadísticos calculados sobre
+cada imagen: kurtosis, tamaño de la región brillante más grande, gradiente medio
+y entropía. Cada señal se tipifica con la media y desviación de las normales de
+entrenamiento; su signo se fija por la dirección del AUROC en validación. El
+peso `w` se busca en validación con una rejilla de 21 valores entre 0 y 1.
 
 ## Ejecución
 
 ```powershell
-python -m tfm_ae.train
+python -m tfm_ae.train --model ae --image-size 240 --epochs 10 --score-mode hybrid
 ```
 
-El orden interno del entrenamiento es:
+Argumentos principales:
 
 ```text
-train.py
-   │
-   ├── data.py
-   │     Carga train, valid y test
-   │
-   └── experiment.py
-         │
-         ├── models.py
-         │     Construye y entrena el autoencoder
-         │
-         ├── data.py
-         │     Entrega los lotes de imágenes
-         │
-         ├── metrics.py
-         │     Calcula umbral, AUROC y balanced accuracy
-         │
-         └── Guarda resultados
+--data-root         Ruta al dataset
+--model             ae | unet
+--image-size        Resolución (64, 240, 256, 512...)
+--epochs            Número de épocas
+--batch-size        Tamaño del lote (def: 32)
+--score-mode        ae_classic | hybrid
+--seeds             Semillas para la campaña (def: 13 42 73)
+--bottleneck        Canales del cuello de botella (def: 32)
+--noise-std         Ruido gaussiano para denoising AE
+--max-train-images  Limita imágenes de entrenamiento (debug)
+--max-eval-images-per-class  Limita imágenes de evaluación (debug)
 ```
 
-El AE usa tres épocas, batch 32 y Adam con tasa `1e-3`.
+El entrenamiento guarda en `results/experiments/ae_seed{N}/`:
+- `model.pt` — pesos del modelo
+- `metrics.json` — configuración, historial, calibración y métricas
+- `validation_scores.csv` / `test_scores.csv` — puntuaciones por imagen
+- `reconstructions.png` — reconstrucciones de ejemplo
 
-### Ejecución en Google Colab con GPU
+### Demo híbrida (cerebro)
 
-El notebook `notebooks/TFMv3_colab.ipynb` reproduce el experimento principal en una
-runtime GPU de Google Colab. Incluye clonación del repositorio, instalación de
-dependencias de apoyo, comprobación de CUDA/PyTorch, descarga y extracción del
-dataset en el entorno de Colab, conteos del dataset, prueba reducida y ejecución
-completa del AE U-Net con la semilla 42.
+```powershell
+python -m tfm_ae.demo_hybrid D:\cortes\paciente_001.png
+```
 
-Para usarlo:
+Usa por defecto `results/brain_hybrid_full/ae_seed42/metrics.json` y guarda la
+figura en `results/demo_hybrid_resultado.png`. La figura contiene cuatro paneles:
+original, reconstrucción, mapa de error absoluto y puntuación híbrida frente al
+umbral.
 
-1. Abre `notebooks/TFMv3_colab.ipynb` en Colab.
-2. Selecciona `Runtime > Change runtime type > GPU`.
-3. Ejecuta todas las celdas. El dataset (`Chest-AD.zip`, ~9,6 GB) se descarga y
-   extrae automáticamente en `/content`, sin necesidad de Google Drive. Los
-   resultados se guardan en `/content/TFMv3_colab_outputs/`.
-
-La campaña completa respalda de forma incremental en Google Drive
-(`MyDrive/TFMv3_colab_backup/<fecha>/`): tras cada semilla copia resultados y
-checkpoint. Si la sesión se desconecta por inactividad, los artefactos pueden
-recuperarse desde esa carpeta sin volver a entrenar. Al terminar, la última
-celda descarga un zip con todo.
-
-Para evaluar una radiografía con el autoencoder congelado:
+### Demo original (tórax)
 
 ```powershell
 python -m tfm_ae.demo D:\radiografias\ejemplo.png
 ```
 
-La demo usa por defecto `checkpoints/modelo_autoencoder.pt` y guarda la figura
-en `results/demo_resultado.png`. Ambas rutas se pueden cambiar con `--model` y
-`--output`.
-
-La consola conserva el error de reconstrucción, la puntuación, el umbral y la
-clase. Además, el PNG generado contiene cuatro paneles:
-
-1. imagen original preprocesada a 512×512;
-2. reconstrucción producida por el autoencoder;
-3. mapa de error absoluto por píxel, con escala de color y MAE;
-4. puntuación de anomalía comparada con el umbral congelado de validación.
-
-Puede añadirse `--show` para abrir la figura en un entorno gráfico. Sin esa
-opción se usa un backend sin interfaz y el PNG se genera igualmente. La
-reconstrucción es la aproximación aprendida por el autoencoder, no una
-radiografía clínicamente normal garantizada. La demo es una herramienta
-experimental y no constituye un diagnóstico.
+Usa `checkpoints/modelo_autoencoder.pt` (U-Net 512, Chest-RSNA).
 
 ## Resultados
 
-| Modelo | AUROC | Balanced accuracy |
-|---|---:|---:|
-| Control de gradiente | 0,5981 | 0,5894 |
-| AE mínimo 64×64 | 0,7608 | 0,6790 |
-| **U-Net final 512×512** | **0,6574** | **0,6224** |
+### Cerebro (BraTS2021, score híbrido)
 
-El resultado del modelo final corresponde a la semilla 42 con test congelado.
-No se utiliza ningún clasificador supervisado, ensamble ni red preentrenada.
+| Ejecución | Resolución | Épocas | AUROC | Bal. acc. |
+|---|---:|---:|---:|---:|
+| Local (semilla 42) | 256×256 | 3 | 0,9085 | 0,8364 |
+| Colab GPU (semilla 42) | 240×240 | 10 | 0,9030 | 0,8327 |
+
+El peso híbrido seleccionado en validación es `w = 0,95`: las señales globales
+dominan la separación y el MAE actúa como señal complementaria. La specificity
+en test supera el 94% mientras la sensitivity se mantiene por encima del 72%.
+
+### Tórax (Chest-RSNA, score clásico)
+
+| Modelo | Parámetros | AUROC | Bal. acc. |
+|---|---:|---:|---:|
+| Control de gradiente | 0 | 0,5981 | 0,5894 |
+| AE mínimo 64×64 | 16.281 | 0,7608 | 0,6790 |
+| U-Net final 512×512 | 366.433 | 0,6574 | 0,6224 |
+
+## Google Colab
+
+El notebook `notebooks/TFMv3_colab_brain.ipynb` reproduce el experimento de
+cerebro en Colab con GPU. Descarga BraTS2021, ejecuta una prueba reducida y
+lanza la campaña completa con respaldo incremental en Drive.
+
+1. Abre el notebook en Colab.
+2. Selecciona `Runtime > Change runtime type > GPU`.
+3. Ejecuta todas las celdas.
 
 ## Entregables
 
 | Ruta | Función |
 |---|---|
-| `docs/memoria.pdf` | Memoria final |
-| `docs/assets/` | Diagramas, imágenes y recursos de la memoria |
-| `notebooks/TFMv3_colab.ipynb` | Ejecución reproducible en Colab |
-| `checkpoints/modelo_autoencoder.pt` | Único modelo congelado (U-Net 512, semilla 42) |
-| `results/resultados.csv` | Resultados de la campaña final |
+| `docs/memoria.pdf` | Memoria final (LaTeX) |
+| `docs/assets/` | Diagramas y recursos |
+| `notebooks/TFMv3_colab_brain.ipynb` | Reproducible en Colab |
+| `checkpoints/modelo_autoencoder.pt` | Modelo congelado U-Net 512 (Chest-RSNA) |
+| `results/brain_hybrid_full/ae_seed42/` | Resultados cerebrales híbridos |
+| `results/brain_v2_final/` | Resultados campaña Colab GPU |
