@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
 
-from tfm_ae.demo_hybrid import _load_calibration
+from tfm_ae.experiment import load_calibration_from_metrics as _load_calibration
 from tfm_ae.features import GLOBAL_SIGNALS, feature_matrix
 from tfm_ae.models import build_model
 

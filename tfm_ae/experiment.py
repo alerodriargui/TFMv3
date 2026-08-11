@@ -500,3 +500,35 @@ def run(config: ExperimentConfig) -> dict:
             PROJECT_ROOT / "checkpoints/modelo_autoencoder.pt",
         )
     return report
+
+
+def load_calibration_from_metrics(metrics_path: Path, data_root: Path) -> dict:
+    """Load calibration from a metrics.json file for inference on new images."""
+    report = json.loads(metrics_path.read_text(encoding="utf-8"))
+    calibration = dict(report["calibration"])
+    cache = metrics_path.parent / "global_stats.json"
+    if "global_location" not in calibration:
+        if cache.is_file():
+            cached = json.loads(cache.read_text(encoding="utf-8"))
+            calibration["global_location"] = cached["location"]
+            calibration["global_scale"] = cached["scale"]
+        else:
+            location, scale = _train_global_stats(
+                report["config"],
+                data_root,
+                int(report["config"]["batch_size"]),
+                calibration["global_signs"],
+            )
+            calibration["global_location"] = location
+            calibration["global_scale"] = scale
+            cache.write_text(
+                json.dumps({"location": location, "scale": scale}, indent=2),
+                encoding="utf-8",
+            )
+    calibration["_threshold"] = float(report["test"]["threshold"])
+    calibration["_image_size"] = int(report["config"]["image_size"])
+    calibration["_model_name"] = report["config"]["model"]
+    calibration["_bottleneck"] = int(
+        report["config"].get("bottleneck_channels", 32)
+    )
+    return calibration
