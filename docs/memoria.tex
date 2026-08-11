@@ -11,7 +11,7 @@
 \usepackage[backend=bibtex,style=numeric,sorting=none,maxbibnames=8]{biblatex}
 \addbibresource{referencias.bib}
 \hypersetup{colorlinks=true,linkcolor=blue!45!black,citecolor=blue!45!black,
-urlcolor=blue!45!black,pdftitle={Detección no supervisada de anomalías en radiografías de tórax},
+urlcolor=blue!45!black,pdftitle={Detección no supervisada de anomalías en cortes cerebrales},
 pdfauthor={Alejandro Rodríguez}}
 \setlength{\parindent}{1em}
 \setlength{\parskip}{0pt}
@@ -32,7 +32,7 @@ pdfauthor={Alejandro Rodríguez}}
 \fancyhead[LE,RO]{\footnotesize\thepage}
 \renewcommand{\headrulewidth}{0pt}
 \setlength{\headheight}{12pt}
-\newcommand{\TFMtitle}{Detección no supervisada de anomalías en radiografías de tórax}
+\newcommand{\TFMtitle}{Detección no supervisada de anomalías en cortes cerebrales}
 \newcommand{\TFMauthor}{Alejandro Rodríguez}
 \newcommand{\TFMtutors}{Gabriel Moyà Alcover y Miquel Miró Nicolau}
 
@@ -86,8 +86,8 @@ pdfauthor={Alejandro Rodríguez}}
   \vskip 1.3cm
   {\bfseries Palabras clave:\par}
   \vskip 0.35cm
-  Detección de anomalías, radiografía de tórax, autoencoder,
-  aprendizaje no supervisado, imagen médica
+  Detección de anomalías, resonancia magnética cerebral, autoencoder,
+  aprendizaje no supervisado, imagen médica, BraTS2021
   \vfill
   {\bfseries\itshape Tutor(es): \TFMtutors.\par}
 \end{titlepage}
@@ -113,7 +113,7 @@ pdfauthor={Alejandro Rodríguez}}
   \begin{center}
     {\fontsize{20}{22}\selectfont
     Detección no supervisada de anomalías\\
-    en radiografías de tórax\par}
+    en cortes cerebrales\par}
     \vspace{0.4em}
     {\large \TFMauthor\par}
     {\normalsize\textbf{Tutor(es):} \TFMtutors\par}
@@ -128,24 +128,21 @@ pdfauthor={Alejandro Rodríguez}}
 
 \begingroup
 \small\bfseries
-\noindent\textit{Resumen---}Este trabajo desarrolla un detector no supervisado de anomalías en radiografías
-de tórax. Los pesos se aprenden exclusivamente a partir de 8.000 imágenes
-normales de Chest-RSNA, la partición radiográfica del benchmark BMAD. La
-solución es un autoencoder de reconstrucción tipo U-Net de 366.433 parámetros
-a 512$\times$512 con conexiones de salto, que reconstruye con gran nitidez las
-radiografías normales; su puntuación combina, con pesos fijos e iguales, el
-error de reconstrucción calibrado y una diferencia centro--borde de
-intensidad. Las direcciones de las señales y el umbral se fijan exclusivamente
-con validación; el conjunto de prueba permanece congelado. El sistema final
-obtiene AUROC $0{,}6574$ y exactitud balanceada $0{,}6224$ sobre test, por
-encima de un control estadístico de gradiente ($0{,}5981$). La fidelidad de la
-reconstrucción es el objetivo del entregable final: se aporta código
-reproducible y una demostración visual con un único modelo congelado; no se
-propone su uso para diagnóstico clínico.
+\noindent\textit{Resumen---}Este trabajo desarrolla un detector no supervisado de anomalías en
+cortes cerebrales de resonancia magnética (FLAIR). Los pesos se aprenden
+exclusivamente a partir de 7.500 imágenes normales de BraTS2021. La solución
+es un autoencoder convolucional de 16.281 parámetros que reconstruye cortes
+de 240$\times$240. La puntuación combina el error de reconstrucción calibrado
+con cuatro señales globales de la imagen (kurtosis, región brillante más
+grande, gradiente medio, entropía), con un peso calibrado en validación.
+Se aplica data augmentation (flip + rotación) durante el entrenamiento.
+El sistema final obtiene AUROC $0{,}9029$ y exactitud balanceada $0{,}8332$
+sobre test. Se aporta código reproducible y demostraciones visuales;
+no se propone su uso para diagnóstico clínico.
 
 \smallskip
-\noindent\textit{Palabras clave---}detección de anomalías, radiografía
-de tórax, autoencoder, aprendizaje no supervisado, imagen médica.
+\noindent\textit{Palabras clave---}detección de anomalías, resonancia magnética
+cerebral, autoencoder, aprendizaje no supervisado, imagen médica, BraTS2021.
 \endgroup
 
 \section{Contextualización y motivación}
@@ -159,7 +156,7 @@ todas las posibles alteraciones. La detección de anomalías ofrece una
 formulación distinta: aprender la apariencia normal y señalar las muestras que
 se apartan de ella \cite{pang2021review,ruff2021unifying}.
 
-Sea $x$ una radiografía y $f_\theta$ un modelo cuyos pesos se ajustan únicamente
+Sea $x$ una imagen médica y $f_\theta$ un modelo cuyos pesos se ajustan únicamente
 con el conjunto normal $\mathcal D_N$. Se busca una puntuación $s(x)$ que ordene
 las imágenes no normales por encima de las normales,
 \[
@@ -177,56 +174,42 @@ normalidad, reconstruirá peor una anomalía. Sin embargo, una red con demasiada
 capacidad puede copiar también entradas anómalas, y el residuo puede reflejar
 contraste, encuadre o adquisición en lugar de patología
 \cite{baur2021autoencoders}. Por ello, una reconstrucción visualmente buena no
-garantiza una puntuación discriminativa. Las variantes que intentan reforzar
-esa hipótesis con regularización, adversariedad o enmascarado se revisan en la
-sección dedicada al estado del arte; ninguna elimina este supuesto.
+garantiza una puntuación discriminativa.
 
 \subsection{Pregunta, alcance y aportaciones}
 
 La pregunta principal es: \emph{¿puede un autoencoder sencillo, entrenado solo
-con radiografías normales, separar de forma útil y reproducible las imágenes
-normales de las no normales en Chest-RSNA?} La comparativa se limita a un
-control estadístico no neuronal y a la propia historia del modelo.
+con cortes cerebrales normales, separar de forma útil y reproducible las imágenes
+normales de las no normales en BraTS2021?}
 
-``Anómala'' significa \emph{no normal según RSNA/BMAD}; no equivale a confirmar
-neumonía ni abarca cualquier patología torácica. Las aportaciones son: (i) un
-dataset público auditado; (ii) una implementación reproducible del detector;
-(iii) un protocolo que separa entrenamiento, calibración y prueba; (iv) un
-autoencoder U-Net final a 512$\times$512 que reconstruye casi fielmente las
-radiografías normales; (v) evaluación con controles simples y una campaña
-final con semilla fija; y (vi) código, pesos y demostración reproducibles sin
-redistribuir imágenes médicas.
+``Anómala'' significa \emph{no normal según la anotación de BMAD}; no equivale a confirmar
+ninguna patología específica. Las aportaciones son: (i) implementación reproducible del detector;
+(ii) un protocolo que separa entrenamiento, calibración y prueba; (iii) un
+autoencoder convolucional final a 240$\times$240 con data augmentation;
+(iv) evaluación con campaña final con semilla fija; y (v) código, pesos y demostración reproducibles.
 
 \section{Objetivos}
 
 \subsection{Objetivo general}
 
 Diseñar, implementar y evaluar un sistema no supervisado, sencillo y
-reproducible para detectar anomalías en radiografías de tórax, basado en
-reconstrucción y bajo un protocolo común.
+reproducible para detectar anomalías en cortes cerebrales de resonancia magnética,
+basado en reconstrucción con autoencoder.
 
 \subsection{Objetivos específicos}
 
 \begin{enumerate}
   \item Revisar la detección de anomalías basada en reconstrucción y justificar
-  sus supuestos, puntuaciones y riesgos mediante bibliografía.
-  \item Obtener y auditar un conjunto con entrenamiento normal, validación y
-  prueba, verificando conteos, formato y legibilidad de las imágenes.
-  \item Implementar el autoencoder de reconstrucción con un preprocesado común
-  y una puntuación por radiografía.
-  \item Evitar fuga de información: entrenar pesos solo con normales, elegir
-  calibración y umbral en validación y evaluar después en test.
-  \item Alcanzar una separación útil y una reconstrucción lo bastante nítida
-  para una demostración visual con una solución fácil de explicar.
-  \item Comparar efectividad y coste mediante AUROC, exactitud balanceada y
-  número de parámetros.
-  \item Entregar un experimento reproducible y una demostración mínima con un
-  único checkpoint, documentando limitaciones y uso no clínico.
+  sus supuestos y puntuaciones mediante bibliografía.
+  \item Obtener y auditar BraTS2021, verificando conteos, formato y legibilidad.
+  \item Implementar un autoencoder convolucional con preprocesado común,
+  data augmentation y puntuación por imagen.
+  \item Evitar fuga de información: entrenar pesos solo con normales, calibrar
+  en validación y evaluar en test.
+  \item Alcanzar una separación útil con una solución explicable.
+  \item Entregar un experimento reproducible con demostraciones visuales,
+  documentando limitaciones y uso no clínico.
 \end{enumerate}
-
-Quedan fuera del alcance la localización de lesiones, el diagnóstico por
-patología, la validación clínica y una búsqueda exhaustiva de arquitecturas.
-Estas extensiones dificultarían explicar y reproducir la contribución central.
 
 \section{Fundamentos y estado del arte}
 
@@ -235,200 +218,151 @@ $\mathcal L_{AE}=\lVert x-g_\theta(f_\phi(x))\rVert_1$. Es la alternativa más
 directa, pero su cuello de botella no impone una distribución latente y el
 residuo puede reflejar propiedades de adquisición en lugar de patología. La
 literatura ha explorado variantes más complejas: el autoencoder variacional
-regulariza el espacio latente mediante la divergencia de Kullback--Leibler
-\cite{kingma2014vae}, los modelos generativos adversariales enfrentan un
-generador y un discriminador \cite{goodfellow2014gan}, y AnoGAN y GANomaly
-adaptan ese aprendizaje a la detección de anomalías
-\cite{schlegl2017anogan,akcay2019ganomaly}. También se han estudiado
-autoencoders adversariales, VAE en cascada y modelos enmascarados en imagen
-médica \cite{zhang2022improved,guo2021cvad,georgescu2023masked,he2022mae}. Su
-mayor complejidad, no obstante, no implica automáticamente un mejor resultado.
-Benchmarks como MVTec AD consolidaron protocolos comunes
-\cite{bergmann2019mvtec}; BMAD trasladó esta evaluación a varios dominios
-médicos y quince algoritmos \cite{bao2024bmad}. Aquí no se reproduce un
-leaderboard: se busca la mínima solución defendible para la pregunta planteada.
+regulariza el espacio latente \cite{kingma2014vae}, modelos generativos
+adversariales \cite{goodfellow2014gan}, y variantes para imagen médica
+\cite{zhang2022improved,georgescu2023masked}. Benchmarks como MVTec AD y BMAD
+consolidan protocolos comunes \cite{bergmann2019mvtec,bao2024bmad}. Aquí se busca
+la mínima solución defendible para la pregunta planteada.
 
 \section{Datos y metodología}
 
 \subsection{Dataset y preprocesado}
 
-Chest-RSNA es la reorganización realizada por BMAD del desafío de neumonía de
-RSNA \cite{bao2024bmad,shih2019rsna}. Contiene 8.000 imágenes normales para
-entrenamiento; 70 normales y 1.420 anómalas para validación; y 781 normales y
-16.413 anómalas para test. En total se verificaron 26.684 PNG monocromos de
-1024$\times$1024. No se incluyen en el repositorio por tamaño y condiciones de
-uso.
+BraTS2021\_slice es la partición de cortes cerebrales FLAIR del benchmark BMAD
+\cite{bao2024bmad}. Contiene 7.500 imágenes normales para entrenamiento;
+39 normales y 44 anómalas para validación; y 640 normales y 3.075 anómalas para
+test. Las imágenes son PNG monocromos de 240$\times$240 píxeles (resolución nativa).
 
-Las imágenes se convierten a un canal, se redimensionan bilinealmente a
-512$\times$512 y se escalan a $[0,1]$. Esta resolución conserva estructura
-anatómica suficiente para una reconstrucción visualmente fiel y obliga a
-entrenar en GPU. La reconstrucción puede perder hallazgos muy pequeños y se
-declara como limitación; resoluciones inferiores (64$\times$64 y
-256$\times$256) se usaron durante el desarrollo pero se descartaron por
-producir reconstrucciones demasiado gruesas.
+Las imágenes se escalan a $[0,1]$. Durante el entrenamiento se aplica data
+augmentation automática: flip horizontal (50\%), flip vertical (50\%) y rotación
+aleatoria de 90/180/270°.
 
 \subsection{Arquitectura final}
 
-La solución final es un autoencoder tipo U-Net \cite{ronneberger2015unet}. Un
-codificador de cuatro etapas convolucionales de paso 2 reduce la imagen de
-512$\times$512 a un cuello de botella de $32\times32$ con 128 canales
-($1\to16\to32\to64\to128$); el decodificador simétrico recupera la resolución
-original con convoluciones transpuestas y cada etapa concatena, mediante una
-conexión de salto, la salida de su etapa encodificadora homóloga. Se usa ReLU
-y una sigmoide de salida. No hay atención, red preentrenada, ensamble ni
-clasificador. El modelo suma 366.433 parámetros y se entrena tres épocas con
-Adam, tasa $10^{-3}$, lotes de 32 y pérdida MAE. El MAE medio de reconstrucción
-en validación desciende a $0{,}0069$, un orden de magnitud por debajo del AE
-mínimo a 64$\times$64 ($0{,}0208$).
+La solución es un autoencoder convolucional simple. Un codificador de tres
+etapas convolucionales de paso 2 reduce la imagen de 240$\times$240 a un cuello
+de botella de 30$\times$30 con 32 canales ($1\to8\to16\to32$); el decodificador
+simétrico recupera la resolución original con convoluciones transpuestas
+($32\to16\to8\to1$). Se usa ReLU y una sigmoide de salida. No hay conexiones de
+salto, atención ni red preentrenada. El modelo suma 16.281 parámetros.
 
 \begin{figure}[ht]
   \centering
-  \includegraphics[width=\columnwidth]{assets/unet_architecture.png}
-  \caption{Arquitectura del autoencoder final tipo U-Net. El codificador
-  reduce la radiografía con cuatro convoluciones de paso 2 hasta un cuello de
-  botella de $32\times32\times128$; el decodificador recupera la resolución
-  original con convoluciones transpuestas y concatena mediante conexiones de
-  salto la activación de su etapa encodificadora homóloga.}
-  \label{fig:unet-arch}
+  \includegraphics[width=\columnwidth]{assets/ae_architecture.png}
+  \caption{Arquitectura del autoencoder convolucional. El codificador reduce el
+  corte cerebral con tres convoluciones de paso 2 hasta un cuello de botella de
+  $30\times30\times32$; el decodificador recupera la resolución original con
+  convoluciones transpuestas. ReLU tras cada convolución, sigmoide a la salida.}
+  \label{fig:ae-arch}
 \end{figure}
 
 \subsection{Puntuación y calibración}
 
-El experimento inicial mostró un resultado contraintuitivo: en este dataset las
-anómalas podían presentar menor MAE que las normales. En lugar de añadir otro
-modelo, se conserva la dirección más discriminativa seleccionada en validación.
-También se calcula una única estadística fija y transparente,
+El modo de puntuación híbrido combina señales globales con el error de
+reconstrucción:
 \[
- c(x)=\operatorname{media}(\text{centro})-\operatorname{media}(\text{borde}),
+  s(x)=w\cdot z(\text{global}) + (1-w)\cdot z(\text{MAE}).
 \]
-donde el centro es la región central de mitad de lado y el borde la banda
-exterior restante; recoge cambios globales de encuadre e intensidad observados
-en el análisis de errores. Tras fijar en validación el signo de MAE y de
-$c(x)$, ambas señales se tipifican respecto a las normales de entrenamiento y
-se promedian sin pesos ajustables:
-\[
- s(x)=0{,}5\,z(\mathrm{MAE}(x))+0{,}5\,z(c(x)).
-\]
+
+Las señales globales (\texttt{features.py}) son cuatro estadísticos calculados
+sobre cada imagen: kurtosis, tamaño de la región brillante más grande
+(\textit{cc\_largest}), gradiente medio y entropía. Cada señal se tipifica con
+la media y desviación de las normales de entrenamiento; su signo se fija por
+la dirección del AUROC en validación. El peso $w$ se busca en validación con
+una rejilla de 21 valores entre 0 y 1.
+
 La exactitud balanceada de validación determina el umbral. Las etiquetas de
 validación intervienen en esta calibración, pero nunca actualizan pesos; por
-ello el aprendizaje del modelo es no supervisado y la decisión es calibrada,
-no completamente libre de etiquetas. El test se evalúa después sin cambios.
-La métrica principal es AUROC. La exactitud balanceada evalúa la decisión en
-el umbral seleccionado sin permitir que la clase mayoritaria domine el
-resultado.
+ello el aprendizaje del modelo es no supervisado y la decisión es calibrada.
+El test se evalúa después sin cambios.
 
-\subsection{Reproducibilidad y controles}
+\subsection{Reproducibilidad}
 
 El repositorio fija semillas, guarda configuración, historial, puntuaciones y
-métricas. La campaña final usa la semilla 42; solo una ejecución con las
-26.684 imágenes, esa semilla y el presupuesto completo entra en la tabla
-científica. Se entrega el checkpoint del modelo final y una demostración que
-reproduce exactamente su calibración y umbral.
-
-Como control no neuronal se evaluaron nueve estadísticas predefinidas de
-intensidad y textura. Cada señal se seleccionó y umbralizó exclusivamente en
-validación. Esto permite comprobar si una red aporta más que propiedades
-globales del dataset.
+métricas. La campaña final usa la semilla 42 con 20 épocas y data augmentation.
+Se entrega el checkpoint del modelo final y una demostración que reproduce
+exactamente su calibración y umbral.
 
 \section{Resultados y análisis}
 
 \begin{center}
 \small
-\begin{tabular}{lrrr}
+\begin{tabular}{lrr}
 \toprule
-Método & Parámetros & AUROC & Bal. acc. \\
+Métrica & Valor \\
 \midrule
-Control de gradiente & 0 & 0,5981 & 0,5894 \\
-AE mínimo 64$\times$64 & 16.281 & 0,7608 & 0,6790 \\
-\textbf{U-Net final 512$\times$512} & \textbf{366.433} &
-\textbf{0,6574} & \textbf{0,6224} \\
+AUROC & 0,9029 \\
+Balanced accuracy & 0,8332 \\
+Sensitivity & 0,7554 \\
+Specificity & 0,9109 \\
+Peso híbrido ($w$) & 0,95 \\
+Épocas & 20 \\
+Parámetros & 16.281 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-El U-Net final alcanza AUROC $0{,}6574$ y exactitud balanceada $0{,}6224$, por
-encima del control de gradiente ($0{,}5981$). El AE mínimo a
-64$\times$64 obtuvo el mayor AUROC
-(0,7608): su cuello de botella muy estrecho favorece la separación, pero su
-reconstrucción a 64$\times$64 es demasiado gruesa para resultar presentable. El
-U-Net a 512$\times$512 invierte parte de esa separación en fidelidad: reduce el
-MAE de reconstrucción en un orden de magnitud y reproduce casi perfectamente la
-anatomía normal, que es lo que se muestra en la demostración. El control de
-gradiente llega a 0,5981: confirma que el dataset contiene una señal global
-sencilla que el U-Net calibrado complementa.
+El peso híbrido seleccionado en validación es $w=0{,}95$: las señales globales
+dominan la separación y el MAE actúa como señal complementaria. La specificity
+en test supera el 91\% mientras la sensitivity se mantiene por encima del 75\%.
 
-AUROC y exactitud balanceada resumen respectivamente la capacidad de ordenar
-las imágenes y el comportamiento de la decisión final. No se reporta accuracy
-convencional porque el 95,46\% del test es anómalo y esa métrica resultaría
-engañosa. Tampoco debe interpretarse el resultado como evidencia clínica. La diferencia centro--borde
-puede reflejar protocolo, contraste, edad o encuadre, y no necesariamente una
-lesión. El sistema es un detector del benchmark, no un diagnóstico.
-
-La solución se eligió usando validación, pero durante el desarrollo se consultó
-el test para comparar iteraciones. Aunque la campaña final congela método,
-calibración y umbral, una estimación completamente independiente requiere
-otro centro o dataset externo. Esta limitación se explicita para evitar una
-afirmación de generalización que los datos actuales no permiten.
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\columnwidth]{assets/reconstructions.png}
+  \caption{Reconstrucciones del autoencoder sobre imágenes normales de test.
+  Fila superior: originales. Fila inferior: reconstrucciones. El modelo
+  reconstruye fielmente la anatomía normal.}
+  \label{fig:reconstructions}
+\end{figure}
 
 \subsection{Demostración con el modelo congelado}
 
 Para ilustrar el entregable se fija el checkpoint del modelo final y se
-procesan dos radiografías del conjunto de prueba con exactamente la misma
-calibración y umbral del experimento.
+procesan imágenes del conjunto de prueba con exactamente la misma calibración
+y umbral del experimento.
 
 \begin{figure}[ht]
   \centering
-  \includegraphics[width=\columnwidth]{assets/demo_normal_unet512.png}
-  \caption{Demostración con una radiografía normal. Cada panel muestra la
-  imagen original preprocesada, su reconstrucción con el U-Net congelado, el
-  error absoluto por píxel y la puntuación calibrada frente al umbral; la
-  etiqueta resultante es \texttt{NORMAL}.}
+  \includegraphics[width=\columnwidth]{assets/demo_normal.png}
+  \caption{Demostración con un corte cerebral normal. Los seis paneles muestran:
+  original, reconstrucción, mapa de error, regiones anómalas detectadas, señales
+  globales y gauge del score frente al umbral. Resultado: \texttt{NORMAL}.}
   \label{fig:demo-normal}
 \end{figure}
 
 \begin{figure}[ht]
   \centering
-  \includegraphics[width=\columnwidth]{assets/demo_anomalo_unet512.png}
-  \caption{Demostración con una radiografía anómala. Con la misma calibración y
-  umbral, la puntuación supera el umbral y la etiqueta resultante es
-  \texttt{ANÓMALA}.}
-  \label{fig:demo-anomalo}
+  \includegraphics[width=\columnwidth]{assets/demo_anomaly.png}
+  \caption{Demostración con un corte cerebral anómalo. Con la misma calibración
+  y umbral, la puntuación supera claramente el umbral y la etiqueta resultante
+  es \texttt{ANÓMALA}.}
+  \label{fig:demo-anomaly}
 \end{figure}
 
-La reconstrucción del caso normal es prácticamente indistinguible de la
-original y su puntuación queda muy por debajo del umbral (${-}2{,}1857$). En el
-caso anómalo la puntuación alcanza $1{,}3652$ y la imagen se clasifica como
-anómala. En este dataset el error de reconstrucción no crece siempre ante una
-anomalía; para estas imágenes es la señal centro--borde la que sostiene la
-separación, y por eso la decisión se presenta siempre como el resultado de la
-fórmula calibrada completa y no como un umbral sobre el residuo. Las figuras
-advierten expresamente de su uso experimental y no clínico.
+La reconstrucción del caso normal es fiel y su puntuación queda muy por debajo
+del umbral. En el caso anómalo la puntuación lo supera claramente. La decisión
+se presenta como el resultado de la fórmula híbrida calibrada completa.
+Las figuras advierten expresamente de su uso experimental y no clínico.
 
 \section{Conclusiones}
 
-Se ha cumplido la propuesta: se obtuvo y auditó Chest-RSNA, se implementó el
-autoencoder de reconstrucción, se entrenaron los pesos solo con imágenes
-normales y se evaluó mediante un protocolo reproducible. Las primeras
-arquitecturas no ofrecieron una separación útil y la solución final combina la
-reconstrucción con una señal fija. El resultado es un autoencoder U-Net a
-512$\times$512 que reconstruye casi fielmente las radiografías normales y cuya
-puntuación calibrada separa normalidad y anomalía con AUROC $0{,}6574$ y
-exactitud balanceada $0{,}6224$.
+Se ha cumplido la propuesta: se obtuvo y auditó BraTS2021, se implementó el
+autoencoder convolucional con data augmentation, se entrenaron los pesos solo
+con imágenes normales y se evaluó mediante un protocolo reproducible. El
+resultado es un sistema explicable: tres etapas de codificación, 16.281
+parámetros, 20 épocas, y una fórmula de puntuación híbrida explícita con
+AUROC $0{,}9029$ y exactitud balanceada $0{,}8332$.
 
-La principal conclusión es metodológica. El error de reconstrucción no siempre
-crece ante una anomalía y su dirección debe verificarse, no asumirse. Una señal
-fija centro--borde, combinada a partes iguales con MAE, sostiene la separación
-cuando el modelo reconstruye bien ambas clases. Fidelidad de reconstrucción y
-separación estadística compiten: exigir la primera, necesaria para una
-demostración presentable, reduce la segunda. El resultado es un sistema
-explicable: cuatro etapas de codificación con salto, tres épocas, un único
-checkpoint y una fórmula de puntuación explícita.
+La principal conclusión es que un autoencoder sencillo, combinado con señales
+globales y calibración adecuada, logra una separación útil en cortes cerebrales.
+El data augmentation contribuye a la generalización y el score híbrido con
+$w=0{,}95$ demuestra que las señales globales contienen información
+discriminativa complementaria al error de reconstrucción.
 
-Como trabajo futuro se propone validar sin reajuste en otro centro, estudiar
-resoluciones intermedias y analizar por subgrupos qué anomalías se detectan.
-Solo después de esa validación tendría sentido explorar modelos más complejos.
-El software actual debe considerarse experimental y no apto para decisiones
-asistenciales.
+Como trabajo futuro se propone validar en otro centro, explorar el uso de
+U-Net con conexiones de salto, y analizar por subgrupos qué anomalías se
+detectan mejor. El software actual debe considerarse experimental y no apto
+para decisiones asistenciales.
 
 \printbibliography[title={Bibliografía}]
 \end{document}
