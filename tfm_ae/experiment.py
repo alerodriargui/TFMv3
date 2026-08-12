@@ -401,6 +401,8 @@ def run(config: ExperimentConfig) -> dict:
         json.dump(report, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
     if report["scientific_run"] and config.seed == 42:
+        checkpoint_dir = PROJECT_ROOT / "checkpoints"
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 "model_state": {
@@ -414,7 +416,7 @@ def run(config: ExperimentConfig) -> dict:
                 "validation_auroc": float(validation_metrics["auroc"]),
                 "test_auroc": float(test_metrics["auroc"]),
             },
-            PROJECT_ROOT / "checkpoints/modelo_autoencoder.pt",
+            checkpoint_dir / "modelo_autoencoder.pt",
         )
     return report
 
