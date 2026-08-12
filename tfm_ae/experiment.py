@@ -199,7 +199,7 @@ def score_dataset(
     return np.concatenate(labels), np.concatenate(scores), paths, samples
 
 
-def calibrate_hybrid_scores(
+def _feature_scores(
     dataset: RadiographDataset, batch_size: int
 ) -> dict[str, np.ndarray]:
     """Compute the global feature bank for every image in ``dataset``."""
