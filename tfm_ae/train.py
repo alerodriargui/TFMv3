@@ -16,10 +16,12 @@ from .experiment import ExperimentConfig, run
 def summarize(output_root: Path, report_path: Path) -> None:
     """Write the aggregated AE result."""
     rows = []
+    model = "ae"
     for path in sorted(output_root.glob("ae_seed*/metrics.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
         if not report.get("scientific_run", False):
             continue
+        model = report["config"]["model"]
         rows.append(report["test"])
     if not rows:
         return
@@ -31,7 +33,7 @@ def summarize(output_root: Path, report_path: Path) -> None:
         writer.writeheader()
         writer.writerow(
             {
-                "model": "ae",
+                "model": model,
                 "runs": len(rows),
                 "auroc_mean": statistics.mean(row["auroc"] for row in rows),
                 "balanced_accuracy_mean": statistics.mean(
@@ -50,12 +52,24 @@ def main() -> int:
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--image-size", type=int, default=64)
+    parser.add_argument(
+        "--model",
+        choices=("ae", "unet"),
+        default="ae",
+        help="Arquitectura: ae (autoencoder simple) o unet (U-Net con skips)",
+    )
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
     parser.add_argument("--noise-std", type=float, default=0.0)
     parser.add_argument("--bottleneck", type=int, default=32)
+    parser.add_argument(
+        "--score-mode",
+        choices=("ae_classic", "hybrid"),
+        default="ae_classic",
+        help="ae_classic: MAE + center_border; hybrid: señales globales + MAE con peso en validación",
+    )
     args = parser.parse_args()
 
     root = resolve_data_root(args.data_root)
@@ -66,7 +80,7 @@ def main() -> int:
             previous = json.loads(metrics_path.read_text(encoding="utf-8"))
             if previous.get("scientific_run", False):
                 previous_config = previous.get("config", {})
-                same_model = previous_config.get("model") == "ae"
+                same_model = previous_config.get("model") == args.model
                 same_size = previous_config.get("image_size") == args.image_size
                 if same_model and same_size:
                     print(f"SKIP AE seed={seed}: ya está completo")
@@ -77,13 +91,14 @@ def main() -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             image_size=args.image_size,
-            model_name="ae",
+            model_name=args.model,
             learning_rate=args.learning_rate,
             seed=seed,
             max_train_images=args.max_train_images,
             max_eval_images_per_class=args.max_eval_images_per_class,
             noise_std=args.noise_std,
             bottleneck_channels=args.bottleneck,
+            score_mode=args.score_mode,
         )
         report = run(config)
         test = report["test"]

@@ -152,7 +152,7 @@ if __name__ == "__main__":
     calibration = _load_calibration(metrics_path, data_root)
     model_path = metrics_path.parent / "model.pt"
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
-    model = build_model(calibration["_bottleneck"])
+    model = build_model(calibration["_model_name"], calibration["_bottleneck"])
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
 
