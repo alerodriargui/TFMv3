@@ -19,7 +19,7 @@ from . import PROJECT_ROOT
 from .data import RandomFlipRotate, RadiographDataset, split_dir
 from .features import GLOBAL_SIGNALS, feature_matrix
 from .metrics import auroc, best_balanced_threshold, evaluate
-from .models import build_model, per_image_scores
+from .models import build_model, per_image_scores, ConvAutoencoder
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,6 @@ class ExperimentConfig:
     max_eval_images_per_class: int | None = None
     noise_std: float = 0.0
     bottleneck_channels: int = 32
-    score_mode: str = "ae_classic"
 
 
 def set_seed(seed: int) -> None:
@@ -111,7 +110,7 @@ def train(
     )
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
-    model = build_model(config.model_name, config.bottleneck_channels).to(device)
+    model = build_model(config.bottleneck_channels).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     best_value = float("inf")
     history: list[dict] = []
@@ -200,80 +199,7 @@ def score_dataset(
     return np.concatenate(labels), np.concatenate(scores), paths, samples
 
 
-def _center_border_masks(
-    image_size: int,
-) -> tuple[torch.Tensor, slice, slice]:
-    """Máscaras centro (mitad central) y borde (anillo exterior) del tamaño dado."""
-    center = slice(image_size // 4, 3 * image_size // 4)
-    border_mask = torch.ones((image_size, image_size), dtype=torch.bool)
-    border_mask[image_size // 8 : 7 * image_size // 8, image_size // 8 : 7 * image_size // 8] = False
-    return border_mask, center, center
-
-
-@torch.no_grad()
-def center_border_scores(
-    dataset: RadiographDataset, batch_size: int, image_size: int
-) -> np.ndarray:
-    """Return the mean intensity difference between image center and border."""
-    values = []
-    border_mask, center_rows, center_cols = _center_border_masks(image_size)
-    for images, _labels, _paths in _loader(dataset, batch_size, False):
-        pixels = images.squeeze(1)
-        center = pixels[:, center_rows, center_cols].mean(dim=(1, 2))
-        border = pixels[:, border_mask].mean(dim=1)
-        values.append((center - border).numpy())
-    return np.concatenate(values)
-
-
-def calibrate_ae_scores(
-    config: ExperimentConfig,
-    validation: RadiographDataset,
-    test: RadiographDataset,
-    val_labels: np.ndarray,
-    raw_val_scores: np.ndarray,
-    raw_test_scores: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, dict]:
-    """Combine calibrated reconstruction and center-border scores equally."""
-    train = RadiographDataset.normal_only(
-        split_dir(config.data_root, "train"),
-        config.image_size,
-        config.max_train_images,
-        config.seed,
-    )
-    train_center = center_border_scores(train, config.batch_size, config.image_size)
-    val_center = center_border_scores(validation, config.batch_size, config.image_size)
-    test_center = center_border_scores(test, config.batch_size, config.image_size)
-
-    ae_sign = -1.0 if auroc(val_labels, raw_val_scores) < 0.5 else 1.0
-    center_sign = -1.0 if auroc(val_labels, val_center) < 0.5 else 1.0
-    val_ae = raw_val_scores * ae_sign
-    test_ae = raw_test_scores * ae_sign
-    normal_ae = val_ae[val_labels == 0]
-    ae_location = float(normal_ae.mean())
-    ae_scale = max(float(normal_ae.std()), 1e-8)
-    center_location = float((train_center * center_sign).mean())
-    center_scale = max(float(train_center.std()), 1e-8)
-
-    val_ae = (val_ae - ae_location) / ae_scale
-    test_ae = (test_ae - ae_location) / ae_scale
-    val_center = (val_center * center_sign - center_location) / center_scale
-    test_center = (test_center * center_sign - center_location) / center_scale
-    return (
-        0.5 * val_ae + 0.5 * val_center,
-        0.5 * test_ae + 0.5 * test_center,
-        {
-            "score": "0.5 * calibrated_MAE + 0.5 * calibrated_center_border",
-            "ae_sign": ae_sign,
-            "ae_location": ae_location,
-            "ae_scale": ae_scale,
-            "center_sign": center_sign,
-            "center_location": center_location,
-            "center_scale": center_scale,
-        },
-    )
-
-
-def _feature_scores(
+def calibrate_hybrid_scores(
     dataset: RadiographDataset, batch_size: int
 ) -> dict[str, np.ndarray]:
     """Compute the global feature bank for every image in ``dataset``."""
@@ -402,11 +328,6 @@ def _save_reconstructions(
 
 
 def run(config: ExperimentConfig) -> dict:
-    step = 16 if config.model_name == "unet" else 8
-    if config.image_size % step != 0:
-        raise ValueError(
-            f"El modelo {config.model_name} requiere --image-size múltiplo de {step}"
-        )
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
@@ -430,24 +351,14 @@ def run(config: ExperimentConfig) -> dict:
     test_labels, test_scores, test_paths, _ = score_dataset(
         model, test, config.batch_size, device
     )
-    if config.score_mode == "hybrid":
-        val_scores, test_scores, calibration = calibrate_hybrid_scores(
-            config,
-            validation,
-            test,
-            val_labels,
-            val_scores,
-            test_scores,
-        )
-    else:
-        val_scores, test_scores, calibration = calibrate_ae_scores(
-            config,
-            validation,
-            test,
-            val_labels,
-            val_scores,
-            test_scores,
-        )
+    val_scores, test_scores, calibration = calibrate_hybrid_scores(
+        config,
+        validation,
+        test,
+        val_labels,
+        val_scores,
+        test_scores,
+    )
     threshold, _ = best_balanced_threshold(val_labels, val_scores)
     validation_metrics = evaluate(val_labels, val_scores, threshold)
     test_metrics = evaluate(test_labels, test_scores, threshold)
