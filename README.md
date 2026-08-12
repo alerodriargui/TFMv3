@@ -20,7 +20,7 @@ python -m pip install -r requirements.txt
 ```text
 TFMv3/
 |-- tfm_ae/              Código ejecutable
-|   |-- models.py        Arquitecturas (ConvAutoencoder, UNetAutoencoder)
+|   |-- models.py        Arquitecturas (ConvAutoencoder)
 |   |-- data.py          Carga determinista + data augmentation
 |   |-- features.py      Señales globales de imagen
 |   |-- metrics.py       AUROC, umbral y métricas
@@ -55,7 +55,6 @@ $env:TFM_DATA_ROOT = 'D:\datasets\BraTS2021_slice'
 | Modelo | Parámetros | Resolución | Uso |
 |---|---:|---:|---|
 | `ae` (ConvAutoencoder) | 16.281 | 64–256 | Modelo principal |
-| `unet` (UNetAutoencoder) | 366.433 | 512 | Alternativo |
 
 El AE simple tiene tres etapas convolucionales (1→8→16→32 canales) con
 decodificador simétrico.
@@ -73,9 +72,8 @@ Definido en `data.py` como `RandomFlipRotate`.
 
 ## Puntuación
 
-El experimento admite dos modos de puntuación seleccionables con `--score-mode`:
+El experimento usa un único modo de puntuación híbrido:
 
-- **ae_classic**: `0,5 × MAE calibrado + 0,5 × centro-borde calibrado`
 - **hybrid**: `w × señales globales calibradas + (1-w) × MAE calibrado`
 
 Las señales globales (`features.py`) son cuatro estadísticos calculados sobre
@@ -94,11 +92,11 @@ Argumentos principales:
 
 ```text
 --data-root         Ruta al dataset
---model             ae | unet
+--model             ae
 --image-size        Resolución (64, 240, 256, 512...)
 --epochs            Número de épocas
 --batch-size        Tamaño del lote (def: 32)
---score-mode        ae_classic | hybrid
+--score-mode        hybrid
 --seeds             Semillas para la campaña (def: 13 42 73)
 --bottleneck        Canales del cuello de botella (def: 32)
 --noise-std         Ruido gaussiano para denoising AE

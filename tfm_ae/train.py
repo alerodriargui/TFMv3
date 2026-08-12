@@ -54,9 +54,9 @@ def main() -> int:
     parser.add_argument("--image-size", type=int, default=64)
     parser.add_argument(
         "--model",
-        choices=("ae", "unet"),
+        choices=("ae",),
         default="ae",
-        help="Arquitectura: ae (autoencoder simple) o unet (U-Net con skips)",
+        help="Arquitectura: ae (autoencoder simple)",
     )
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
@@ -66,9 +66,9 @@ def main() -> int:
     parser.add_argument("--bottleneck", type=int, default=32)
     parser.add_argument(
         "--score-mode",
-        choices=("ae_classic", "hybrid"),
-        default="ae_classic",
-        help="ae_classic: MAE + center_border; hybrid: señales globales + MAE con peso en validación",
+        choices=("hybrid",),
+        default="hybrid",
+        help="hybrid: señales globales + MAE con peso en validación",
     )
     args = parser.parse_args()
 
