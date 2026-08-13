@@ -1,0 +1,394 @@
+% ============================================================
+%  Presentación TFM — Detección no supervisada de anomalías
+%  en cortes cerebrales
+%  Autor: Alejandro Rodríguez — MUSI (UIB)
+%  Compilar con pdflatex (2 pasadas)
+% ============================================================
+\documentclass[10pt,aspectratio=169]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{newtxtext,newtxmath}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{caption}
+\usepackage{hyperref}
+
+\usetheme{Madrid}
+\usecolortheme{whale}
+% Ajuste de color a azul institucional (UIB)
+\definecolor{UIBblue}{RGB}{0,63,136}
+\definecolor{UIBlight}{RGB}{213,224,238}
+\setbeamercolor{structure}{fg=UIBblue}
+\setbeamercolor{palette primary}{bg=UIBblue,fg=white}
+\setbeamercolor{palette secondary}{bg=UIBblue,fg=white}
+\setbeamercolor{palette tertiary}{bg=UIBblue,fg=white}
+\setbeamercolor{frametitle}{bg=UIBblue,fg=white}
+\setbeamercolor{title}{fg=UIBblue}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{caption}[numbered]
+\setbeamercovered{transparent}
+
+% Logotipo en esquina
+\usepackage{etoolbox}
+\addtobeamertemplate{frametitle}{}{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=north east,yshift=-0.12cm,xshift=-0.15cm]
+      at (current page.north east) {%
+        \includegraphics[height=0.55cm]{assets/uib-logo.png}};
+  \end{tikzpicture}}
+
+\title[Detección no supervisada de anomalías en cortes cerebrales]
+      {Detección no supervisada de anomalías en cortes cerebrales}
+\author[Alejandro Rodríguez]{Alejandro Rodríguez}
+\institute[MUSI -- UIB]{%
+  Máster Universitario en Sistemas Inteligentes (MUSI) \\
+  Especialidad en Inteligencia Artificial y Ciencia de Datos \\
+  Universitat de les Illes Balears}
+\date{Curso 2025/26}
+
+\titlegraphic{\includegraphics[height=1.2cm]{assets/uib-logo.png}}
+
+\begin{document}
+
+% ---------- PORTADA ----------
+\begin{frame}[plain]
+  \titlepage
+  \vspace{0.2cm}
+  {\small Tutor(es): Gabriel Moyà Alcover y Miquel Miró Nicolau}
+\end{frame}
+
+% ---------- ÍNDICE ----------
+\begin{frame}{Agenda}
+  \tableofcontents
+\end{frame}
+
+% ============================================================
+\section{Motivación y objetivos}
+% ============================================================
+
+\begin{frame}{Motivación}
+  \begin{block}{El problema del aprendizaje supervisado en imagen médica}
+    \begin{itemize}
+      \item Requiere ejemplos \textbf{etiquetados} de cada categoría.
+      \item Anotar en radiología exige \textbf{tiempo experto} y tiene
+            \textbf{variabilidad entre observadores}.
+      \item No es viable enumerar \emph{todas} las posibles alteraciones.
+    \end{itemize}
+  \end{block}
+
+  \vspace{0.4cm}
+  \textbf{Enfoque alternativo}: aprender la \textbf{apariencia normal} y señalar
+  lo que se aparta de ella $\Rightarrow$ \textbf{detección de anomalías} no
+  supervisada.
+\end{frame}
+
+\begin{frame}{Pregunta de investigación}
+  \begin{center}
+  \begin{beamercolorbox}[rounded=true,shadow=true]{structure}
+    \large ¿Puede un \textbf{autoencoder sencillo}, entrenado solo con cortes
+    cerebrales \textbf{normales}, separar de forma útil y reproducible las
+    imágenes normales de las no normales en BraTS2021?
+  \end{beamercolorbox}
+  \end{center}
+
+  \pause
+  \vspace{0.4cm}
+  \begin{itemize}
+    \item \textbf{"Anómala"} $\equiv$ \emph{no normal} según la anotación de BMAD,
+          no confirma una patología concreta.
+    \item El objetivo es \textbf{explicabilidad} y \textbf{reproducibilidad},
+          no un diagnóstico clínico.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Objetivos}
+  \textbf{General:} diseñar, implementar y evaluar un sistema no supervisado,
+  sencillo y reproducible basado en reconstrucción con autoencoder.
+
+  \vspace{0.3cm}
+  \textbf{Específicos:}
+  \begin{enumerate}
+    \item Revisar la detección de anomalías por reconstrucción y justificar sus
+          supuestos mediante bibliografía.
+    \item Obtener y \textbf{auditar} BraTS2021 (conteos, formato, legibilidad).
+    \item Implementar un AE convolucional con preprocesado y \textbf{data augmentation}.
+    \item \textbf{Evitar fuga de información}: entrenar solo con normales,
+          calibrar en validación, evaluar en test.
+    \item Lograr una \textbf{separación útil} con solución explicable.
+    \item Entregar experimento \textbf{reproducible} con demos visuales.
+  \end{enumerate}
+\end{frame}
+
+% ============================================================
+\section{Fundamentos y estado del arte}
+% ============================================================
+
+\begin{frame}{Estado del arte: detección de anomalías}
+  El autoencoder minimiza el error de reconstrucción
+  $\mathcal{L}_{AE}=\lVert x - g_\theta(f_\phi(x))\rVert_1$.
+
+  \vspace{0.3cm}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{Variantes en la literatura}
+      \begin{itemize}
+        \item AE variacional: regulariza el espacio latente
+              \cite{kingma2014vae}.
+        \item Modelos generativos adversariales \cite{goodfellow2014gan}.
+        \item Variantes adaptadas a imagen médica
+              \cite{zhang2022improved,georgescu2023masked}.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{Protocolos}
+      \begin{itemize}
+        \item Benchmarks: MVTec AD \cite{bergmann2019mvtec} y BMAD
+              \cite{bao2024bmad}.
+        \item Revisión de anomalías \cite{pang2021review}.
+        \item Unified framework \cite{ruff2021unifying}.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.3cm}
+  \begin{alertblock}{Decisión}
+    Se busca la \textbf{mínima solución defendible} para la pregunta planteada,
+    evitando sobreestimación por exceso de capacidad.
+  \end{alertblock}
+\end{frame}
+
+% ============================================================
+\section{Metodología}
+% ============================================================
+
+\begin{frame}{Datos: BraTS2021\_slice (BMAD)}
+  Cortes cerebrales FLAIR, PNG monocromos de \textbf{240$\times$240} (resolución nativa).
+
+  \begin{center}
+  \begin{tabular}{lccc}
+    \toprule
+    Partición & Normales & Anómalas & Uso \\
+    \midrule
+    Entrenamiento & 7.500 & --- & \textbf{solo normales} (pesos) \\
+    Validación    & 39     & 44   & calibración y umbral \\
+    Test          & 640    & 3.075& evaluación final \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+
+  \vspace{0.3cm}
+  \textbf{Preprocesado}: escala a $[0,1]$. \quad
+  \textbf{Data augmentation}: flip horizontal (50\%), flip vertical (50\%) y
+  rotación 90/180/270°.
+\end{frame}
+
+\begin{frame}{Arquitectura del autoencoder}
+  \begin{center}
+    \includegraphics[width=0.95\textwidth]{assets/ae_architecture.png}
+  \end{center}
+
+  \begin{itemize}
+    \item Codificador: $1\to8\to16\to32$ canales, 3 convoluciones de paso 2
+          $\rightarrow$ cuello de botella $30\times30\times32$.
+    \item Decodificador simétrico: $32\to16\to8\to1$ con convoluciones transpuestas.
+    \item ReLU intermedia, sigmoide de salida. \quad \textbf{16.281 parámetros}.
+    \item Sin skip-connections, atención ni red preentrenada.
+  \end{itemize}
+\end{frame}
+
+% ============================================================
+\section{Puntuación y calibración}
+% ============================================================
+
+\begin{frame}{Idea: reconstrucción como señal de anomalía}
+  Como el modelo solo ha visto \textbf{normales}:
+  \begin{itemize}
+    \item Normal $\Rightarrow$ reconstruye bien $\Rightarrow$ \textbf{error pequeño}.
+    \item Anómalo $\Rightarrow$ reconstruye mal $\Rightarrow$ \textbf{error grande}.
+  \end{itemize}
+
+  \vspace{0.2cm}
+  \begin{block}{Puntuación híbrida (modo \texttt{hybrid})}
+    \[
+      s(x) = w \cdot z(\text{global}) + (1-w) \cdot z(\text{MAE})
+    \]
+    donde $z(\cdot)$ es la señal \textbf{calibrada} (tipificada) y $w$ el peso
+    elegido en validación.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Señales globales (\texttt{features.py})}
+  Cuatro estadísticos de la imagen que capturan propiedades de la distribución
+  de intensidades:
+  \begin{center}
+  \begin{tabular}{lc}
+    \toprule
+    Señal global & Signo (validación) \\
+    \midrule
+    Kurtosis & $+1$ (más kurtosis $\rightarrow$ más anómalo) \\
+    Región brillante más grande (\texttt{cc\_largest}) & $+1$ \\
+    Gradiente medio (\texttt{grad\_mean}) & $-1$ \\
+    Entropía & $+1$ \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+
+  \vspace{0.3cm}
+  \begin{itemize}
+    \item Cada señal se \textbf{tipifica} con media/desv. de las normales de entrenamiento.
+    \item El \textbf{signo} se fija por la dirección del AUROC en validación.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Calibración del peso $w$}
+  \begin{itemize}
+    \item El MAE y las señales globales están en escalas distintas
+          $\Rightarrow$ \textbf{tipificación} (z-score).
+    \item Se busca el peso $w$ que \textbf{maximiza el AUROC en validación},
+          probando una rejilla de 21 valores entre 0 y 1.
+    \item La validación \textbf{nunca actualiza pesos}: solo interviene en la
+          calibración y en el umbral.
+  \end{itemize}
+
+  \vspace{0.3cm}
+  \begin{block}{Métricas}
+    \textbf{AUROC} (independiente del umbral) + \textbf{balanced accuracy}
+    (media de sensitivity y specificity, justa con clases desbalanceadas).
+  \end{block}
+\end{frame}
+
+% ============================================================
+\section{Resultados}
+% ============================================================
+
+\begin{frame}{Resultados en test}
+  \begin{center}
+  \begin{tabular}{lcl}
+    \toprule
+    Métrica & Valor & Interpretación \\
+    \midrule
+    AUROC & 0{,}9029 & 90\% probabilidad de separar normal/anómalo \\
+    Balanced accuracy & 0{,}8332 & media de sensitivity y specificity \\
+    Sensitivity & 0{,}7554 & 75\% de anómalas detectadas \\
+    Specificity & 0{,}9109 & 91\% de normales correctas \\
+    Peso híbrido ($w$) & 0{,}95 & \textbf{95\% global + 5\% MAE} \\
+    Parámetros & 16.281 & modelo ligero \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+
+  \pause
+  \vspace{0.3cm}
+  \textbf{Lectura clave}: las señales globales ($w=0{,}95$) aportan más
+  información discriminativa que el error de reconstrucción.
+\end{frame}
+
+\begin{frame}{Reconstrucciones sobre normales de test}
+  \begin{center}
+    \includegraphics[width=0.85\textwidth]{assets/reconstructions.png}
+  \end{center}
+  El modelo reconstruye fielmente la anatomía normal $\Rightarrow$ el residuo
+  es bajo en normales.
+\end{frame}
+
+\begin{frame}{Demostración: caso normal}
+  \begin{center}
+    \includegraphics[width=0.9\textwidth]{assets/demo_normal.png}
+  \end{center}
+  Resultado con el modelo congelado: \textbf{NORMAL} (score por debajo del umbral).
+\end{frame}
+
+\begin{frame}{Demostración: caso anómalo}
+  \begin{center}
+    \includegraphics[width=0.9\textwidth]{assets/demo_anomaly.png}
+  \end{center}
+  Misma calibración y umbral: el score supera claramente el umbral
+  $\Rightarrow$ \textbf{ANÓMALA}.
+\end{frame}
+
+% ============================================================
+\section{Reproducibilidad}
+% ============================================================
+
+\begin{frame}{Reproducibilidad}
+  \begin{itemize}
+    \item Semillas fijas, configuración, historial, puntuaciones y métricas guardados.
+    \item Campaña final: \textbf{semilla 42}, \textbf{10 épocas}, data augmentation,
+          $240\times240$, score híbrido.
+    \item Entregables: \texttt{metrics.json}, \texttt{model.pt},
+          \texttt{*\_scores.csv}, \texttt{reconstructions.png},
+          checkpoint \texttt{checkpoints/modelo\_autoencoder.pt}.
+    \item Entrenamiento reproducible en \textbf{Google Colab con GPU}
+          (notebook + smoke test + campaña completa).
+  \end{itemize}
+\end{frame}
+
+% ============================================================
+\section{Conclusiones y trabajo futuro}
+% ============================================================
+
+\begin{frame}{Conclusiones}
+  \begin{itemize}
+    \item Se obtuvo y auditó BraTS2021; se implementó el AE con augmentation
+          entrenado \textbf{solo con normales}.
+    \item Sistema \textbf{explicable}: 3 etapas, 16.281 parámetros, fórmula
+          híbrida explícita.
+    \item \textbf{AUROC 0{,}9029} y \textbf{balanced accuracy 0{,}8332}.
+    \item El \textbf{score híbrido} ($w=0{,}95$) muestra que las señales
+          globales complementan (y superan) al error de reconstrucción.
+    \item Se aporta código, pesos y demostración reproducibles.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Trabajo futuro y limitaciones}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{Trabajo futuro}
+      \begin{itemize}
+        \item Validar en otro centro / dataset.
+        \item Explorar U-Net con conexiones de salto.
+        \item Analizar por subgrupos qué anomalías se detectan mejor.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{Limitaciones}
+      \begin{itemize}
+        \item Software \textbf{experimental}, no apto para diagnóstico.
+        \item ``Anómalo'' $\neq$ confirmación de patología.
+        \item No sustituye la interpretación de un profesional.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- CIERRE ----------
+\begin{frame}[plain]
+  \centering
+  \vspace{1.5cm}
+  {\Huge\bfseries ¡Gracias!}
+  \vspace{0.6cm}
+
+  {\large Alejandro Rodríguez}
+
+  \vspace{0.3cm}
+  Detección no supervisada de anomalías en cortes cerebrales
+
+  \vspace{1cm}
+  {\small Máster Universitario en Sistemas Inteligentes (MUSI) --- UIB}
+\end{frame}
+
+% ---------- BIBLIOGRAFÍA ----------
+\begin{frame}[allowframebreaks]{Referencias}
+  \scriptsize
+  \bibliographystyle{plain}
+  \bibliography{referencias}
+\end{frame}
+
+\end{document}
