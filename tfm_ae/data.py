@@ -14,23 +14,6 @@ from torch.utils.data import Dataset
 
 from . import PROJECT_ROOT
 
-
-class RandomFlipRotate:
-    """Random horizontal/vertical flip + 90-degree rotation for augmentation."""
-
-    def __init__(self, seed: int | None = None) -> None:
-        self.rng = random.Random(seed)
-
-    def __call__(self, image: Image.Image) -> Image.Image:
-        if self.rng.random() < 0.5:
-            image = image.transpose(Image.FLIP_LEFT_RIGHT)
-        if self.rng.random() < 0.5:
-            image = image.transpose(Image.FLIP_TOP_BOTTOM)
-        angle = self.rng.choice([0, 90, 180, 270])
-        if angle:
-            image = image.rotate(angle)
-        return image
-
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 NORMAL_NAMES = ("good", "normal")
 ANOMALY_NAMES = ("Ungood", "ungood", "abnormal", "anomalous")
@@ -89,6 +72,23 @@ def deterministic_subset(paths: list[Path], limit: int | None, seed: int) -> lis
     indices = list(range(len(paths)))
     random.Random(seed).shuffle(indices)
     return sorted(paths[index] for index in indices[:limit])
+
+
+class RandomFlipRotate:
+    """Random horizontal/vertical flip + 90-degree rotation for augmentation."""
+
+    def __init__(self, seed: int | None = None) -> None:
+        self.rng = random.Random(seed)
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.rng.random() < 0.5:
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+        if self.rng.random() < 0.5:
+            image = image.transpose(Image.FLIP_TOP_BOTTOM)
+        angle = self.rng.choice([0, 90, 180, 270])
+        if angle:
+            image = image.rotate(angle)
+        return image
 
 
 class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
