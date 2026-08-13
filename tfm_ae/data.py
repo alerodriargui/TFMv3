@@ -1,4 +1,4 @@
-"""Deterministic, dependency-light loading for Chest-RSNA."""
+"""Deterministic, dependency-light loading for BraTS2021."""
 
 from __future__ import annotations
 
@@ -38,22 +38,21 @@ NON_IMAGE_DIRS = ("label", "labels", "anomaly_mask", "mask", "masks")
 
 
 def resolve_data_root(explicit: Path | None = None) -> Path:
-    """Find Chest-RSNA or BraTS2021 from an argument, env variable or known paths."""
+    """Find BraTS2021 from an argument, env variable or known path."""
     candidates = [explicit] if explicit else []
     if value := os.environ.get("TFM_DATA_ROOT"):
         candidates.append(Path(value))
     candidates.extend(
         (
-            PROJECT_ROOT / "data/raw/rsna_bmad/Chest-RSNA",
             PROJECT_ROOT / "data/raw/rsna_bmad/BraTS2021_slice",
-            PROJECT_ROOT.parent / "TFMv2/data/raw/rsna_bmad/Chest-RSNA",
+            PROJECT_ROOT.parent / "TFMv2/data/raw/rsna_bmad/BraTS2021_slice",
         )
     )
     for candidate in candidates:
         root = candidate.expanduser().resolve()
         if (root / "train" / "good").is_dir() and (root / "test").is_dir():
             return root
-    raise FileNotFoundError("No se encontró Chest-RSNA ni BraTS2021. Usa --data-root.")
+    raise FileNotFoundError("No se encontró BraTS2021. Usa --data-root.")
 
 
 def split_dir(root: Path, split: str) -> Path:
