@@ -7,6 +7,7 @@
 \usepackage{geometry}
 \geometry{top=1.72cm,bottom=1.82cm,left=1.62cm,right=1.62cm,columnsep=0.55cm}
 \usepackage{amsmath,booktabs,graphicx,hyperref,xcolor,csquotes,caption}
+\usepackage{tabularx}
 \usepackage{titlesec,fancyhdr,enumitem}
 \usepackage[backend=bibtex,style=numeric,sorting=none,maxbibnames=8]{biblatex}
 \addbibresource{referencias.bib}
@@ -322,7 +323,7 @@ exactamente su calibración y umbral.
 
 \begin{center}
 \small
-\begin{tabular}{lrr}
+\begin{tabularx}{\columnwidth}{lc>{\raggedright\arraybackslash}X}
 \toprule
 Métrica & Valor & Interpretación \\
 \midrule
@@ -334,7 +335,7 @@ Peso híbrido ($w$) & 0,95 & 95\% señales globales + 5\% MAE \\
 Épocas & 20 & Convergencia en entrenamiento \\
 Parámetros & 16.281 & Modelo ligero \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
 
 El peso híbrido seleccionado en validación es $w=0{,}95$: las señales globales
@@ -351,7 +352,7 @@ en la que cada señal contribuye a la detección de anomalías.
 \begin{table}[ht]
 \centering
 \small
-\begin{tabular}{lc}
+\begin{tabularx}{\columnwidth}{l>{\raggedright\arraybackslash}X}
 \toprule
 Señal global & Signo \\
 \midrule
@@ -360,7 +361,7 @@ Región brillante más grande & $+1$ (región más grande $\rightarrow$ más an�
 Grado medio & $-1$ (menos gradiente $\rightarrow$ más anómalo) \\
 Entropía & $+1$ (más entropía $\rightarrow$ más anómalo) \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \caption{Signos de las señales globales fijados en validación según la
 dirección del AUROC.}
 \label{tab:features}
