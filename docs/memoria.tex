@@ -131,7 +131,8 @@ pdfauthor={Alejandro Rodríguez}}
 \small\bfseries
 \noindent\textit{Resumen---}Este trabajo desarrolla un detector no supervisado de anomalías en
 cortes cerebrales de resonancia magnética (FLAIR). Los pesos se aprenden
-exclusivamente a partir de 7.500 imágenes normales de BraTS2021. La solución
+exclusivamente a partir de 7.500 imágenes normales de BraTS2021 (el reto
+internacional de segmentación de tumores cerebrales). La solución
 es un autoencoder convolucional de 16.281 parámetros que reconstruye cortes
 de 240$\times$240. La puntuación combina el error de reconstrucción calibrado
 con cuatro señales globales de la imagen (kurtosis, región brillante más
@@ -229,10 +230,20 @@ la mínima solución defendible para la pregunta planteada.
 
 \subsection{Dataset y preprocesado}
 
+BraTS (del inglés \emph{Brain Tumor Segmentation}, ``segmentación de tumores
+cerebrales'') es un reto internacional que publica anualmente resonancias
+magnéticas (RM) de cerebro anotadas por especialistas para permitir comparar
+métodos de análisis de imágenes médicas. \textbf{BraTS2021} es la edición de
+2021 de ese reto, y su conjunto de imágenes es un estándar de facto en el
+campo.
+
 BraTS2021\_slice es la partición de cortes cerebrales FLAIR del benchmark BMAD
-\cite{bao2024bmad}. Contiene 7.500 imágenes normales para entrenamiento;
-39 normales y 44 anómalas para validación; y 640 normales y 3.075 anómalas para
-test. Las imágenes son PNG monocromos de 240$\times$240 píxeles (resolución nativa).
+\cite{bao2024bmad}. La modalidad FLAIR es un tipo de secuencia de RM que realza
+las lesiones cerebrales; cada ``imagen'' es un corte (slice) 2D extraído de una
+volumetría completa. La partición contiene 7.500 imágenes normales para
+entrenamiento; 39 normales y 44 anómalas para validación; y 640 normales y
+3.075 anómalas para test. Las imágenes son PNG monocromos de 240$\times$240
+píxeles (resolución nativa).
 
 Las imágenes se escalan a $[0,1]$. Durante el entrenamiento se aplica data
 augmentation automática: flip horizontal (50\%), flip vertical (50\%) y rotación
@@ -265,6 +276,33 @@ reconstrucción:
   s(x)=w\cdot z(\text{global}) + (1-w)\cdot z(\text{MAE}).
 \]
 
+Aquí $x$ es un corte cerebral y $s(x)$ es la puntuación final de anomalía:
+cuanto mayor sea $s(x)$, más anómala se considera la imagen. La fórmula tiene
+tres elementos:
+
+\begin{itemize}
+  \item \textbf{$z(\text{MAE})$}: error de reconstrucción estandarizado. El
+    autoencoder se entrena solo con imágenes normales, por lo que reconstruye
+    bien las normales (MAE bajo) y mal las anómalas (MAE alto). El MAE bruto
+    ($\mathrm{MAE}(x)=\frac{1}{N}\sum_{p}\lvert x(p)-\hat{x}(p)\rvert$) se
+    estandariza con la media $\mu$ y desviación $\sigma$ del MAE sobre las
+    normales de entrenamiento:
+    \[
+      z(\text{MAE})=\frac{\mathrm{MAE}(x)-\mu_{\mathrm{MAE}}}{\sigma_{\mathrm{MAE}}}.
+    \]
+    Valores positivos indican que la imagen se reconstruye peor de lo típico
+    en normales, señal de anomalía.
+  \item \textbf{$z(\text{global})$}: suma de las cuatro señales globales
+    (kurtosis, región brillante más grande, gradiente medio y entropía), cada
+    una estandarizada contra su distribución en las normales de entrenamiento
+    y con el signo fijado según la dirección del AUROC en validación. Así,
+    valores altos acumulan características estadísticas propias de lesiones.
+  \item \textbf{$w$}: peso de mezcla en $[0,1]$ que equilibra ambas fuentes. Se
+    elige en validación maximizando el AUROC sobre una rejilla de 21 valores y
+    se congela para el test. En la campaña final $w=0{,}95$: las señales
+    globales dominan y el MAE actúa como señal complementaria.
+\end{itemize}
+
 \subsubsection*{Señales globales}
 
 Las señales globales (\texttt{features.py}) son cuatro estadísticos calculados
@@ -286,21 +324,24 @@ sobre cada imagen que capturan propiedades de su distribución de intensidades:
     global de la imagen.
 \end{itemize}
 
-Cada señal se tipifica con la media y desviación de las normales de
-entrenamiento; su signo se fija por la dirección del AUROC en validación.
-El peso $w$ se busca en validación con una rejilla de 21 valores entre 0 y 1.
-
 \subsubsection*{Métricas de evaluación}
 
 \begin{itemize}
-  \item \textbf{AUROC} (área bajo la curva ROC): probabilidad de que el
-    sistema asigne mayor puntuación a una imagen anómala que a una normal.
-    Es la métrica principal porque es independiente del umbral elegido.
+  \item \textbf{AUROC} (área bajo la curva ROC; ROC viene del inglés
+    \emph{Receiver Operating Characteristic}): la curva ROC representa, para
+    cada posible umbral, el par (tasa de falsos positivos, tasa de verdaderos
+    positivos) del clasificador. El área bajo esa curva mide, de forma
+    resumida y sin depender de un umbral concreto, la capacidad del sistema
+    para distinguir imágenes anómalas de normales: equivale a la probabilidad
+    de que, ante una imagen anómala y una normal elegidas al azar, el sistema
+    puntúe más alto la anómala. Un valor de 0{,}5 equivale a adivinar al azar
+    y 1 a discriminación perfecta. Es la métrica principal por ser
+    independiente del umbral elegido.
   \item \textbf{Balanced accuracy}: media de sensitivity y specificity.
     Evita que la clase mayoritaria (anómalas, 83\% del test) domine la
     métrica.
-  \item \textbf{Sensitivity (recall)}: proporción de anómalas detectadas.
-    $TP/(TP+FN)$.
+  \item \textbf{Sensitivity (recall)}: proporción de anómalas correctamente
+    detectadas. $TP/(TP+FN)$.
   \item \textbf{Specificity}: proporción de normales correctamente
     identificadas. $TN/(TN+FP)$.
   \item \textbf{Umbral}: puntuación que maximiza la balanced accuracy en
@@ -327,12 +368,12 @@ exactamente su calibración y umbral.
 \toprule
 Métrica & Valor & Interpretación \\
 \midrule
-AUROC & 0,9029 & 90\% de probabilidad de separar normal/anómalo \\
+AUROC & 0,9029 & Probabilidad de puntuar más alto una anómala que una normal \\
 Balanced accuracy & 0,8332 & Media de sensitivity y specificity \\
-Sensitivity & 0,7554 & 75\% de anómalas detectadas \\
-Specificity & 0,9109 & 91\% de normales correctamente identificadas \\
+Sensitivity & 0,7554 & Proporción de anómalas correctamente detectadas \\
+Specificity & 0,9109 & Proporción de normales correctamente identificadas \\
 Peso híbrido ($w$) & 0,95 & 95\% señales globales + 5\% MAE \\
-Épocas & 20 & Convergencia en entrenamiento \\
+Épocas & 10 & Convergencia en entrenamiento \\
 Parámetros & 16.281 & Modelo ligero \\
 \bottomrule
 \end{tabularx}

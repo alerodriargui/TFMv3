@@ -224,27 +224,109 @@
   \end{block}
 \end{frame}
 
-\begin{frame}{Señales globales (\texttt{features.py})}
-  Cuatro estadísticos de la imagen que capturan propiedades de la distribución
-  de intensidades:
-  \begin{center}
-  \begin{tabular}{lc}
-    \toprule
-    Señal global & Signo (validación) \\
-    \midrule
-    Kurtosis & $+1$ (más kurtosis $\rightarrow$ más anómalo) \\
-    Región brillante más grande (\texttt{cc\_largest}) & $+1$ \\
-    Gradiente medio (\texttt{grad\_mean}) & $-1$ \\
-    Entropía & $+1$ \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
+\begin{frame}{Señales globales: visión general}
+  Estadísticos \textbf{globales} de la imagen original: se calculan \emph{antes
+  y aparte} del autoencoder, en una sola pasada sobre los píxeles.
 
-  \vspace{0.3cm}
-  \begin{itemize}
-    \item Cada señal se \textbf{tipifica} con media/desv. de las normales de entrenamiento.
+  \vspace{0.2cm}
+  \begin{enumerate}
+    \item Se calculan 18 estadísticos; se seleccionan \textbf{4 señales}
+          interpretables (\texttt{GLOBAL\_SIGNALS}).
+    \item Cada señal se \textbf{tipifica} contra su distribución en las normales
+          de entrenamiento y se suma:
+          \[ z_k(x)=\frac{\text{signo}_k\cdot x_k-\mu_k}{\sigma_k},\qquad
+             z(\text{global})=\sum_k z_k(x) \]
     \item El \textbf{signo} se fija por la dirección del AUROC en validación.
+    \item Se combina con el MAE: $s(x)=w\, z(\text{global})+(1-w)\, z(\text{MAE})$.
+  \end{enumerate}
+
+  \pause
+  \vspace{0.2cm}
+  \begin{alertblock}{Las 4 señales (una diapositiva por señal)}
+    \textbf{1.} Kurtosis \quad \textbf{2.} Región brillante más grande
+    (\texttt{cc\_largest}) \quad \textbf{3.} Gradiente medio
+    (\texttt{grad\_mean}) \quad \textbf{4.} Entropía
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Señal global 1: Kurtosis}
+  \textbf{Qué es}: momento (estandarizado) de 4.º orden de la distribución de
+  intensidades; describe si el histograma es \textbf{puntiagudo o aplastado}.
+  \[
+    \mathrm{kurt}(x)=\frac{\mathbb{E}\left[(x-\mu)^4\right]}{\sigma^4}
+  \]
+
+  \begin{itemize}
+    \item \textbf{Analogía}: ``¿cuánta masa hay en el centro y cuánta en las
+          colas?'' de la distribución de grises.
+    \item \textbf{En FLAIR}: una lesión hiperintensa añade un \emph{pico extra}
+          de brillo separado del tejido $\Rightarrow$ la distribución se vuelve
+          puntiaguda $\Rightarrow$ \textbf{kurtosis más alta}.
   \end{itemize}
+
+  \begin{alertblock}{Comportamiento validado}
+    Signo $+1$: a mayor kurtosis, mayor puntuación de anomalía.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Señal global 2: región brillante más grande (\texttt{cc\_largest})}
+  \textbf{Qué es}: el tamaño, en fracción del área, de la \textbf{componente
+  conexa de píxeles brillantes más grande}.
+
+  \begin{itemize}
+    \item Umbral de brillo: $x>\max(p_{90}(x),\,0{,}9)$, conectividad de 4 vecinos.
+    \item \textbf{Analogía}: la ``isla de luz'' más grande de la imagen.
+    \item \textbf{En FLAIR}: el tejido normal tiene regiones brillantes pequeñas
+          y dispersas; el \textbf{edema/tumor forma una mancha grande y
+          contigua} $\Rightarrow$ \texttt{cc\_largest} alto.
+  \end{itemize}
+
+  \begin{alertblock}{Comportamiento validado}
+    Signo $+1$: a mayor mancha brillante contigua, mayor puntuación.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Señal global 3: gradiente medio (\texttt{grad\_mean})}
+  \textbf{Qué es}: promedio de la magnitud del gradiente de intensidad; mide la
+  \textbf{cantidad de borde/textura} de la imagen.
+  \[
+    \mathrm{grad}(x)=\sqrt{g_x^{2}+g_y^{2}},\qquad
+    g_x=\tfrac{\partial x}{\partial i},\ \ g_y=\tfrac{\partial x}{\partial j}
+  \]
+
+  \begin{itemize}
+    \item \textbf{Analogía}: ``¿cuánto cambia el brillo entre píxeles vecinos?''
+          Muy baja en zonas planas, alta en los bordes.
+    \item \textbf{En FLAIR}: en este dataset las anómalas presentan \textbf{menos
+          gradiente} medio: la lesión difusa \emph{emborrona} los márgenes del
+          tejido.
+  \end{itemize}
+
+  \begin{alertblock}{Comportamiento validado}
+    Signo $-1$ (fijado automáticamente en validación): menos gradiente
+    $\Rightarrow$ más puntuación.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Señal global 4: entropía}
+  \textbf{Qué es}: entropía de Shannon del histograma de intensidades
+  (32 intervalos); mide el \textbf{desorden / variedad de niveles de gris}.
+  \[
+    H(x)=-\sum_{b=1}^{32} p_b \ln p_b
+  \]
+
+  \begin{itemize}
+    \item \textbf{Analogía}: cuánta ``sorpresa'' hay en la imagen: plana
+          $\Rightarrow$ poco desorden; con muchos niveles de gris
+          $\Rightarrow$ mucho desorden.
+    \item \textbf{En FLAIR}: la lesión introduce una \textbf{segunda
+          distribución} de intensidades $\Rightarrow$ más variedad
+          $\Rightarrow$ \textbf{entropía mayor}.
+  \end{itemize}
+
+  \begin{alertblock}{Comportamiento validado}
+    Signo $+1$: a mayor desorden de intensidades, mayor puntuación.
+  \end{alertblock}
 \end{frame}
 
 \begin{frame}{Calibración del peso $w$}
@@ -274,10 +356,10 @@
     \toprule
     Métrica & Valor & Interpretación \\
     \midrule
-    AUROC & 0{,}9029 & 90\% probabilidad de separar normal/anómalo \\
+    AUROC & 0{,}9029 & Probabilidad de puntuar más alto una anómala que una normal \\
     Balanced accuracy & 0{,}8332 & media de sensitivity y specificity \\
-    Sensitivity & 0{,}7554 & 75\% de anómalas detectadas \\
-    Specificity & 0{,}9109 & 91\% de normales correctas \\
+    Sensitivity & 0{,}7554 & Proporción de anómalas correctamente detectadas \\
+    Specificity & 0{,}9109 & Proporción de normales correctamente identificadas \\
     Peso híbrido ($w$) & 0{,}95 & \textbf{95\% global + 5\% MAE} \\
     Parámetros & 16.281 & modelo ligero \\
     \bottomrule
