@@ -45,33 +45,14 @@ def image_features(img: np.ndarray) -> dict[str, float]:
     grad = np.sqrt(gx ** 2 + gy ** 2)
     bins = np.histogram(img, bins=32, range=(0, 1), density=True)[0]
     bins = bins[bins > 0]
-    h, w = img.shape
-    left, right = img[:, : w // 2], img[:, w // 2 :]
-    grad_left, grad_right = grad[:, : w // 2], grad[:, w // 2 :]
-    bright_left = (img[:, : w // 2] > np.percentile(img, 90)).astype(float)
-    bright_right = (img[:, w // 2 :] > np.percentile(img, 90)).astype(float)
     mean = float(img.mean())
     std = float(img.std())
     level = max(float(np.percentile(img, 90)), 0.9)
-    mask = img > level
     largest, second = connected_bright(img, level)
     return {
-        "mean": mean,
-        "std": std,
-        "skew": float(((img - mean) ** 3).mean() / (std + 1e-8) ** 3),
         "kurt": float(((img - mean) ** 4).mean() / (std + 1e-8) ** 4),
-        "asym_mean": float(abs(left.mean() - right.mean())),
-        "asym_std": float(abs(left.std() - right.std())),
-        "asym_grad": float(abs(grad_left.mean() - grad_right.mean())),
-        "asym_hi": float(abs(bright_left.mean() - bright_right.mean())),
-        "flip_mae": float(np.mean(np.abs(img - np.fliplr(img)))),
         "grad_mean": float(grad.mean()),
-        "grad_max": float(grad.max()),
         "entropy": float(-(bins * np.log(bins)).sum()),
-        "max": float(img.max()),
-        "p95": float(np.percentile(img, 95)),
-        "frac98": float(np.mean(img > level)),
-        "bright_asym": float(abs(mask[:, : w // 2].mean() - mask[:, w // 2 :].mean())),
         "cc_largest": largest,
         "cc_second": second,
     }
