@@ -65,12 +65,13 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         image_size: int = 64,
         transform: Callable[[Image.Image], Image.Image] | None = None,
     ) -> None:
+        # Un dataset necesita una etiqueta por imagen y al menos una muestra
         if len(paths) != len(labels) or not paths:
             raise ValueError("paths y labels deben tener la misma longitud no vacía")
-        self.paths = paths  # Rutas de las imágenes
+        self.paths = paths  # Rutas a los archivos de imagen
         self.labels = labels  # Etiqueta por imagen (0 = normal, 1 = anómalo)
-        self.image_size = image_size  # Tamaño al que se redimensionan las imágenes
-        self.transform = transform  # Aumentación opcional (p.ej. RandomFlipRotate)
+        self.image_size = image_size  # Lado del cuadrado al que se redimensiona cada imagen (H=W)
+        self.transform = transform  # Aumentación opcional (p. ej. RandomFlipRotate)
 
     @classmethod
     def _from_class(
@@ -82,7 +83,10 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         seed: int,
         transform: Callable[[Image.Image], Image.Image] | None = None,
     ) -> "RadiographDataset":
+        # Helper interno: construye un dataset a partir de la carpeta de una clase
+        # (find_images obtiene las imágenes; deterministic_subset las limita de forma reproducible)
         paths = deterministic_subset(find_images(class_dir), limit, seed)
+        # Todas las muestras de una misma clase comparten etiqueta
         return cls(paths, [label] * len(paths), image_size, transform=transform)
 
     @classmethod
@@ -95,6 +99,7 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         transform: Callable[[Image.Image], Image.Image] | None = None,
     ) -> "RadiographDataset":
         """Crea un dataset solo con imágenes normales (etiqueta 0). Útil para entrenar AE."""
+        # Carga la carpeta 'good' sin necesidad de etiquetas reales (aprendizaje no supervisado)
         return cls._from_class(
             split_root / NORMAL_DIR, 0, image_size, limit, seed, transform
         )
@@ -108,12 +113,15 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         seed: int = 42,
     ) -> "RadiographDataset":
         """Crea un dataset balanceado con normales (0) y anómalos (1) para evaluar."""
+        # Un dataset por clase (cada uno limitado por separado para balancear)
         normal = cls._from_class(
             split_root / NORMAL_DIR, 0, image_size, limit_per_class, seed
         )
+        # seed+1 para que la selección de anómalos no coincida con la de normales
         anomalous = cls._from_class(
             split_root / ANOMALY_DIR, 1, image_size, limit_per_class, seed + 1
         )
+        # Concatena ambos datasets en uno solo
         return cls(
             normal.paths + anomalous.paths,
             normal.labels + anomalous.labels,
@@ -121,16 +129,19 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         )
 
     def __len__(self) -> int:
-        return len(self.paths)  # Número de muestras del dataset
+        return len(self.paths)  # Número de muestras (lo usa DataLoader para estimar épocas)
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int, str]:
         """Devuelve (imagen [1, H, W] en [0,1], etiqueta, ruta) para el índice dado."""
         path = self.paths[index]
-        with Image.open(path) as image:
-            image = image.convert("L").resize(  # Escala de grises y redimensiona
+        with Image.open(path) as image:  # Abre el archivo (se cierra solo al salir del with)
+            # Convierte a escala de grises y la redimensiona al tamaño cuadrado pedido
+            image = image.convert("L").resize(
                 (self.image_size, self.image_size), Image.Resampling.BILINEAR
             )
-            if self.transform is not None:  # Aumentación opcional
+            if self.transform is not None:  # Aplica aumentación si se definió (solo train)
                 image = self.transform(image)
-            pixels = np.asarray(image, dtype=np.float32) / 255.0  # Píxeles a [0, 1]
+            # Pasa de enteros 0-255 a flotantes en [0, 1] (rango típico para redes)
+            pixels = np.asarray(image, dtype=np.float32) / 255.0
+        # unsqueeze(0) añade el canal: shape [1, H, W] (formato NCHW de PyTorch)
         return torch.from_numpy(pixels).unsqueeze(0), self.labels[index], str(path)
