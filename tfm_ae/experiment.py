@@ -1,4 +1,4 @@
-"""Training and evaluation orchestration for the autoencoder."""
+"""Orquestación de entrenamiento y evaluación del autoencoder."""
 
 from __future__ import annotations
 
@@ -24,38 +24,41 @@ from .models import build_model, per_image_scores
 
 @dataclass(frozen=True)
 class ExperimentConfig:
-    data_root: Path
-    output_dir: Path
-    epochs: int = 3
+    """Todos los hiperparámetros de un experimento en un solo objeto inmutable."""
+
+    data_root: Path  # Raíz del dataset
+    output_dir: Path  # Carpeta donde se guardan resultados del experimento
+    epochs: int = 3  # Número de épocas de entrenamiento
     batch_size: int = 32
-    image_size: int = 64
+    image_size: int = 64  # Lado del cuadrado al que se redimensionan las imágenes
     model_name: str = "ae"
     learning_rate: float = 1e-3
-    seed: int = 42
-    max_train_images: int | None = None
-    max_eval_images_per_class: int | None = None
-    noise_std: float = 0.0
-    bottleneck_channels: int = 32
+    seed: int = 42  # Semilla para reproducibilidad
+    max_train_images: int | None = None  # Límite para pruebas rápidas (None = usar todo)
+    max_eval_images_per_class: int | None = None  # Límite de evaluación por clase
+    noise_std: float = 0.0  # Desviación del ruido gaussiano añadido a la entrada (denoising AE)
+    bottleneck_channels: int = 32  # Canales en el cuello de botella del autoencoder
     score_mode: str = "ae_classic"
 
 
 def set_seed(seed: int) -> None:
+    """Fija todas las semillas (python, numpy, torch, cuda) para resultados reproducibles."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True  # Algoritmos deterministas en cuDNN
+    torch.backends.cudnn.benchmark = False  # (y desactiva la búsqueda de kernel más rápido)
 
 
 def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataLoader:
     return DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=0,
-        pin_memory=torch.cuda.is_available(),
+        shuffle=shuffle,  # True en entrenamiento para que las épocas varíen
+        num_workers=0,  # Sin multiproceso (más simple en Colab)
+        pin_memory=torch.cuda.is_available(),  # Copias a GPU más rápidas si hay CUDA
     )
 
 
@@ -65,12 +68,15 @@ def _train_batch(
     optimizer: torch.optim.Optimizer,
     noise_std: float = 0.0,
 ) -> float:
+    """Un paso de entrenamiento: forward, pérdida, backward y actualización de pesos."""
     optimizer.zero_grad(set_to_none=True)
     if noise_std > 0:
+        # Denoising AE: la entrada es ruidosa y la salida debe reproducir la limpia
         target = images
         noisy = images + noise_std * torch.randn_like(images)
         loss = F.l1_loss(model(noisy), target)
     else:
+        # AE clásico: entrada == objetivo (reconstruir la imagen tal cual)
         loss = F.l1_loss(model(images), images)
     loss.backward()
     optimizer.step()
@@ -81,6 +87,7 @@ def _train_batch(
 def _normal_validation_loss(
     model: ConvAutoencoder, loader: DataLoader, device: torch.device
 ) -> float:
+    """Error medio de reconstrucción (MAE) sobre imágenes normales de validación."""
     model.eval()
     total = 0.0
     count = 0
@@ -89,33 +96,34 @@ def _normal_validation_loss(
         scores, _ = per_image_scores(model, images)
         total += float(scores.sum())
         count += len(images)
-    return total / max(count, 1)
+    return total / max(count, 1)  # Evita división por cero
 
 
 def train(
     config: ExperimentConfig, device: torch.device
 ) -> tuple[ConvAutoencoder, list[dict], int]:
+    """Entrena el autoencoder y guarda el modelo de la mejor época (menor pérdida de validación)."""
     augmentation = RandomFlipRotate(seed=config.seed)
-    train_set = RadiographDataset.normal_only(
+    train_set = RadiographDataset.normal_only(  # Solo normales (aprendizaje no supervisado)
         split_dir(config.data_root, "train"),
         config.image_size,
         config.max_train_images,
         config.seed,
-        transform=augmentation,
+        transform=augmentation,  # Aumentación: solo en entrenamiento
     )
     validation_set = RadiographDataset.normal_only(
         split_dir(config.data_root, "val"),
         config.image_size,
-        None,
+        None,  # Sin límite: validación completa
         config.seed,
     )
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
     model = build_model(config.bottleneck_channels).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-    best_value = float("inf")
+    best_value = float("inf")  # Mejor pérdida de validación vista
     history: list[dict] = []
-    best_state: dict | None = None
+    best_state: dict | None = None  # Pesos del modelo en su mejor época
 
     for epoch in range(1, config.epochs + 1):
         model.train()
@@ -131,7 +139,7 @@ def train(
         validation_value = _normal_validation_loss(model, validation_loader, device)
         record = {
             "epoch": epoch,
-            "train_loss": total_loss / seen,
+            "train_loss": total_loss / seen,  # Pérdida media del entrenamiento
             "validation_value": validation_value,
             "seconds": time.perf_counter() - started,
         }
@@ -142,6 +150,7 @@ def train(
             f"seconds={record['seconds']:.1f}",
             flush=True,
         )
+        # Guarda los pesos si esta es la mejor época hasta ahora
         improved = validation_value < best_value
         if improved:
             best_value = validation_value
@@ -154,9 +163,9 @@ def train(
             }
 
     assert best_state is not None
-    model.load_state_dict(best_state["model"])
+    model.load_state_dict(best_state["model"])  # Vuelve a la mejor época
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(
+    torch.save(  # Guarda el modelo con su configuración
         {
             "model_name": config.model_name,
             "image_size": config.image_size,
@@ -176,6 +185,7 @@ def score_dataset(
     batch_size: int,
     device: torch.device,
 ) -> tuple[np.ndarray, np.ndarray, list[str], tuple[torch.Tensor, torch.Tensor]]:
+    """Calcula el score de anomalía de cada imagen y guarda una muestra de reconstrucciones."""
     model.eval()
     scores: list[np.ndarray] = []
     labels: list[np.ndarray] = []
@@ -188,8 +198,9 @@ def score_dataset(
         scores.append(batch_scores.cpu().numpy())
         labels.append(batch_labels.numpy())
         paths.extend(batch_paths)
-        if samples is None:
+        if samples is None:  # Guarda las 8 primeras para dibujarlas luego
             samples = (images[:8], reconstructed.cpu()[:8])
+        # Barra de progreso periódica (cada 50 lotes y al final)
         if batch_index % 50 == 0 or batch_index == len(loader):
             print(
                 f"score progress={batch_index}/{len(loader)} "
@@ -203,7 +214,7 @@ def score_dataset(
 def _feature_scores(
     dataset: RadiographDataset, batch_size: int
 ) -> dict[str, np.ndarray]:
-    """Compute the global feature bank for every image in ``dataset``."""
+    """Calcula las señales globales (kurtosis, entropía, etc.) para cada imagen del dataset."""
     values = {key: [] for key in GLOBAL_SIGNALS}
     for images, _labels, _paths in _loader(dataset, batch_size, False):
         bank = feature_matrix(images.squeeze(1).numpy())
@@ -220,14 +231,14 @@ def calibrate_hybrid_scores(
     raw_val_scores: np.ndarray,
     raw_test_scores: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, dict]:
-    """Combine calibrated global signals and AE MAE, weight chosen on validation.
+    """Combina las señales globales calibradas con el MAE del AE; el peso se elige en validación.
 
-    Each signal is z-scored against its own distribution on normal training
-    images; the sign is set from the AUROC direction on validation. The mixing
-    weight ``w`` between the summed global signal and the MAE is selected on
-    validation by a coarse grid search, then frozen for the test set.
+    Cada señal se normaliza (z-score) con la distribución de las normales de
+    entrenamiento y su signo se fija según la dirección del AUROC en validación.
+    El peso ``w`` entre la señal global y el MAE se busca con un grid fino en
+    validación y luego se congela para el test.
     """
-    train = RadiographDataset.normal_only(
+    train = RadiographDataset.normal_only(  # Estadísticas de las normales de entrenamiento
         split_dir(config.data_root, "train"),
         config.image_size,
         config.max_train_images,
@@ -237,23 +248,26 @@ def calibrate_hybrid_scores(
     val_features = _feature_scores(validation, config.batch_size)
     test_features = _feature_scores(test, config.batch_size)
 
+    # Signo de cada señal: si el AUROC < 0.5, la señal correlaciona al revés con la anomalía
     global_signs: dict[str, float] = {}
     for key in GLOBAL_SIGNALS:
         a = auroc(val_labels, val_features[key])
         global_signs[key] = -1.0 if a < 0.5 else 1.0
 
     def calibrate(features: dict[str, np.ndarray]) -> np.ndarray:
+        # Suma de las señales, cada una con signo corregido y z-score sobre las normales
         total = None
         for key in GLOBAL_SIGNALS:
             signed = features[key] * global_signs[key]
             normal = train_features[key] * global_signs[key]
             location = float(normal.mean())
-            scale = max(float(normal.std()), 1e-8)
+            scale = max(float(normal.std()), 1e-8)  # Epsilon evita dividir entre 0
             z = (signed - location) / scale
             total = z if total is None else total + z
         assert total is not None
         return total
 
+    # Guarda media/desv. por señal (se necesitan para calibración en inferencia)
     global_location = {}
     global_scale = {}
     for key in GLOBAL_SIGNALS:
@@ -264,6 +278,7 @@ def calibrate_hybrid_scores(
     val_global = calibrate(val_features)
     test_global = calibrate(test_features)
 
+    # Lo mismo para el MAE del AE: signo y z-score sobre normales de validación
     ae_sign = -1.0 if auroc(val_labels, raw_val_scores) < 0.5 else 1.0
     val_ae = raw_val_scores * ae_sign
     test_ae = raw_test_scores * ae_sign
@@ -273,6 +288,7 @@ def calibrate_hybrid_scores(
     val_ae = (val_ae - ae_location) / ae_scale
     test_ae = (test_ae - ae_location) / ae_scale
 
+    # Grid search del peso w en [0,1] (21 valores) maximizando AUROC en validación
     best_w, best_va = 0.0, -float("inf")
     for w in np.linspace(0.0, 1.0, 21):
         combined = w * val_global + (1 - w) * val_ae
@@ -280,6 +296,7 @@ def calibrate_hybrid_scores(
         if a > best_va:
             best_va, best_w = a, w
 
+    # Aplica el mejor w al test (peso congelado)
     val_combined = best_w * val_global + (1 - best_w) * val_ae
     test_combined = best_w * test_global + (1 - best_w) * test_ae
     return (
@@ -305,6 +322,7 @@ def calibrate_hybrid_scores(
 def _save_scores(
     path: Path, labels: np.ndarray, scores: np.ndarray, paths: list[str]
 ) -> None:
+    """Guarda etiquetas + scores + rutas en CSV para análisis posterior."""
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(["label", "score", "path"])
@@ -314,6 +332,7 @@ def _save_scores(
 def _save_reconstructions(
     path: Path, originals: torch.Tensor, reconstructed: torch.Tensor
 ) -> None:
+    """Monta una imagen comparativa: originales arriba y sus reconstrucciones abajo."""
     count = min(8, len(originals))
     size = originals.shape[-1]
     canvas = Image.new("L", (count * size, 2 * size + 20), color=255)
@@ -321,7 +340,7 @@ def _save_reconstructions(
     draw.text((2, 2), "AE: original (arriba) / reconstrucción (abajo)", fill=0)
     for index in range(count):
         for row, tensor in enumerate((originals[index, 0], reconstructed[index, 0])):
-            array = (tensor.clamp(0, 1).numpy() * 255).astype(np.uint8)
+            array = (tensor.clamp(0, 1).numpy() * 255).astype(np.uint8)  # [0,1] -> 0-255
             canvas.paste(
                 Image.fromarray(array, mode="L"), (index * size, 20 + row * size)
             )
@@ -329,7 +348,8 @@ def _save_reconstructions(
 
 
 def run(config: ExperimentConfig) -> dict:
-    step = 8
+    """Pipeline completo: entrena, evalúa en validación y test, y guarda todo."""
+    step = 8  # El autoencoder necesita imagen_size múltiplo de 8 (pooling / stride)
     if config.image_size % step != 0:
         raise ValueError(
             f"El modelo {config.model_name} requiere --image-size múltiplo de {step}"
@@ -339,6 +359,7 @@ def run(config: ExperimentConfig) -> dict:
     started = time.perf_counter()
     model, history, selected_epoch = train(config, device)
 
+    # Datasets etiquetados (normales + anómalos) para evaluar
     validation = RadiographDataset.labeled(
         split_dir(config.data_root, "val"),
         config.image_size,
@@ -357,6 +378,7 @@ def run(config: ExperimentConfig) -> dict:
     test_labels, test_scores, test_paths, _ = score_dataset(
         model, test, config.batch_size, device
     )
+    # Combina MAE + señales globales con calibración elegida en validación
     val_scores, test_scores, calibration = calibrate_hybrid_scores(
         config,
         validation,
@@ -365,6 +387,7 @@ def run(config: ExperimentConfig) -> dict:
         val_scores,
         test_scores,
     )
+    # El umbral óptimo se aprende en validación y se aplica igual a test
     threshold, _ = best_balanced_threshold(val_labels, val_scores)
     validation_metrics = evaluate(val_labels, val_scores, threshold)
     test_metrics = evaluate(test_labels, test_scores, threshold)
@@ -391,6 +414,7 @@ def run(config: ExperimentConfig) -> dict:
         "validation": validation_metrics,
         "test": test_metrics,
         "elapsed_seconds": time.perf_counter() - started,
+        # Solo se considera "científico" si entrena con todos los datos y sin límites
         "scientific_run": (
             config.epochs >= 3
             and config.max_train_images is None
@@ -400,6 +424,7 @@ def run(config: ExperimentConfig) -> dict:
     with (config.output_dir / "metrics.json").open("w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
+    # Checkpoint oficial (seed 42, corrida científica) para el demo
     if report["scientific_run"] and config.seed == 42:
         checkpoint_dir = PROJECT_ROOT / "checkpoints"
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -421,29 +446,10 @@ def run(config: ExperimentConfig) -> dict:
     return report
 
 
-def load_calibration_from_metrics(metrics_path: Path, data_root: Path) -> dict:
-    """Load calibration from a metrics.json file for inference on new images."""
+def load_calibration_from_metrics(metrics_path: Path) -> dict:
+    """Recupera la calibración guardada para poder puntuar imágenes nuevas (demo)."""
     report = json.loads(metrics_path.read_text(encoding="utf-8"))
     calibration = dict(report["calibration"])
-    cache = metrics_path.parent / "global_stats.json"
-    if "global_location" not in calibration:
-        if cache.is_file():
-            cached = json.loads(cache.read_text(encoding="utf-8"))
-            calibration["global_location"] = cached["location"]
-            calibration["global_scale"] = cached["scale"]
-        else:
-            location, scale = _train_global_stats(
-                report["config"],
-                data_root,
-                int(report["config"]["batch_size"]),
-                calibration["global_signs"],
-            )
-            calibration["global_location"] = location
-            calibration["global_scale"] = scale
-            cache.write_text(
-                json.dumps({"location": location, "scale": scale}, indent=2),
-                encoding="utf-8",
-            )
     calibration["_threshold"] = float(report["test"]["threshold"])
     calibration["_image_size"] = int(report["config"]["image_size"])
     calibration["_model_name"] = report["config"]["model"]

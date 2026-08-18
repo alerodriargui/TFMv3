@@ -149,7 +149,7 @@ if __name__ == "__main__":
     metrics_path = Path(r"C:\Users\Alex\OneDrive\Documentos\GitHub\TFMv3\results\brain_v2_final\ae_seed42\metrics.json")
     data_root = Path(r"C:\Users\Alex\OneDrive\Documentos\GitHub\TFMv3\data\raw\rsna_bmad\BraTS2021_slice")
     
-    calibration = _load_calibration(metrics_path, data_root)
+    calibration = _load_calibration(metrics_path)
     model_path = metrics_path.parent / "model.pt"
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
     model = build_model(int(calibration["_bottleneck"]))
