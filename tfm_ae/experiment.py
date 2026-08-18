@@ -36,7 +36,6 @@ class ExperimentConfig:
     seed: int = 42  # Semilla para reproducibilidad
     max_train_images: int | None = None  # Límite para pruebas rápidas (None = usar todo)
     max_eval_images_per_class: int | None = None  # Límite de evaluación por clase
-    noise_std: float = 0.0  # Desviación del ruido gaussiano añadido a la entrada (denoising AE)
     bottleneck_channels: int = 32  # Canales en el cuello de botella del autoencoder
     score_mode: str = "ae_classic"
 
@@ -66,18 +65,10 @@ def _train_batch(
     model: ConvAutoencoder,
     images: torch.Tensor,
     optimizer: torch.optim.Optimizer,
-    noise_std: float = 0.0,
 ) -> float:
-    """Un paso de entrenamiento: forward, pérdida, backward y actualización de pesos."""
+    """Un paso de entrenamiento: forward (reconstrucción), pérdida L1, backward y actualización."""
     optimizer.zero_grad(set_to_none=True)
-    if noise_std > 0:
-        # Denoising AE: la entrada es ruidosa y la salida debe reproducir la limpia
-        target = images
-        noisy = images + noise_std * torch.randn_like(images)
-        loss = F.l1_loss(model(noisy), target)
-    else:
-        # AE clásico: entrada == objetivo (reconstruir la imagen tal cual)
-        loss = F.l1_loss(model(images), images)
+    loss = F.l1_loss(model(images), images)  # AE clásico: entrada == objetivo
     loss.backward()
     optimizer.step()
     return float(loss.detach())
@@ -132,7 +123,7 @@ def train(
         seen = 0
         for images, _labels, _paths in train_loader:
             images = images.to(device)
-            loss = _train_batch(model, images, optimizer, config.noise_std)
+            loss = _train_batch(model, images, optimizer)
             total_loss += loss * len(images)
             seen += len(images)
 

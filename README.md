@@ -99,7 +99,6 @@ Argumentos principales:
 --score-mode        hybrid
 --seeds             Semillas para la campaña (def: 13 42 73)
 --bottleneck        Canales del cuello de botella (def: 32)
---noise-std         Ruido gaussiano para denoising AE
 --max-train-images  Limita imágenes de entrenamiento (debug)
 --max-eval-images-per-class  Limita imágenes de evaluación (debug)
 ```

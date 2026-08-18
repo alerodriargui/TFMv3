@@ -63,7 +63,6 @@ def main() -> int:
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))  # Semillas a ejecutar
     parser.add_argument("--max-train-images", type=int)  # Límite rápido de entrenamiento
     parser.add_argument("--max-eval-images-per-class", type=int)  # Límite de evaluación
-    parser.add_argument("--noise-std", type=float, default=0.0)  # Ruido añadido a la entrada
     parser.add_argument("--bottleneck", type=int, default=32)  # Canales del cuello de botella
     parser.add_argument(
         "--score-mode",
@@ -98,7 +97,6 @@ def main() -> int:
             seed=seed,
             max_train_images=args.max_train_images,
             max_eval_images_per_class=args.max_eval_images_per_class,
-            noise_std=args.noise_std,
             bottleneck_channels=args.bottleneck,
             score_mode=args.score_mode,
         )
