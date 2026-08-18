@@ -1,98 +1,62 @@
-"""Deterministic, dependency-light loading for BraTS2021."""
+"""Carga determinista y con pocas dependencias de BraTS2021."""
 
 from __future__ import annotations
 
-import random
-import os
-from pathlib import Path
-from typing import Callable, Iterable
+import random  # RNG para submuestreo determinista y aumentación
+from pathlib import Path  # Rutas de archivos multiplataforma
+from typing import Callable  # Tipado de callables
 
-import numpy as np
-import torch
-from PIL import Image
-from torch.utils.data import Dataset
+import numpy as np  # Conversión de píxeles a arrays
+import torch  # Tensores de salida del Dataset
+from PIL import Image  # Apertura/redimensionado de imágenes
+from torch.utils.data import Dataset  # Clase base de PyTorch para datasets
 
-from . import PROJECT_ROOT
+from . import PROJECT_ROOT  # Raíz del proyecto definida en __init__.py
 
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
-NORMAL_NAMES = ("good", "normal")
-ANOMALY_NAMES = ("Ungood", "ungood", "abnormal", "anomalous")
-NON_IMAGE_DIRS = ("label", "labels", "anomaly_mask", "mask", "masks")
+NORMAL_DIR = "good"
+ANOMALY_DIR = "Ungood"
 
 
 def resolve_data_root(explicit: Path | None = None) -> Path:
-    """Find BraTS2021 from an argument, env variable or known path."""
-    candidates = [explicit] if explicit else []
-    if value := os.environ.get("TFM_DATA_ROOT"):
-        candidates.append(Path(value))
-    candidates.extend(
-        (
-            PROJECT_ROOT / "data/raw/rsna_bmad/BraTS2021_slice",
-            PROJECT_ROOT.parent / "TFMv2/data/raw/rsna_bmad/BraTS2021_slice",
-        )
-    )
-    for candidate in candidates:
-        root = candidate.expanduser().resolve()
-        if (root / "train" / "good").is_dir() and (root / "test").is_dir():
-            return root
-    raise FileNotFoundError("No se encontró BraTS2021. Usa --data-root.")
+    """Devuelve la raíz de BraTS2021: la ruta explícita si se pasa, si no la única del repositorio."""
+    if explicit is not None:
+        return explicit
+    return PROJECT_ROOT / "data/raw/rsna_bmad/BraTS2021_slice"
 
 
 def split_dir(root: Path, split: str) -> Path:
-    if split != "val":
-        return root / split
-    for name in ("val", "valid", "validation"):
-        candidate = root / name
-        if candidate.is_dir():
-            return candidate
-    raise FileNotFoundError(f"No se encontró validación bajo {root}")
+    """Devuelve el directorio del split pedido (en los datos la validación se llama 'valid')."""
+    return root / ("valid" if split == "val" else split)
 
 
 def find_images(root: Path) -> list[Path]:
-    return sorted(
-        path
-        for path in root.rglob("*")
-        if path.is_file()
-        and path.suffix.lower() in IMAGE_EXTENSIONS
-        and all(part not in NON_IMAGE_DIRS for part in path.parts)
-    )
-
-
-def find_class_dir(split_root: Path, names: Iterable[str]) -> Path:
-    for name in names:
-        candidate = split_root / name
-        if candidate.is_dir():
-            return candidate
-    raise FileNotFoundError(f"No se encontró {tuple(names)} bajo {split_root}")
+    """Lista (ordenada) de imágenes PNG bajo 'root', excluyendo la carpeta de máscaras 'label'."""
+    return sorted(path for path in root.rglob("*.png") if "label" not in path.parts)
 
 
 def deterministic_subset(paths: list[Path], limit: int | None, seed: int) -> list[Path]:
+    """Subconjunto de tamaño 'limit' reproducible (misma semilla -> mismo resultado), ordenado."""
     if limit is None or limit >= len(paths):
         return paths
-    indices = list(range(len(paths)))
-    random.Random(seed).shuffle(indices)
-    return sorted(paths[index] for index in indices[:limit])
+    return sorted(random.Random(seed).sample(paths, limit))
 
 
 class RandomFlipRotate:
-    """Random horizontal/vertical flip + 90-degree rotation for augmentation."""
+    """Aumentación: volteo horizontal/vertical aleatorio + rotación de 90 grados."""
 
     def __init__(self, seed: int | None = None) -> None:
-        self.rng = random.Random(seed)
+        self.rng = random.Random(seed)  # RNG propio para que la aumentación sea reproducible
 
     def __call__(self, image: Image.Image) -> Image.Image:
-        if self.rng.random() < 0.5:
+        if self.rng.random() < 0.5:  # Volteo horizontal (50%)
             image = image.transpose(Image.FLIP_LEFT_RIGHT)
-        if self.rng.random() < 0.5:
+        if self.rng.random() < 0.5:  # Volteo vertical (50%)
             image = image.transpose(Image.FLIP_TOP_BOTTOM)
-        angle = self.rng.choice([0, 90, 180, 270])
-        if angle:
-            image = image.rotate(angle)
-        return image
+        return image.rotate(self.rng.choice((0, 90, 180, 270)))  # Rotación de 90 en 90
 
 
 class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
-    """Load grayscale images in [0, 1], retaining label and source path."""
+    """Carga imágenes en escala de grises normalizadas a [0, 1], guardando etiqueta y ruta."""
 
     def __init__(
         self,
@@ -103,10 +67,23 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
     ) -> None:
         if len(paths) != len(labels) or not paths:
             raise ValueError("paths y labels deben tener la misma longitud no vacía")
-        self.paths = paths
-        self.labels = labels
-        self.image_size = image_size
-        self.transform = transform
+        self.paths = paths  # Rutas de las imágenes
+        self.labels = labels  # Etiqueta por imagen (0 = normal, 1 = anómalo)
+        self.image_size = image_size  # Tamaño al que se redimensionan las imágenes
+        self.transform = transform  # Aumentación opcional (p.ej. RandomFlipRotate)
+
+    @classmethod
+    def _from_class(
+        cls,
+        class_dir: Path,
+        label: int,
+        image_size: int,
+        limit: int | None,
+        seed: int,
+        transform: Callable[[Image.Image], Image.Image] | None = None,
+    ) -> "RadiographDataset":
+        paths = deterministic_subset(find_images(class_dir), limit, seed)
+        return cls(paths, [label] * len(paths), image_size, transform=transform)
 
     @classmethod
     def normal_only(
@@ -117,10 +94,10 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         seed: int = 42,
         transform: Callable[[Image.Image], Image.Image] | None = None,
     ) -> "RadiographDataset":
-        paths = deterministic_subset(
-            find_images(find_class_dir(split_root, NORMAL_NAMES)), limit, seed
+        """Crea un dataset solo con imágenes normales (etiqueta 0). Útil para entrenar AE."""
+        return cls._from_class(
+            split_root / NORMAL_DIR, 0, image_size, limit, seed, transform
         )
-        return cls(paths, [0] * len(paths), image_size, transform=transform)
 
     @classmethod
     def labeled(
@@ -130,31 +107,30 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         limit_per_class: int | None = None,
         seed: int = 42,
     ) -> "RadiographDataset":
-        normal = deterministic_subset(
-            find_images(find_class_dir(split_root, NORMAL_NAMES)),
-            limit_per_class,
-            seed,
+        """Crea un dataset balanceado con normales (0) y anómalos (1) para evaluar."""
+        normal = cls._from_class(
+            split_root / NORMAL_DIR, 0, image_size, limit_per_class, seed
         )
-        anomalous = deterministic_subset(
-            find_images(find_class_dir(split_root, ANOMALY_NAMES)),
-            limit_per_class,
-            seed + 1,
+        anomalous = cls._from_class(
+            split_root / ANOMALY_DIR, 1, image_size, limit_per_class, seed + 1
         )
         return cls(
-            normal + anomalous, [0] * len(normal) + [1] * len(anomalous), image_size
+            normal.paths + anomalous.paths,
+            normal.labels + anomalous.labels,
+            image_size,
         )
 
     def __len__(self) -> int:
-        return len(self.paths)
+        return len(self.paths)  # Número de muestras del dataset
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int, str]:
+        """Devuelve (imagen [1, H, W] en [0,1], etiqueta, ruta) para el índice dado."""
         path = self.paths[index]
         with Image.open(path) as image:
-            image = image.convert("L")
-            image = image.resize(
+            image = image.convert("L").resize(  # Escala de grises y redimensiona
                 (self.image_size, self.image_size), Image.Resampling.BILINEAR
             )
-            if self.transform is not None:
+            if self.transform is not None:  # Aumentación opcional
                 image = self.transform(image)
-            pixels = np.asarray(image, dtype=np.float32).copy() / 255.0
+            pixels = np.asarray(image, dtype=np.float32) / 255.0  # Píxeles a [0, 1]
         return torch.from_numpy(pixels).unsqueeze(0), self.labels[index], str(path)
