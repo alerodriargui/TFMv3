@@ -23,7 +23,7 @@ def _divide(numerator: float, denominator: float) -> float:
 
 def confusion(y_true: np.ndarray, scores: np.ndarray, threshold: float) -> Confusion:
     """Compara los scores con un umbral y cuenta cada celda de la matriz."""
-    predicted = scores >= threshold  # Recomendación: 1 si supera el umbral
+    predicted = scores >= threshold  # Predicted si supera el umbral
     positive = y_true == 1  # Es anómalo de verdad
     return Confusion(
         tp=int(np.sum(predicted & positive)),
