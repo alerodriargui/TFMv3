@@ -48,16 +48,12 @@ def auroc(y_true: np.ndarray, scores: np.ndarray) -> float:
     n_negative = len(y_true) - n_positive
     if not n_positive or not n_negative:
         raise ValueError("AUROC requiere ambas clases")
-    order = np.argsort(scores, kind="mergesort")
-    sorted_scores = scores[order]
-    ranks = np.empty(len(scores), dtype=np.float64)
-    start = 0
-    while start < len(scores):
-        end = start + 1
-        while end < len(scores) and sorted_scores[end] == sorted_scores[start]:
-            end += 1
-        ranks[order[start:end]] = (start + end + 1) / 2
-        start = end
+    # Rango promedio de cada score (empates promedian su rango): searchsorted cuenta
+    # cuántos scores son < x y cuántos <= x; el rango medio = (menores + menores_o_iguales + 1) / 2
+    sorted_scores = np.sort(scores, kind="mergesort")
+    less = np.searchsorted(sorted_scores, scores, side="left")
+    less_equal = np.searchsorted(sorted_scores, scores, side="right")
+    ranks = (less + less_equal + 1) / 2
     rank_sum = float(ranks[positive].sum())
     return (rank_sum - n_positive * (n_positive + 1) / 2) / (n_positive * n_negative)
 
@@ -66,39 +62,30 @@ def best_balanced_threshold(
     y_true: np.ndarray, scores: np.ndarray
 ) -> tuple[float, float]:
     """Find the validation threshold in O(n log n), preferring specificity."""
-    order = np.argsort(-scores, kind="mergesort")
-    labels = y_true[order]
-    sorted_scores = scores[order]
-    positives = int(np.sum(labels == 1))
-    negatives = len(labels) - positives
+    positives = int(np.sum(y_true == 1))
+    negatives = len(y_true) - positives
     if not positives or not negatives:
         raise ValueError("La selección de umbral requiere ambas clases")
 
-    tp = fp = 0
-    best_score = -1.0
-    best_specificity = -1.0
-    best_threshold = float(np.nextafter(sorted_scores[0], np.inf))
-    index = 0
-    while index < len(labels):
-        value = sorted_scores[index]
-        end = index
-        while end < len(labels) and sorted_scores[end] == value:
-            if labels[end] == 1:
-                tp += 1
-            else:
-                fp += 1
-            end += 1
-        sensitivity = tp / positives
-        specificity = (negatives - fp) / negatives
-        balanced = (sensitivity + specificity) / 2
-        if balanced > best_score or (
-            balanced == best_score and specificity > best_specificity
-        ):
-            best_score = balanced
-            best_specificity = specificity
-            best_threshold = float(value)
-        index = end
-    return best_threshold, best_score
+    # Ordena de mayor a menor score y acumula TP/FP en un solo paso vectorizado
+    order = np.argsort(-scores, kind="mergesort")
+    labels = y_true[order]
+    sorted_scores = scores[order]
+    tp = np.cumsum(labels)
+    fp = np.arange(1, len(labels) + 1) - tp
+    sensitivity = tp / positives
+    specificity = (negatives - fp) / negatives
+    balanced = (sensitivity + specificity) / 2
+
+    # Solo se evalúa al final de cada grupo de empates: el umbral incluye todos los scores == valor
+    group_ends = np.flatnonzero(np.diff(sorted_scores))
+    group_ends = np.append(group_ends, len(labels) - 1)
+    balanced_end = balanced[group_ends]
+    specificity_end = specificity[group_ends]
+    best = int(balanced_end.argmax())
+    ties = np.flatnonzero(balanced_end == balanced_end[best])
+    best = int(ties[np.argmax(specificity_end[ties])])
+    return float(sorted_scores[group_ends[best]]), float(balanced_end[best])
 
 
 def evaluate(y_true: np.ndarray, scores: np.ndarray, threshold: float) -> dict:
