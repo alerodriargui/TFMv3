@@ -184,7 +184,8 @@
   \end{center}
 
   \vspace{0.3cm}
-  \textbf{Preprocesado}: escala a $[0,1]$. \quad
+  \textbf{Preprocesado}: conversión a escala de grises (los PNG originales son
+  RGBA) y escala de intensidades a $[0,1]$. \quad
   \textbf{Data augmentation}: flip horizontal (50\%), flip vertical (50\%) y
   rotación 90/180/270°.
 \end{frame}
@@ -230,7 +231,7 @@
 
   \vspace{0.2cm}
   \begin{enumerate}
-    \item Se calculan 18 estadísticos; se seleccionan \textbf{4 señales}
+    \item Se calculan \textbf{5 estadísticos}; se seleccionan \textbf{4 señales}
           interpretables (\texttt{GLOBAL\_SIGNALS}).
     \item Cada señal se \textbf{tipifica} contra su distribución en las normales
           de entrenamiento y se suma:
@@ -339,7 +340,13 @@
           calibración y en el umbral.
   \end{itemize}
 
-  \vspace{0.3cm}
+  \vspace{0.2cm}
+  \begin{block}{Resultado en validación (semilla 42)}
+    AUROC global sola: $0{,}883$ \quad AUROC MAE solo: $0{,}687$ \quad
+    \textbf{Híbrido: $0{,}886$} $\Rightarrow w=0{,}95$
+  \end{block}
+
+  \vspace{0.2cm}
   \begin{block}{Métricas}
     \textbf{AUROC} (independiente del umbral) + \textbf{balanced accuracy}
     (media de sensitivity y specificity, justa con clases desbalanceadas).
@@ -361,6 +368,7 @@
     Sensitivity & 0{,}7554 & Proporción de anómalas correctamente detectadas \\
     Specificity & 0{,}9109 & Proporción de normales correctamente identificadas \\
     Peso híbrido ($w$) & 0{,}95 & \textbf{95\% global + 5\% MAE} \\
+    Umbral de decisión & 1{,}943 & fijado en validación, congelado para test \\
     Parámetros & 16.281 & modelo ligero \\
     \bottomrule
   \end{tabular}
