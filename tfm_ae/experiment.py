@@ -37,7 +37,7 @@ class ExperimentConfig:
     max_train_images: int | None = None  # Límite para pruebas rápidas (None = usar todo)
     max_eval_images_per_class: int | None = None  # Límite de evaluación por clase
     bottleneck_channels: int = 32  # Canales en el cuello de botella del autoencoder
-    score_mode: str = "ae_classic"
+    score_mode: str = "hybrid"
 
 
 def set_seed(seed: int) -> None:
