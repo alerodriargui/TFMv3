@@ -27,7 +27,7 @@ class ExperimentConfig:
     output_dir: Path
     epochs: int = 3
     batch_size: int = 32
-    image_size: int = 240
+    image_size: int = 192
     model_name: str = "ae"
     learning_rate: float = 1e-3
     seed: int = 42
