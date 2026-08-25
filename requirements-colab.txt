@@ -3,3 +3,5 @@ Pillow
 matplotlib
 pandas
 gdown
+timm
+einops
