@@ -20,8 +20,8 @@ def _get_2d_sincos_pos_embed(embed_dim: int, grid_size: int) -> torch.Tensor:
     grid = np.meshgrid(grid_w, grid_h)
     grid = np.stack(grid, axis=0).reshape([2, 1, grid_size, grid_size])
 
-    omega = np.arange(embed_dim // 2, dtype=np.float32)
-    omega /= embed_dim / 2.0
+    omega = np.arange(embed_dim // 4, dtype=np.float32)
+    omega /= embed_dim / 4.0
     omega = 1.0 / 10000**omega
 
     emb_h = np.einsum("m,d->md", grid[0].reshape(-1), omega)
