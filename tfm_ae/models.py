@@ -9,7 +9,7 @@ from torch import nn
 class ConvAutoencoder(nn.Module):
     """Autoencoder pequeño para imágenes en escala de grises (tamaño múltiplo de 8)."""
 
-    def __init__(self, bottleneck_channels: int = 32) -> None:
+    def __init__(self, bottleneck_channels: int = 16) -> None:
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(1, 8, 3, 2, 1), nn.ReLU(inplace=True),
@@ -35,5 +35,5 @@ def per_image_scores(
     return scores, reconstructed
 
 
-def build_model(bottleneck_channels: int = 32) -> ConvAutoencoder:
+def build_model(bottleneck_channels: int = 16) -> ConvAutoencoder:
     return ConvAutoencoder(bottleneck_channels=bottleneck_channels)

@@ -20,7 +20,7 @@ def summarize(output_root: Path, report_path: Path) -> None:
         report = json.loads(path.read_text(encoding="utf-8"))
         if not report.get("scientific_run", False):
             continue
-        model = report["config"]["model"]
+        model = report["config"]["model_name"]
         rows.append(report["test"])
     if not rows:
         return
@@ -48,13 +48,13 @@ def main() -> int:
     parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "results/experiments")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--image-size", type=int, default=64)
+    parser.add_argument("--image-size", type=int, default=240)
     parser.add_argument("--model", choices=("ae",), default="ae")
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
-    parser.add_argument("--bottleneck", type=int, default=32)
+    parser.add_argument("--bottleneck", type=int, default=16)
     args = parser.parse_args()
 
     root = resolve_data_root(args.data_root)

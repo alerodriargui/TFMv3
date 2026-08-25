@@ -27,13 +27,13 @@ class ExperimentConfig:
     output_dir: Path
     epochs: int = 3
     batch_size: int = 32
-    image_size: int = 64
+    image_size: int = 240
     model_name: str = "ae"
     learning_rate: float = 1e-3
     seed: int = 42
     max_train_images: int | None = None
     max_eval_images_per_class: int | None = None
-    bottleneck_channels: int = 32
+    bottleneck_channels: int = 16
 
 
 def set_seed(seed: int) -> None:
