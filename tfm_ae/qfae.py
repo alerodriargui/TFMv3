@@ -58,7 +58,7 @@ class DINOv2Encoder(nn.Module):
         self.use_hidden_state = use_hidden_state
         self.out_dim = out_dim
 
-        self.model = timm.create_model(model_name, pretrained=True)
+        self.model = timm.create_model(model_name, pretrained=True, img_size=img_size)
         self.model.eval()
         self.model.requires_grad_(False)
 

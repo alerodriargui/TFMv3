@@ -46,7 +46,6 @@ class PerceptualLoss(nn.Module):
             model.requires_grad_(False)
             self.models.append(model)
 
-    @torch.no_grad()
     def extract_features(
         self, images: torch.Tensor, model_idx: int
     ) -> list[torch.Tensor]:
@@ -79,9 +78,17 @@ class PerceptualLoss(nn.Module):
                 selected.append(all_features[-1])
         return selected
 
+    @staticmethod
+    def _to_3ch(x: torch.Tensor) -> torch.Tensor:
+        if x.shape[1] == 1:
+            return x.repeat(1, 3, 1, 1)
+        return x
+
     def forward(
         self, images: torch.Tensor, reconstructions: torch.Tensor
     ) -> torch.Tensor:
+        images = self._to_3ch(images)
+        reconstructions = self._to_3ch(reconstructions)
         all_loss_maps = []
         for model_idx in range(len(self.models)):
             feats_in = self._select_layers(self.extract_features(images, model_idx))
