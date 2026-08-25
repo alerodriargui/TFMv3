@@ -1,4 +1,4 @@
-"""Entrenamiento y evaluación del Q-Former Autoencoder."""
+"""Entrenamiento y evaluación de autoencoders para detección de anomalías."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from pathlib import Path
 import numpy as np
 import torch
 from PIL import Image, ImageDraw
-from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
 from . import PROJECT_ROOT
@@ -27,20 +26,14 @@ class ExperimentConfig:
     epochs: int = 100
     batch_size: int = 16
     image_size: int = 224
-    model_name: str = "qfae"
-    learning_rate: float = 8e-5
+    model_name: str = "dae"
+    learning_rate: float = 1e-3
     seed: int = 42
     max_train_images: int | None = None
     max_eval_images_per_class: int | None = None
-    encoder_name: str = "vit_large_patch14_reg4_dinov2.lvd142m"
-    junction_dim: int = 768
-    junction_n_queries: int = 784
-    junction_heads: int = 8
-    decoder_dim: int = 768
-    decoder_depth: int = 6
-    decoder_heads: int = 12
-    perceptual_patch_sizes: tuple[int, ...] = (32, 56)
-    perceptual_layers: tuple[int, ...] = (15, 19)
+    dae_base_ch: int = 64
+    noise_sigma: float = 0.4
+    noise_resolution: int = 32
 
 
 def set_seed(seed: int) -> None:
@@ -63,47 +56,61 @@ def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataL
     )
 
 
-def _train_batch(
+def _coarse_noise(images: torch.Tensor, sigma: float, resolution: int) -> torch.Tensor:
+    """Generate coarse noise at low resolution and upsample to image size."""
+    b, c, h, w = images.shape
+    nh = max(1, h // resolution)
+    nw = max(1, w // resolution)
+    noise_small = torch.randn(b, c, nh, nw, device=images.device) * sigma
+    noise = F.interpolate(noise_small, size=(h, w), mode="bilinear", align_corners=False)
+    mask = (images > 0).float()
+    return images + noise * mask
+
+
+def _train_batch_dae(
     model: torch.nn.Module,
-    perceptual_loss: torch.nn.Module,
     images: torch.Tensor,
     optimizer: torch.optim.Optimizer,
+    sigma: float,
+    noise_resolution: int,
 ) -> float:
     optimizer.zero_grad(set_to_none=True)
-    reconstructed = model(images)
-    loss, _ = perceptual_loss.loss_and_maps(images, reconstructed)
+    noisy = _coarse_noise(images, sigma, noise_resolution)
+    reconstructed = model(noisy)
+    loss = F.mse_loss(reconstructed, images)
     loss.backward()
     optimizer.step()
     return float(loss.detach())
 
 
 @torch.no_grad()
-def _normal_validation_loss(
+def _validation_loss_dae(
     model: torch.nn.Module,
-    perceptual_loss: torch.nn.Module,
     loader: DataLoader,
     device: torch.device,
+    sigma: float,
+    noise_resolution: int,
 ) -> float:
     model.eval()
-    perceptual_loss.eval()
     total = 0.0
     count = 0
     for images, _labels, _paths in loader:
         images = images.to(device)
-        reconstructed = model(images)
-        _, loss_maps = perceptual_loss.loss_and_maps(images, reconstructed)
-        spatial = loss_maps.amax(dim=1)
+        noisy = _coarse_noise(images, sigma, noise_resolution)
+        reconstructed = model(noisy)
+        diff = (reconstructed - images).abs()
+        spatial = diff.amax(dim=1)
         image_scores = spatial.amax(dim=(1, 2))
         total += float(image_scores.sum())
         count += len(images)
     return total / max(count, 1)
 
 
-def train(
+@torch.no_grad()
+def _validation_loss_dae(
     config: ExperimentConfig, device: torch.device
 ) -> tuple[torch.nn.Module, list[dict], int]:
-    from .perceptual_loss import PerceptualLoss
-    from .qfae import QFAE, build_qfae_model
+    from .dae import DAE
 
     augmentation = RandomFlipRotate(seed=config.seed)
     train_set = RadiographDataset.normal_only(
@@ -122,29 +129,9 @@ def train(
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
 
-    model = build_qfae_model(
-        encoder_name=config.encoder_name,
-        img_size=config.image_size,
-        junction_dim=config.junction_dim,
-        junction_n_queries=config.junction_n_queries,
-        junction_heads=config.junction_heads,
-        decoder_dim=config.decoder_dim,
-        decoder_depth=config.decoder_depth,
-        decoder_heads=config.decoder_heads,
-    ).to(device)
+    model = DAE(in_channels=1, base_ch=config.dae_base_ch).to(device)
 
-    model.encoder.eval()
-    model.encoder.requires_grad_(False)
-
-    perceptual = PerceptualLoss(
-        layers=config.perceptual_layers,
-        patch_sizes=config.perceptual_patch_sizes,
-        img_size=config.image_size,
-    ).to(device)
-    perceptual.eval()
-    perceptual.requires_grad_(False)
-
-    trainable = [p for p in model.parameters() if p.requires_grad]
+    trainable = list(model.parameters())
     optimizer = torch.optim.Adam(trainable, lr=config.learning_rate)
     best_value = float("inf")
     history: list[dict] = []
@@ -152,18 +139,19 @@ def train(
 
     for epoch in range(1, config.epochs + 1):
         model.train()
-        perceptual.eval()
         started = time.perf_counter()
         total_loss = 0.0
         seen = 0
         for images, _labels, _paths in train_loader:
             images = images.to(device)
-            loss = _train_batch(model, perceptual, images, optimizer)
+            loss = _train_batch_dae(
+                model, images, optimizer, config.noise_sigma, config.noise_resolution,
+            )
             total_loss += loss * len(images)
             seen += len(images)
 
-        validation_value = _normal_validation_loss(
-            model, perceptual, validation_loader, device
+        validation_value = _validation_loss_dae(
+            model, validation_loader, device, config.noise_sigma, config.noise_resolution,
         )
         record = {
             "epoch": epoch,
@@ -173,7 +161,7 @@ def train(
         }
         history.append(record)
         print(
-            f"QFAE epoch={epoch}/{config.epochs} "
+            f"DAE epoch={epoch}/{config.epochs} "
             f"train={record['train_loss']:.6f} val={validation_value:.6f} "
             f"seconds={record['seconds']:.1f}",
             flush=True,
@@ -192,13 +180,7 @@ def train(
         {
             "model_name": config.model_name,
             "image_size": config.image_size,
-            "encoder_name": config.encoder_name,
-            "junction_dim": config.junction_dim,
-            "junction_n_queries": config.junction_n_queries,
-            "junction_heads": config.junction_heads,
-            "decoder_dim": config.decoder_dim,
-            "decoder_depth": config.decoder_depth,
-            "decoder_heads": config.decoder_heads,
+            "dae_base_ch": config.dae_base_ch,
             "model_state": best_state["model"],
             "selected_epoch": best_state["epoch"],
         },
@@ -207,16 +189,23 @@ def train(
     return model, history, int(best_state["epoch"])
 
 
+def train(
+    config: ExperimentConfig, device: torch.device
+) -> tuple[torch.nn.Module, list[dict], int]:
+    if config.model_name == "dae":
+        return train_dae(config, device)
+    else:
+        raise ValueError(f"Modelo desconocido: {config.model_name}")
+
+
 @torch.no_grad()
-def score_dataset(
+def score_dataset_dae(
     model: torch.nn.Module,
-    perceptual_loss: torch.nn.Module,
     dataset: RadiographDataset,
     batch_size: int,
     device: torch.device,
 ) -> tuple[np.ndarray, np.ndarray, list[str], tuple[torch.Tensor, torch.Tensor]]:
     model.eval()
-    perceptual_loss.eval()
     scores: list[np.ndarray] = []
     labels: list[np.ndarray] = []
     paths: list[str] = []
@@ -225,8 +214,42 @@ def score_dataset(
     for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
         device_images = images.to(device)
         reconstructed = model(device_images)
-        _, loss_maps = perceptual_loss.loss_and_maps(device_images, reconstructed)
-        spatial = loss_maps.amax(dim=1)
+        diff = (reconstructed - device_images).abs()
+        spatial = diff.amax(dim=1)
+        batch_scores = spatial.amax(dim=(1, 2))
+        scores.append(batch_scores.cpu().numpy())
+        labels.append(batch_labels.numpy())
+        paths.extend(batch_paths)
+        if samples is None:
+            samples = (images[:8], reconstructed.cpu()[:8])
+        if batch_index % 50 == 0 or batch_index == len(loader):
+            print(
+                f"score progress={batch_index}/{len(loader)} "
+                f"images={min(batch_index * batch_size, len(dataset))}/{len(dataset)}",
+                flush=True,
+            )
+    assert samples is not None
+    return np.concatenate(labels), np.concatenate(scores), paths, samples
+
+
+@torch.no_grad()
+def score_dataset_dae(
+    model: torch.nn.Module,
+    dataset: RadiographDataset,
+    batch_size: int,
+    device: torch.device,
+) -> tuple[np.ndarray, np.ndarray, list[str], tuple[torch.Tensor, torch.Tensor]]:
+    model.eval()
+    scores: list[np.ndarray] = []
+    labels: list[np.ndarray] = []
+    paths: list[str] = []
+    samples: tuple[torch.Tensor, torch.Tensor] | None = None
+    loader = _loader(dataset, batch_size, False)
+    for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
+        device_images = images.to(device)
+        reconstructed = model(device_images)
+        diff = (reconstructed - device_images).abs()
+        spatial = diff.amax(dim=1)
         batch_scores = spatial.amax(dim=(1, 2))
         scores.append(batch_scores.cpu().numpy())
         labels.append(batch_labels.numpy())
@@ -253,13 +276,13 @@ def _save_scores(
 
 
 def _save_reconstructions(
-    path: Path, originals: torch.Tensor, reconstructed: torch.Tensor
+    path: Path, originals: torch.Tensor, reconstructed: torch.Tensor, model_name: str,
 ) -> None:
     count = min(8, len(originals))
     size = originals.shape[-1]
     canvas = Image.new("L", (count * size, 2 * size + 20), color=255)
     draw = ImageDraw.Draw(canvas)
-    draw.text((2, 2), "QFAE: original (arriba) / reconstrucción (abajo)", fill=0)
+    draw.text((2, 2), f"{model_name.upper()}: original (arriba) / reconstrucción (abajo)", fill=0)
     for index in range(count):
         for row, tensor in enumerate((originals[index, 0], reconstructed[index, 0])):
             array = (tensor.clamp(0, 1).numpy() * 255).astype(np.uint8)
@@ -279,15 +302,7 @@ def run(config: ExperimentConfig) -> dict:
     started = time.perf_counter()
     model, history, selected_epoch = train(config, device)
 
-    from .perceptual_loss import PerceptualLoss
-
-    perceptual = PerceptualLoss(
-        layers=config.perceptual_layers,
-        patch_sizes=config.perceptual_patch_sizes,
-        img_size=config.image_size,
-    ).to(device)
-    perceptual.eval()
-    perceptual.requires_grad_(False)
+    perceptual = None
 
     validation = RadiographDataset.labeled(
         split_dir(config.data_root, "val"),
@@ -302,10 +317,10 @@ def run(config: ExperimentConfig) -> dict:
         config.seed,
     )
     val_labels, val_scores, val_paths, samples = score_dataset(
-        model, perceptual, validation, config.batch_size, device,
+        model, validation, config.batch_size,
     )
     test_labels, test_scores, test_paths, _ = score_dataset(
-        model, perceptual, test, config.batch_size, device,
+        model, test, config.batch_size,
     )
     threshold, _ = best_balanced_threshold(val_labels, val_scores)
     validation_metrics = evaluate(val_labels, val_scores, threshold)
@@ -313,7 +328,7 @@ def run(config: ExperimentConfig) -> dict:
 
     _save_scores(config.output_dir / "validation_scores.csv", val_labels, val_scores, val_paths)
     _save_scores(config.output_dir / "test_scores.csv", test_labels, test_scores, test_paths)
-    _save_reconstructions(config.output_dir / "reconstructions.png", *samples)
+    _save_reconstructions(config.output_dir / "reconstructions.png", *samples, config.model_name)
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
