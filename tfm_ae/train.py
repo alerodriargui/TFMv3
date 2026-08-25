@@ -1,4 +1,4 @@
-"""CLI de entrenamiento y evaluación del autoencoder."""
+"""CLI de entrenamiento y evaluación del Q-Former Autoencoder."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .experiment import ExperimentConfig, run
 
 def summarize(output_root: Path, report_path: Path) -> None:
     rows = []
-    model = "ae"
+    model = "qfae"
     for path in sorted(output_root.glob("*_seed*/metrics.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
         if not report.get("scientific_run", False):
@@ -43,18 +43,16 @@ def summarize(output_root: Path, report_path: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Entrena y evalúa el autoencoder.")
+    parser = argparse.ArgumentParser(description="Entrena y evalúa el QFAE.")
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "results/experiments")
-    parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--image-size", type=int, default=240)
-    parser.add_argument("--model", choices=("ae", "qfae"), default="ae")
-    parser.add_argument("--learning-rate", type=float, default=1e-3)
-    parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--image-size", type=int, default=224)
+    parser.add_argument("--learning-rate", type=float, default=8e-5)
+    parser.add_argument("--seeds", nargs="+", type=int, default=(42,))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
-    parser.add_argument("--bottleneck", type=int, default=32)
     parser.add_argument("--encoder-name", type=str, default="vit_large_patch14_reg4_dinov2.lvd142m")
     parser.add_argument("--junction-dim", type=int, default=768)
     parser.add_argument("--junction-n-queries", type=int, default=784)
@@ -66,14 +64,14 @@ def main() -> int:
 
     root = resolve_data_root(args.data_root)
     for seed in args.seeds:
-        output_dir = args.output_root / f"{args.model}_seed{seed}"
+        output_dir = args.output_root / f"qfae_seed{seed}"
         metrics_path = output_dir / "metrics.json"
         if metrics_path.is_file():
             previous = json.loads(metrics_path.read_text(encoding="utf-8"))
             if previous.get("scientific_run", False):
                 previous_config = previous.get("config", {})
-                if previous_config.get("model_name") == args.model and previous_config.get("image_size") == args.image_size:
-                    print(f"SKIP {args.model} seed={seed}: ya está completo")
+                if previous_config.get("image_size") == args.image_size:
+                    print(f"SKIP qfae seed={seed}: ya está completo")
                     continue
         config = ExperimentConfig(
             data_root=root,
@@ -81,12 +79,10 @@ def main() -> int:
             epochs=args.epochs,
             batch_size=args.batch_size,
             image_size=args.image_size,
-            model_name=args.model,
             learning_rate=args.learning_rate,
             seed=seed,
             max_train_images=args.max_train_images,
             max_eval_images_per_class=args.max_eval_images_per_class,
-            bottleneck_channels=args.bottleneck,
             encoder_name=args.encoder_name,
             junction_dim=args.junction_dim,
             junction_n_queries=args.junction_n_queries,
@@ -98,7 +94,7 @@ def main() -> int:
         report = run(config)
         test = report["test"]
         print(
-            f"RESULT {args.model} seed={seed}: AUROC={test['auroc']:.4f} "
+            f"RESULT qfae seed={seed}: AUROC={test['auroc']:.4f} "
             f"balanced_accuracy={test['balanced_accuracy']:.4f}",
             flush=True,
         )

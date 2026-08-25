@@ -7,8 +7,6 @@ Arquitectura basada en Dalmonte et al. (WACV 2026):
 
 from __future__ import annotations
 
-import math
-
 import numpy as np
 import timm
 import torch
@@ -276,18 +274,6 @@ class QFAE(nn.Module):
         features = self.encoder(images_3ch)
         latent = self.qformer(features)
         return self.decoder(latent)
-
-
-def per_image_scores(
-    model: QFAE, images: torch.Tensor, loss_maps: torch.Tensor
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Devuelve (score por imagen, imágenes reconstruidas)."""
-    model.eval()
-    with torch.no_grad():
-        reconstructed = model(images)
-    spatial_scores = loss_maps.amax(dim=1)
-    image_scores = spatial_scores.amax(dim=(1, 2))
-    return image_scores, reconstructed
 
 
 def build_qfae_model(

@@ -36,7 +36,6 @@ class PerceptualLoss(nn.Module):
         self.img_size = img_size
         self.models = nn.ModuleList()
         for ps in patch_sizes:
-            n_patches = img_size // ps
             model = timm.create_model(
                 model_name,
                 pretrained=True,
