@@ -1,13 +1,20 @@
-# TFM: detección no supervisada de anomalías
+# DAE para deteccion no supervisada de anomalias
 
-Sistema no supervisado para detectar anomalías en imágenes médicas aprendiendo
-únicamente con muestras normales. El modelo final es un autoencoder
-convencional de 16.281 parámetros que reconstruye cortes cerebrales de
-240×240 (BraTS2021). La puntuación combina el error de reconstrucción
-calibrado con señales globales de la imagen (kurtosis, región brillante más
-grande, gradiente medio, entropía), con un peso calibrado en validación.
+Este proyecto entrena un unico modelo para detectar anomalias en cortes cerebrales
+FLAIR de Brain-AD / BraTS2021: un **Denoising Autoencoder (DAE)**.
 
-## Instalación
+La implementacion esta basada en Kascenas, Pugeault y O'Neil,
+*Denoising Autoencoders for Unsupervised Anomaly Detection in Brain MRI*
+(MIDL 2022). El metodo es deliberadamente sencillo:
+
+1. Entrena solo con imagenes normales.
+2. Anade ruido gaussiano de baja resolucion al primer plano.
+3. Reconstruye la imagen limpia con una red tipo U-Net y conexiones skip.
+4. Usa el error absoluto de reconstruccion como puntuacion de anomalia.
+
+Articulo: https://proceedings.mlr.press/v172/kascenas22a.html
+
+## Instalacion
 
 ```powershell
 python -m venv .venv
@@ -15,148 +22,44 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-## Estructura del proyecto
-
-```text
-TFMv3/
-|-- tfm_ae/              Código ejecutable
-|   |-- models.py        Arquitecturas (ConvAutoencoder)
-|   |-- data.py          Carga determinista + data augmentation
-|   |-- features.py      Señales globales de imagen
-|   |-- metrics.py       AUROC, umbral y métricas
-|   |-- experiment.py    Entrenamiento, calibración e inferencia
-|   |-- train.py         Comando de entrenamiento
-|   `-- demo_tfm.py      Demo visual para el TFM
-|-- checkpoints/         Pesos congelados
-|-- results/             Métricas, experimentos y figuras
-|   |-- brain_v2_final/  Resultados (Colab GPU, 20 épocas + augmentation)
-|   `-- brain_hybrid_full/ Resultados locales (3 épocas)
-|-- notebooks/           Notebooks de Google Colab
-|-- docs/                Memoria en LaTeX y recursos
-|-- data/raw/rsna_bmad/  Datos locales (BraTS2021)
-`-- requirements*.txt    Dependencias
-```
-
 ## Datos
 
-El código soporta el dataset **BraTS2021_slice** (cortes cerebrales FLAIR):
-- 7.500 entrenamiento (normales)
-- 39 normales + 44 anómalos validación
-- 640 normales + 3.075 anómalos test
-
-Para indicar su ubicación:
-
-```powershell
-$env:TFM_DATA_ROOT = 'D:\datasets\BraTS2021_slice'
-```
-
-## Modelos
-
-| Modelo | Parámetros | Resolución | Uso |
-|---|---:|---:|---|
-| `ae` (ConvAutoencoder) | 16.281 | 64–256 | Modelo principal |
-
-El AE simple tiene tres etapas convolucionales (1→8→16→32 canales) con
-decodificador simétrico.
-
-## Data augmentation
-
-El entrenamiento aplica automáticamente transformaciones aleatorias para mejorar
-la generalización:
-
-- Flip horizontal (50%)
-- Flip vertical (50%)
-- Rotación 90/180/270° (aleatoria)
-
-Definido en `data.py` como `RandomFlipRotate`.
-
-## Puntuación
-
-El experimento usa un único modo de puntuación híbrido:
-
-- **hybrid**: `w × señales globales calibradas + (1-w) × MAE calibrado`
-
-Las señales globales (`features.py`) son cuatro estadísticos calculados sobre
-cada imagen: kurtosis, tamaño de la región brillante más grande, gradiente medio
-y entropía. Cada señal se tipifica con la media y desviación de las normales de
-entrenamiento; su signo se fija por la dirección del AUROC en validación. El
-peso `w` se busca en validación con una rejilla de 21 valores entre 0 y 1.
-
-## Ejecución
-
-```powershell
-python -m tfm_ae.train --model ae --image-size 240 --epochs 20 --score-mode hybrid
-```
-
-Argumentos principales:
+El dataset debe contener esta estructura:
 
 ```text
---data-root         Ruta al dataset
---model             ae
---image-size        Resolución (64, 240, 256, 512...)
---epochs            Número de épocas
---batch-size        Tamaño del lote (def: 32)
---score-mode        hybrid
---seeds             Semillas para la campaña (def: 13 42 73)
---bottleneck        Canales del cuello de botella (def: 32)
---max-train-images  Limita imágenes de entrenamiento (debug)
---max-eval-images-per-class  Limita imágenes de evaluación (debug)
+BraTS2021_slice/
+|-- train/good/
+|-- valid/good/
+|-- valid/Ungood/
+|-- test/good/
+`-- test/Ungood/
 ```
 
-El entrenamiento guarda en `results/experiments/ae_seed{N}/`:
-- `model.pt` — pesos del modelo
-- `metrics.json` — configuración, historial, calibración y métricas
-- `validation_scores.csv` / `test_scores.csv` — puntuaciones por imagen
-- `reconstructions.png` — reconstrucciones de ejemplo
+La ruta se pasa con `--data-root`.
 
-### Demo visual para el TFM
+## Ejecucion
 
 ```powershell
-python -m tfm_ae.demo_tfm
+python -m tfm_ae.train --data-root D:\datasets\BraTS2021_slice --epochs 100
 ```
 
-Genera figuras con 6 paneles explicativos para cada imagen de prueba:
+Parametros principales:
 
-1. **Imagen original** — corte cerebral preprocesado
-2. **Reconstrucción AE** — salida del autoencoder
-3. **Mapa de error** — heatmap del error absoluto
-4. **Regiones anómalas** — overlay con zonas de mayor error
-5. **Señales globales** — valores de kurtosis, correlación, gradiente, entropía
-6. **Gauge del score** — puntuación frente al umbral de decisión
+```text
+--image-size          Resolucion de entrada, multiplo de 16 (def: 224)
+--batch-size          Tamano del lote (def: 16)
+--seeds               Semillas del experimento (def: 42)
+--dae-base-ch         Canales base del DAE (def: 64)
+--noise-sigma         Desviacion del ruido (def: 0.2)
+--noise-resolution    Resolucion del ruido antes de interpolar (def: 16)
+```
 
-## Resultados
-
-### Cerebro (BraTS2021, score híbrido, 20 épocas + data augmentation)
-
-| Métrica | Valor |
-|---|---|
-| AUROC | 0,9029 |
-| Balanced accuracy | 0,8332 |
-| Sensitivity | 75,5% |
-| Specificity | 91,1% |
-| Peso híbrido (w) | 0,95 |
-| Épocas | 20 |
-| Resolución | 240×240 |
-
-El peso híbrido seleccionado en validación es `w = 0,95`: las señales globales
-dominan la separación y el MAE actúa como señal complementaria.
+Cada ejecucion guarda `model.pt`, `metrics.json`, los scores de validacion y
+test, y una imagen con reconstrucciones en `results/experiments/dae_seed{N}/`.
+Las unicas metricas finales son AUROC y balanced accuracy. El umbral se elige
+con validacion y se guarda por separado para aplicarlo despues sobre test.
 
 ## Google Colab
 
-El notebook `notebooks/TFMv3_colab_brain.ipynb` reproduce el experimento en Colab
-con GPU. Descarga BraTS2021, ejecuta una prueba reducida y lanza la campaña
-completa con respaldo incremental en Drive.
-
-1. Abre el notebook en Colab.
-2. Selecciona `Runtime > Change runtime type > GPU`.
-3. Ejecuta todas las celdas.
-
-## Entregables
-
-| Ruta | Función |
-|---|---|
-| `docs/memoria.pdf` | Memoria final (LaTeX) |
-| `docs/assets/` | Diagramas y recursos |
-| `notebooks/TFMv3_colab_brain.ipynb` | Reproducible en Colab |
-| `results/brain_v2_final/` | Resultados + demos visuales |
-| `tfm_ae/demo_tfm.py` | Script de demo para el TFM |
+El notebook [TFMv3_colab_brain.ipynb](notebooks/TFMv3_colab_brain.ipynb)
+descarga los datos, valida la GPU, ejecuta una prueba reducida y entrena el DAE.

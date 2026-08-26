@@ -1,4 +1,4 @@
-"""Entrenamiento y evaluación de autoencoders para detección de anomalías."""
+"""Entrenamiento y evaluacion del DAE para deteccion de anomalias."""
 
 from __future__ import annotations
 
@@ -11,12 +11,13 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from PIL import Image, ImageDraw
+from sklearn.metrics import balanced_accuracy_score, roc_auc_score, roc_curve
 from torch.utils.data import DataLoader
 
 from . import PROJECT_ROOT
 from .data import RandomFlipRotate, RadiographDataset, split_dir
-from .metrics import best_balanced_threshold, evaluate
 
 
 @dataclass(frozen=True)
@@ -26,14 +27,13 @@ class ExperimentConfig:
     epochs: int = 100
     batch_size: int = 16
     image_size: int = 224
-    model_name: str = "dae"
     learning_rate: float = 1e-3
     seed: int = 42
     max_train_images: int | None = None
     max_eval_images_per_class: int | None = None
     dae_base_ch: int = 64
-    noise_sigma: float = 0.4
-    noise_resolution: int = 32
+    noise_sigma: float = 0.2
+    noise_resolution: int = 16
 
 
 def set_seed(seed: int) -> None:
@@ -57,14 +57,12 @@ def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataL
 
 
 def _coarse_noise(images: torch.Tensor, sigma: float, resolution: int) -> torch.Tensor:
-    """Generate coarse noise at low resolution and upsample to image size."""
+    """Muestrea ruido gaussiano grueso y lo interpola al tamano de la imagen."""
     b, c, h, w = images.shape
-    nh = max(1, h // resolution)
-    nw = max(1, w // resolution)
-    noise_small = torch.randn(b, c, nh, nw, device=images.device) * sigma
+    noise_small = torch.randn(b, c, resolution, resolution, device=images.device)
     noise = F.interpolate(noise_small, size=(h, w), mode="bilinear", align_corners=False)
     mask = (images > 0).float()
-    return images + noise * mask
+    return images + sigma * noise * mask
 
 
 def _train_batch_dae(
@@ -93,21 +91,17 @@ def _validation_loss_dae(
 ) -> float:
     model.eval()
     total = 0.0
-    count = 0
+    pixel_count = 0
     for images, _labels, _paths in loader:
         images = images.to(device)
         noisy = _coarse_noise(images, sigma, noise_resolution)
         reconstructed = model(noisy)
-        diff = (reconstructed - images).abs()
-        spatial = diff.amax(dim=1)
-        image_scores = spatial.amax(dim=(1, 2))
-        total += float(image_scores.sum())
-        count += len(images)
-    return total / max(count, 1)
+        total += float(F.mse_loss(reconstructed, images, reduction="sum"))
+        pixel_count += images.numel()
+    return total / max(pixel_count, 1)
 
 
-@torch.no_grad()
-def _validation_loss_dae(
+def train_dae(
     config: ExperimentConfig, device: torch.device
 ) -> tuple[torch.nn.Module, list[dict], int]:
     from .dae import DAE
@@ -178,7 +172,7 @@ def _validation_loss_dae(
     config.output_dir.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
-            "model_name": config.model_name,
+            "model_name": "dae",
             "image_size": config.image_size,
             "dae_base_ch": config.dae_base_ch,
             "model_state": best_state["model"],
@@ -187,49 +181,6 @@ def _validation_loss_dae(
         config.output_dir / "model.pt",
     )
     return model, history, int(best_state["epoch"])
-
-
-def train(
-    config: ExperimentConfig, device: torch.device
-) -> tuple[torch.nn.Module, list[dict], int]:
-    if config.model_name == "dae":
-        return train_dae(config, device)
-    else:
-        raise ValueError(f"Modelo desconocido: {config.model_name}")
-
-
-@torch.no_grad()
-def score_dataset_dae(
-    model: torch.nn.Module,
-    dataset: RadiographDataset,
-    batch_size: int,
-    device: torch.device,
-) -> tuple[np.ndarray, np.ndarray, list[str], tuple[torch.Tensor, torch.Tensor]]:
-    model.eval()
-    scores: list[np.ndarray] = []
-    labels: list[np.ndarray] = []
-    paths: list[str] = []
-    samples: tuple[torch.Tensor, torch.Tensor] | None = None
-    loader = _loader(dataset, batch_size, False)
-    for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
-        device_images = images.to(device)
-        reconstructed = model(device_images)
-        diff = (reconstructed - device_images).abs()
-        spatial = diff.amax(dim=1)
-        batch_scores = spatial.amax(dim=(1, 2))
-        scores.append(batch_scores.cpu().numpy())
-        labels.append(batch_labels.numpy())
-        paths.extend(batch_paths)
-        if samples is None:
-            samples = (images[:8], reconstructed.cpu()[:8])
-        if batch_index % 50 == 0 or batch_index == len(loader):
-            print(
-                f"score progress={batch_index}/{len(loader)} "
-                f"images={min(batch_index * batch_size, len(dataset))}/{len(dataset)}",
-                flush=True,
-            )
-    assert samples is not None
-    return np.concatenate(labels), np.concatenate(scores), paths, samples
 
 
 @torch.no_grad()
@@ -276,13 +227,13 @@ def _save_scores(
 
 
 def _save_reconstructions(
-    path: Path, originals: torch.Tensor, reconstructed: torch.Tensor, model_name: str,
+    path: Path, originals: torch.Tensor, reconstructed: torch.Tensor,
 ) -> None:
     count = min(8, len(originals))
     size = originals.shape[-1]
     canvas = Image.new("L", (count * size, 2 * size + 20), color=255)
     draw = ImageDraw.Draw(canvas)
-    draw.text((2, 2), f"{model_name.upper()}: original (arriba) / reconstrucción (abajo)", fill=0)
+    draw.text((2, 2), "DAE: original (arriba) / reconstruccion (abajo)", fill=0)
     for index in range(count):
         for row, tensor in enumerate((originals[index, 0], reconstructed[index, 0])):
             array = (tensor.clamp(0, 1).numpy() * 255).astype(np.uint8)
@@ -292,17 +243,30 @@ def _save_reconstructions(
     canvas.save(path)
 
 
+def _select_threshold(labels: np.ndarray, scores: np.ndarray) -> float:
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+    return float(thresholds[np.argmax(tpr - fpr)])
+
+
+def _evaluate(
+    labels: np.ndarray, scores: np.ndarray, threshold: float
+) -> dict[str, float]:
+    predictions = scores >= threshold
+    return {
+        "auroc": float(roc_auc_score(labels, scores)),
+        "balanced_accuracy": float(balanced_accuracy_score(labels, predictions)),
+    }
+
+
 def run(config: ExperimentConfig) -> dict:
-    if config.image_size % 8 != 0:
+    if config.image_size % 16 != 0:
         raise ValueError(
-            f"El modelo requiere --image-size múltiplo de 8 (recibido {config.image_size})"
+            f"El DAE requiere --image-size multiplo de 16 (recibido {config.image_size})"
         )
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     started = time.perf_counter()
-    model, history, selected_epoch = train(config, device)
-
-    perceptual = None
+    model, history, selected_epoch = train_dae(config, device)
 
     validation = RadiographDataset.labeled(
         split_dir(config.data_root, "val"),
@@ -316,19 +280,19 @@ def run(config: ExperimentConfig) -> dict:
         config.max_eval_images_per_class,
         config.seed,
     )
-    val_labels, val_scores, val_paths, samples = score_dataset(
-        model, validation, config.batch_size,
+    val_labels, val_scores, val_paths, samples = score_dataset_dae(
+        model, validation, config.batch_size, device,
     )
-    test_labels, test_scores, test_paths, _ = score_dataset(
-        model, test, config.batch_size,
+    test_labels, test_scores, test_paths, _ = score_dataset_dae(
+        model, test, config.batch_size, device,
     )
-    threshold, _ = best_balanced_threshold(val_labels, val_scores)
-    validation_metrics = evaluate(val_labels, val_scores, threshold)
-    test_metrics = evaluate(test_labels, test_scores, threshold)
+    threshold = _select_threshold(val_labels, val_scores)
+    validation_metrics = _evaluate(val_labels, val_scores, threshold)
+    test_metrics = _evaluate(test_labels, test_scores, threshold)
 
     _save_scores(config.output_dir / "validation_scores.csv", val_labels, val_scores, val_paths)
     _save_scores(config.output_dir / "test_scores.csv", test_labels, test_scores, test_paths)
-    _save_reconstructions(config.output_dir / "reconstructions.png", *samples, config.model_name)
+    _save_reconstructions(config.output_dir / "reconstructions.png", *samples)
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
@@ -340,6 +304,7 @@ def run(config: ExperimentConfig) -> dict:
         "trainable_parameter_count": trainable_params,
         "history": history,
         "selected_epoch": selected_epoch,
+        "threshold": threshold,
         "validation": validation_metrics,
         "test": test_metrics,
         "elapsed_seconds": time.perf_counter() - started,
@@ -359,7 +324,7 @@ def run(config: ExperimentConfig) -> dict:
         torch.save(
             {
                 "model_state": {k: v.detach().cpu() for k, v in model.state_dict().items()},
-                "model_name": config.model_name,
+                "model_name": "dae",
                 "image_size": config.image_size,
                 "threshold": float(threshold),
                 "validation_auroc": float(validation_metrics["auroc"]),
