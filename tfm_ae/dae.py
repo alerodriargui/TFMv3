@@ -42,13 +42,22 @@ class DAE(nn.Module):
 
         self.pool = nn.AvgPool2d(2)
 
-        self.up3 = nn.ConvTranspose2d(c * 8, c * 4, 2, stride=2)
+        self.up3 = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
+            nn.Conv2d(c * 8, c * 4, 3, padding=1, bias=False),
+        )
         self.dec3 = ConvBlock(c * 8, c * 4)
 
-        self.up2 = nn.ConvTranspose2d(c * 4, c * 2, 2, stride=2)
+        self.up2 = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
+            nn.Conv2d(c * 4, c * 2, 3, padding=1, bias=False),
+        )
         self.dec2 = ConvBlock(c * 4, c * 2)
 
-        self.up1 = nn.ConvTranspose2d(c * 2, c, 2, stride=2)
+        self.up1 = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
+            nn.Conv2d(c * 2, c, 3, padding=1, bias=False),
+        )
         self.dec1 = ConvBlock(c * 2, c)
 
         self.head = nn.Conv2d(c, in_channels, 1)

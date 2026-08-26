@@ -251,7 +251,9 @@ def _save_reconstructions(
     draw = ImageDraw.Draw(canvas)
     draw.text((2, 2), "DAE: original (arriba) / reconstruccion (abajo)", fill=0)
     for index in range(count):
-        for row, tensor in enumerate((originals[index, 0], reconstructed[index, 0])):
+        orig = originals[index, 0]
+        recon = reconstructed[index, 0] * (orig > 0.01).float()
+        for row, tensor in enumerate((orig, recon)):
             array = (tensor.clamp(0, 1).numpy() * 255).astype(np.uint8)
             canvas.paste(
                 Image.fromarray(array, mode="L"), (index * size, 20 + row * size)
