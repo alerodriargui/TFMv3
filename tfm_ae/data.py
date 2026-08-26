@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import torch
@@ -37,20 +36,6 @@ def deterministic_subset(paths: list[Path], limit: int | None, seed: int) -> lis
     return sorted(random.Random(seed).sample(paths, limit))
 
 
-class RandomFlipRotate:
-    """Volteo horizontal/vertical aleatorio + rotación de 90 grados."""
-
-    def __init__(self, seed: int | None = None) -> None:
-        self.rng = random.Random(seed)
-
-    def __call__(self, image: Image.Image) -> Image.Image:
-        if self.rng.random() < 0.5:
-            image = image.transpose(Image.FLIP_LEFT_RIGHT)
-        if self.rng.random() < 0.5:
-            image = image.transpose(Image.FLIP_TOP_BOTTOM)
-        return image.rotate(self.rng.choice((0, 90, 180, 270)))
-
-
 class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
     """Imágenes en escala de grises normalizadas a [0, 1] con etiqueta y ruta."""
 
@@ -58,15 +43,13 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         self,
         paths: list[Path],
         labels: list[int],
-        image_size: int = 64,
-        transform: Callable[[Image.Image], Image.Image] | None = None,
+        image_size: int = 128,
     ) -> None:
         if len(paths) != len(labels) or not paths:
             raise ValueError("paths y labels deben tener la misma longitud no vacía")
         self.paths = paths
         self.labels = labels
         self.image_size = image_size
-        self.transform = transform
 
     @classmethod
     def _from_class(
@@ -76,29 +59,25 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
         image_size: int,
         limit: int | None,
         seed: int,
-        transform: Callable[[Image.Image], Image.Image] | None = None,
     ) -> "RadiographDataset":
         paths = deterministic_subset(find_images(class_dir), limit, seed)
-        return cls(paths, [label] * len(paths), image_size, transform=transform)
+        return cls(paths, [label] * len(paths), image_size)
 
     @classmethod
     def normal_only(
         cls,
         split_root: Path,
-        image_size: int = 64,
+        image_size: int = 128,
         limit: int | None = None,
         seed: int = 42,
-        transform: Callable[[Image.Image], Image.Image] | None = None,
     ) -> "RadiographDataset":
-        return cls._from_class(
-            split_root / NORMAL_DIR, 0, image_size, limit, seed, transform
-        )
+        return cls._from_class(split_root / NORMAL_DIR, 0, image_size, limit, seed)
 
     @classmethod
     def labeled(
         cls,
         split_root: Path,
-        image_size: int = 64,
+        image_size: int = 128,
         limit_per_class: int | None = None,
         seed: int = 42,
     ) -> "RadiographDataset":
@@ -123,7 +102,5 @@ class RadiographDataset(Dataset[tuple[torch.Tensor, int, str]]):
             image = image.convert("L").resize(
                 (self.image_size, self.image_size), Image.Resampling.BILINEAR
             )
-            if self.transform is not None:
-                image = self.transform(image)
             pixels = np.asarray(image, dtype=np.float32) / 255.0
         return torch.from_numpy(pixels).unsqueeze(0), self.labels[index], str(path)

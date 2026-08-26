@@ -44,11 +44,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Entrena y evalua el DAE.")
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "results/experiments")
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--epochs", type=int, default=143)
     parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--image-size", type=int, default=224)
+    parser.add_argument("--image-size", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=None)
-    parser.add_argument("--seeds", nargs="+", type=int, default=(42,))
+    parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
     parser.add_argument("--dae-base-ch", type=int, default=64)
@@ -58,7 +58,7 @@ def main() -> int:
 
     lr = args.learning_rate
     if lr is None:
-        lr = 1e-3
+        lr = 1e-4
 
     root = resolve_data_root(args.data_root)
     for seed in args.seeds:

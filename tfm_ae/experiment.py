@@ -17,17 +17,17 @@ from sklearn.metrics import balanced_accuracy_score, roc_auc_score, roc_curve
 from torch.utils.data import DataLoader
 
 from . import PROJECT_ROOT
-from .data import RandomFlipRotate, RadiographDataset, split_dir
+from .data import RadiographDataset, split_dir
 
 
 @dataclass(frozen=True)
 class ExperimentConfig:
     data_root: Path
     output_dir: Path
-    epochs: int = 100
+    epochs: int = 143
     batch_size: int = 16
-    image_size: int = 224
-    learning_rate: float = 1e-3
+    image_size: int = 128
+    learning_rate: float = 1e-4
     seed: int = 42
     max_train_images: int | None = None
     max_eval_images_per_class: int | None = None
@@ -61,8 +61,17 @@ def _coarse_noise(images: torch.Tensor, sigma: float, resolution: int) -> torch.
     b, c, h, w = images.shape
     noise_small = torch.randn(b, c, resolution, resolution, device=images.device)
     noise = F.interpolate(noise_small, size=(h, w), mode="bilinear", align_corners=False)
-    mask = (images > 0).float()
+    noise = torch.roll(
+        noise, shifts=(random.randrange(h), random.randrange(w)), dims=(-2, -1)
+    )
+    mask = (images > 0.01).float()
     return images + sigma * noise * mask
+
+
+def _foreground_mse(reconstructed: torch.Tensor, images: torch.Tensor) -> torch.Tensor:
+    mask = (images > 0.01).float()
+    squared_error = (reconstructed - images).square() * mask
+    return squared_error.sum() / mask.sum().clamp_min(1)
 
 
 def _train_batch_dae(
@@ -75,7 +84,7 @@ def _train_batch_dae(
     optimizer.zero_grad(set_to_none=True)
     noisy = _coarse_noise(images, sigma, noise_resolution)
     reconstructed = model(noisy)
-    loss = F.mse_loss(reconstructed, images)
+    loss = _foreground_mse(reconstructed, images)
     loss.backward()
     optimizer.step()
     return float(loss.detach())
@@ -96,8 +105,9 @@ def _validation_loss_dae(
         images = images.to(device)
         noisy = _coarse_noise(images, sigma, noise_resolution)
         reconstructed = model(noisy)
-        total += float(F.mse_loss(reconstructed, images, reduction="sum"))
-        pixel_count += images.numel()
+        mask = images > 0.01
+        total += float(((reconstructed - images).square() * mask).sum())
+        pixel_count += int(mask.sum())
     return total / max(pixel_count, 1)
 
 
@@ -106,13 +116,11 @@ def train_dae(
 ) -> tuple[torch.nn.Module, list[dict], int]:
     from .dae import DAE
 
-    augmentation = RandomFlipRotate(seed=config.seed)
     train_set = RadiographDataset.normal_only(
         split_dir(config.data_root, "train"),
         config.image_size,
         config.max_train_images,
         config.seed,
-        transform=augmentation,
     )
     validation_set = RadiographDataset.normal_only(
         split_dir(config.data_root, "val"),
@@ -126,7 +134,10 @@ def train_dae(
     model = DAE(in_channels=1, base_ch=config.dae_base_ch).to(device)
 
     trainable = list(model.parameters())
-    optimizer = torch.optim.Adam(trainable, lr=config.learning_rate)
+    optimizer = torch.optim.Adam(
+        trainable, lr=config.learning_rate, amsgrad=True, weight_decay=1e-5
+    )
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
     best_value = float("inf")
     history: list[dict] = []
     best_state: dict | None = None
@@ -141,6 +152,7 @@ def train_dae(
             loss = _train_batch_dae(
                 model, images, optimizer, config.noise_sigma, config.noise_resolution,
             )
+            scheduler.step()
             total_loss += loss * len(images)
             seen += len(images)
 
@@ -199,8 +211,12 @@ def score_dataset_dae(
     for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
         device_images = images.to(device)
         reconstructed = model(device_images)
-        diff = (reconstructed - device_images).abs()
-        spatial = diff.amax(dim=1)
+        mask = F.avg_pool2d((device_images > 0.01).float(), 5, stride=1, padding=2)
+        error = (reconstructed - device_images).abs() * (mask > 0.95)
+        patches = F.pad(error, (2, 2, 2, 2), mode="reflect")
+        patches = patches.unfold(2, 5, 1).unfold(3, 5, 1)
+        filtered = patches.contiguous().view(*error.shape, 25).median(-1).values
+        spatial = filtered.amax(dim=1)
         batch_scores = spatial.amax(dim=(1, 2))
         scores.append(batch_scores.cpu().numpy())
         labels.append(batch_labels.numpy())
@@ -259,9 +275,9 @@ def _evaluate(
 
 
 def run(config: ExperimentConfig) -> dict:
-    if config.image_size % 16 != 0:
+    if config.image_size % 8 != 0:
         raise ValueError(
-            f"El DAE requiere --image-size multiplo de 16 (recibido {config.image_size})"
+            f"El DAE requiere --image-size multiplo de 8 (recibido {config.image_size})"
         )
     set_seed(config.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

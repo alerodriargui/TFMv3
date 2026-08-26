@@ -1,9 +1,9 @@
 """Denoising Autoencoder for brain anomaly detection.
 
 Based on Kascenas et al. (MIDL 2022):
-  U-Net style AE with skip connections, no bottleneck.
-  Train: add coarse noise → reconstruct clean image.
-  Score: reconstruction error → anomaly map.
+  U-Net style DAE with three downsampling stages and skip connections.
+  Train: add coarse noise, then reconstruct the clean image.
+  Score: use reconstruction error as the anomaly map.
 """
 
 from __future__ import annotations
@@ -17,11 +17,11 @@ class ConvBlock(nn.Module):
         super().__init__()
         self.block = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, 3, padding=1, bias=False),
-            nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.SiLU(inplace=True),
+            nn.GroupNorm(8, out_ch),
             nn.Conv2d(out_ch, out_ch, 3, padding=1, bias=False),
-            nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.SiLU(inplace=True),
+            nn.GroupNorm(8, out_ch),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -40,20 +40,15 @@ class DAE(nn.Module):
         self.enc3 = ConvBlock(c * 2, c * 4)
         self.enc4 = ConvBlock(c * 4, c * 8)
 
-        self.pool = nn.MaxPool2d(2)
+        self.pool = nn.AvgPool2d(2)
 
-        self.middle = ConvBlock(c * 8, c * 8)
+        self.up3 = nn.ConvTranspose2d(c * 8, c * 4, 2, stride=2)
+        self.dec3 = ConvBlock(c * 8, c * 4)
 
-        self.up4 = nn.ConvTranspose2d(c * 8, c * 8, 2, stride=2)
-        self.dec4 = ConvBlock(c * 16, c * 4)
+        self.up2 = nn.ConvTranspose2d(c * 4, c * 2, 2, stride=2)
+        self.dec2 = ConvBlock(c * 4, c * 2)
 
-        self.up3 = nn.ConvTranspose2d(c * 4, c * 4, 2, stride=2)
-        self.dec3 = ConvBlock(c * 8, c * 2)
-
-        self.up2 = nn.ConvTranspose2d(c * 2, c * 2, 2, stride=2)
-        self.dec2 = ConvBlock(c * 4, c)
-
-        self.up1 = nn.ConvTranspose2d(c, c, 2, stride=2)
+        self.up1 = nn.ConvTranspose2d(c * 2, c, 2, stride=2)
         self.dec1 = ConvBlock(c * 2, c)
 
         self.head = nn.Conv2d(c, in_channels, 1)
@@ -64,11 +59,8 @@ class DAE(nn.Module):
         e3 = self.enc3(self.pool(e2))
         e4 = self.enc4(self.pool(e3))
 
-        middle = self.middle(self.pool(e4))
-
-        d4 = self.dec4(torch.cat([self.up4(middle), e4], dim=1))
-        d3 = self.dec3(torch.cat([self.up3(d4), e3], dim=1))
+        d3 = self.dec3(torch.cat([self.up3(e4), e3], dim=1))
         d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))
         d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))
 
-        return torch.sigmoid(self.head(d1))
+        return self.head(d1)
