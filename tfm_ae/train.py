@@ -12,7 +12,7 @@ from . import PROJECT_ROOT
 from .data import resolve_data_root
 from .experiment import ExperimentConfig, run
 
-
+# Genera el archivo de resultados CSV a partir de los informes de métricas JSON en el directorio de salida.
 def summarize(output_root: Path, report_path: Path) -> None:
     rows = []
     for path in sorted(output_root.glob("*_seed*/metrics.json")):
@@ -39,7 +39,7 @@ def summarize(output_root: Path, report_path: Path) -> None:
             }
         )
 
-
+# Inicio del script
 def main() -> int:
     parser = argparse.ArgumentParser(description="Entrena y evalua el DAE.")
     parser.add_argument("--data-root", type=Path)
@@ -56,11 +56,15 @@ def main() -> int:
     parser.add_argument("--noise-resolution", type=int, default=16)
     args = parser.parse_args()
 
+    # Selección de la tasa de aprendizaje
     lr = args.learning_rate
     if lr is None:
         lr = 1e-4
 
+    # Localización de los datos
     root = resolve_data_root(args.data_root)
+
+    # Realiza un experimento por cada semilla
     for seed in args.seeds:
         output_dir = args.output_root / f"dae_seed{seed}"
         metrics_path = output_dir / "metrics.json"
@@ -71,6 +75,7 @@ def main() -> int:
                 if previous_config.get("image_size") == args.image_size:
                     print(f"SKIP DAE seed={seed}: ya esta completo")
                     continue
+        # Configuración para pasar al run(...)
         config = ExperimentConfig(
             data_root=root,
             output_dir=output_dir,
