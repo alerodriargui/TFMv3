@@ -11,8 +11,9 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-
+# Bloque de convolución
 class ConvBlock(nn.Module):
+    # Inicializa el bloque de convolución con capas de convolución, activación SiLU y normalización por lotes.
     def __init__(self, in_ch: int, out_ch: int) -> None:
         super().__init__()
         self.block = nn.Sequential(
@@ -23,14 +24,13 @@ class ConvBlock(nn.Module):
             nn.SiLU(inplace=True),
             nn.GroupNorm(8, out_ch),
         )
-
+    # Realiza la pasada hacia adelante del bloque de convolución.
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.block(x)
 
-
+# Autoencoder de eliminación de ruido (DAE) 
 class DAE(nn.Module):
-    """U-Net Denoising Autoencoder (no bottleneck)."""
-
+    # Inicializa el DAE con canales de entrada y un número base de canales, construyendo la arquitectura U-Net con bloques de convolución, capas de pooling y capas de upsampling.
     def __init__(self, in_channels: int = 1, base_ch: int = 64) -> None:
         super().__init__()
         c = base_ch
@@ -62,6 +62,7 @@ class DAE(nn.Module):
 
         self.head = nn.Conv2d(c, in_channels, 1)
 
+    # Realiza la pasada hacia adelante del DAE, pasando la entrada a través de los bloques de codificación, aplicando pooling, luego pasando a través de los bloques de decodificación con concatenación de las características correspondientes de la codificación y finalmente produciendo la salida reconstruida.
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         e1 = self.enc1(x)
         e2 = self.enc2(self.pool(e1))

@@ -20,6 +20,7 @@ from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
 
 
+# Configuracion del experimento
 @dataclass(frozen=True)
 class ExperimentConfig:
     data_root: Path
@@ -35,7 +36,7 @@ class ExperimentConfig:
     noise_sigma: float = 0.2
     noise_resolution: int = 16
 
-
+# Fijar semilla para reproducibilidad
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -45,7 +46,7 @@ def set_seed(seed: int) -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-
+# DataLoader
 def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataLoader:
     return DataLoader(
         dataset,
@@ -55,9 +56,8 @@ def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataL
         pin_memory=torch.cuda.is_available(),
     )
 
-
+# Añade ruido gaussiano grueso a las radiografías
 def _coarse_noise(images: torch.Tensor, sigma: float, resolution: int) -> torch.Tensor:
-    """Muestrea ruido gaussiano grueso y lo interpola al tamano de la imagen."""
     b, c, h, w = images.shape
     noise_small = torch.randn(b, c, resolution, resolution, device=images.device)
     noise = F.interpolate(noise_small, size=(h, w), mode="bilinear", align_corners=False)
@@ -67,13 +67,13 @@ def _coarse_noise(images: torch.Tensor, sigma: float, resolution: int) -> torch.
     mask = (images > 0.01).float()
     return images + sigma * noise * mask
 
-
+# Función de pérdida MSE
 def _foreground_mse(reconstructed: torch.Tensor, images: torch.Tensor) -> torch.Tensor:
     mask = (images > 0.01).float()
     squared_error = (reconstructed - images).square() * mask
     return squared_error.sum() / mask.sum().clamp_min(1)
 
-
+# Entrenamiento de un lote
 def _train_batch_dae(
     model: torch.nn.Module,
     images: torch.Tensor,
@@ -89,7 +89,7 @@ def _train_batch_dae(
     optimizer.step()
     return float(loss.detach())
 
-
+# Pérdida de validación
 @torch.no_grad()
 def _validation_loss_dae(
     model: torch.nn.Module,
@@ -110,7 +110,7 @@ def _validation_loss_dae(
         pixel_count += int(mask.sum())
     return total / max(pixel_count, 1)
 
-
+# Entrenamiento completo del DAE
 def train_dae(
     config: ExperimentConfig, device: torch.device
 ) -> tuple[torch.nn.Module, list[dict], int]:
@@ -194,7 +194,7 @@ def train_dae(
     )
     return model, history, int(best_state["epoch"])
 
-
+# Cálculo de puntuaciones de anomalía
 @torch.no_grad()
 def score_dataset_dae(
     model: torch.nn.Module,
@@ -232,7 +232,7 @@ def score_dataset_dae(
     assert samples is not None
     return np.concatenate(labels), np.concatenate(scores), paths, samples
 
-
+# Guardado de las puntuaciones en un .csv
 def _save_scores(
     path: Path, labels: np.ndarray, scores: np.ndarray, paths: list[str]
 ) -> None:
@@ -241,7 +241,7 @@ def _save_scores(
         writer.writerow(["label", "score", "path"])
         writer.writerows(zip(labels.tolist(), scores.tolist(), paths))
 
-
+# Genera un archivo de imagen con reconstrucciones de ejemplo
 def _save_reconstructions(
     path: Path, originals: torch.Tensor, reconstructed: torch.Tensor,
 ) -> None:
@@ -260,12 +260,12 @@ def _save_reconstructions(
             )
     canvas.save(path)
 
-
+# Selección del umbral
 def _select_threshold(labels: np.ndarray, scores: np.ndarray) -> float:
     fpr, tpr, thresholds = roc_curve(labels, scores)
     return float(thresholds[np.argmax(tpr - fpr)])
 
-
+# Evaluación
 def _evaluate(
     labels: np.ndarray, scores: np.ndarray, threshold: float
 ) -> dict[str, float]:
@@ -275,7 +275,7 @@ def _evaluate(
         "balanced_accuracy": float(balanced_accuracy_score(labels, predictions)),
     }
 
-
+# Función principal para ejecutar el experimento
 def run(config: ExperimentConfig) -> dict:
     if config.image_size % 8 != 0:
         raise ValueError(
