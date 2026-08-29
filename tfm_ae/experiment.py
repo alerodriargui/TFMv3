@@ -25,7 +25,7 @@ from .data import RadiographDataset, split_dir
 class ExperimentConfig:
     data_root: Path
     output_dir: Path
-    epochs: int = 143
+    epochs: int = 50
     batch_size: int = 16
     image_size: int = 128
     learning_rate: float = 1e-4

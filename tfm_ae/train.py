@@ -44,11 +44,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Entrena y evalua el DAE.")
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "results/experiments")
-    parser.add_argument("--epochs", type=int, default=143)
+    parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--image-size", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=None)
-    parser.add_argument("--seeds", nargs="+", type=int, default=(13, 42, 73))
+    parser.add_argument("--seeds", nargs="+", type=int, default=(42,))
     parser.add_argument("--max-train-images", type=int)
     parser.add_argument("--max-eval-images-per-class", type=int)
     parser.add_argument("--dae-base-ch", type=int, default=64)
@@ -72,7 +72,10 @@ def main() -> int:
             previous = json.loads(metrics_path.read_text(encoding="utf-8"))
             if previous.get("scientific_run", False):
                 previous_config = previous.get("config", {})
-                if previous_config.get("image_size") == args.image_size:
+                if (
+                    previous_config.get("image_size") == args.image_size
+                    and previous_config.get("epochs") == args.epochs
+                ):
                     print(f"SKIP DAE seed={seed}: ya esta completo")
                     continue
         # Configuración para pasar al run(...)

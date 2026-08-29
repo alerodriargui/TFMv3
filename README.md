@@ -40,7 +40,7 @@ La ruta se pasa con `--data-root`.
 ## Ejecucion
 
 ```powershell
-python -m tfm_ae.train --data-root D:\datasets\BraTS2021_slice --epochs 143
+python -m tfm_ae.train --data-root D:\datasets\BraTS2021_slice
 ```
 
 Parametros principales:
@@ -48,8 +48,8 @@ Parametros principales:
 ```text
 --image-size          Resolucion de entrada, multiplo de 8 (def: 128)
 --batch-size          Tamano del lote (def: 16)
---seeds               Tres ejecuciones (def: 13 42 73)
---seeds               Semillas del experimento (def: 42)
+--epochs              Numero de epocas (def: 50)
+--seeds               Semillas del experimento (def: 42; una ejecucion)
 --dae-base-ch         Canales base del DAE (def: 64)
 --noise-sigma         Desviacion del ruido (def: 0.2)
 --noise-resolution    Resolucion del ruido antes de interpolar (def: 16)
@@ -57,8 +57,8 @@ Parametros principales:
 
 La configuracion sigue los valores principales de Kascenas et al.: batch 16,
 Adam con AMSGrad, learning rate maximo `1e-4`, ciclo coseno de 200 pasos, ruido
-gaussiano `16x16` con sigma `0.2` y unas 67.200 iteraciones. Con las 7.500
-imagenes de este dataset, 143 epochs equivalen aproximadamente a 67.067 pasos.
+gaussiano `16x16` con sigma `0.2`. La configuracion de ejecucion predeterminada
+entrena una unica semilla durante 50 epochs.
 
 Cada ejecucion guarda `model.pt`, `metrics.json`, los scores de validacion y
 test, y una imagen con reconstrucciones en `results/experiments/dae_seed{N}/`.
