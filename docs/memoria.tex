@@ -31,9 +31,6 @@ pdfauthor={Alejandro Rodríguez}}
 \newcommand{\TFMtitle}{Detección no supervisada de anomalías en cortes cerebrales mediante un DAE}
 \newcommand{\TFMauthor}{Alejandro Rodríguez}
 \newcommand{\TFMtutors}{Gabriel Moyà Alcover y Miquel Miró Nicolau}
-% Sustituir estas macros cuando finalice la campaña de Colab.
-\newcommand{\ProvAUROC}{0{,}887 $\pm$ 0{,}011}
-\newcommand{\ProvBA}{0{,}812 $\pm$ 0{,}014}
 
 \begin{document}
 \hypersetup{pageanchor=false}
@@ -119,16 +116,19 @@ pdfauthor={Alejandro Rodríguez}}
 \begingroup
 \small\bfseries
 \noindent\textit{Resumen---}Este trabajo estudia la detección no supervisada de
-anomalías en cortes cerebrales FLAIR. Se entrena exclusivamente con 7.500
-imágenes normales un denoising autoencoder (DAE) inspirado en Kascenas,
-Pugeault y O'Neil. El modelo es una U-Net 2D de tres reducciones, conexiones de
-salto y 8.558.721 parámetros. Durante el entrenamiento se añade ruido gaussiano
-grueso al primer plano y se aprende a recuperar la imagen limpia. En inferencia,
-el error absoluto de reconstrucción, enmascarado y filtrado mediante una mediana
-$5\times5$, produce la puntuación por imagen. El umbral se estima en validación
-y se aplica una sola vez en test. La campaña final contempla tres semillas y
-aproximadamente 67.200 actualizaciones por ejecución. El sistema es experimental
-y no está destinado al diagnóstico clínico.
+anomalías en cortes cerebrales FLAIR mediante un denoising autoencoder (DAE)
+inspirado en Kascenas, Pugeault y O'Neil. Los pesos del modelo se aprenden
+exclusivamente con 7.500 imágenes normales. La red es una U-Net 2D de tres
+reducciones, conexiones de salto y 8.558.721 parámetros. Durante el
+entrenamiento se añade ruido gaussiano grueso únicamente al primer plano y el
+modelo aprende a recuperar la imagen limpia mediante MSE. En inferencia se usa
+la imagen sin corromper: el error absoluto de reconstrucción se enmascara, se
+filtra con una mediana $5\times5$ y se reduce al máximo espacial para obtener
+una puntuación por corte. El umbral se calibra en validación mediante el índice
+de Youden y se mantiene fijo al evaluar test. La configuración reproducible
+actual utiliza imágenes $128\times128$, batch 16, Adam con AMSGrad, 50 épocas y
+semilla 42. El sistema es experimental y no está destinado al diagnóstico
+clínico.
 
 \smallskip
 \noindent\textit{Palabras clave---}detección de anomalías, resonancia magnética
@@ -138,122 +138,146 @@ cerebral, denoising autoencoder, aprendizaje no supervisado, BraTS2021.
 \section{Contextualización y motivación}
 
 \subsection{Problema}
-
-Los métodos supervisados requieren ejemplos representativos y anotados de cada
-categoría. En radiología, estas anotaciones consumen tiempo experto, presentan
-variabilidad entre observadores y no abarcan todas las alteraciones posibles.
-La detección de anomalías plantea aprender una distribución de normalidad
-$p_N$ y asignar una puntuación $s(x)$ mayor a las observaciones que se apartan
-de ella \cite{pang2021review,ruff2021unifying}:
+Los métodos supervisados requieren ejemplos representativos y anotados de las
+categorías que se desean reconocer. En imagen médica, obtener estas anotaciones
+requiere tiempo experto, puede presentar variabilidad entre observadores y no
+garantiza cubrir todas las alteraciones posibles. La detección de anomalías
+plantea una pregunta diferente: aprender la distribución de normalidad $p_N$ y
+asignar una puntuación $s(x)$ mayor a las observaciones que se apartan de ella
+\cite{pang2021review,ruff2021unifying}:
 \[
  s(x_N)<s(x_A),\qquad x_N\sim p_N,\quad x_A\not\sim p_N.
 \]
-La salida expresa incompatibilidad con la normalidad aprendida; no identifica
-una enfermedad concreta ni sustituye la interpretación profesional.
+La salida del sistema expresa incompatibilidad con la normalidad aprendida. No
+identifica una enfermedad concreta ni sustituye la interpretación clínica.
 
 \subsection{Hipótesis de reconstrucción}
-
 Un autoencoder aprende a reconstruir su entrada \cite{hinton2006reducing}. Si
-sus pesos solo se ajustan con imágenes normales, se espera que represente bien
-la anatomía habitual y produzca residuos mayores ante patrones no observados.
-Sin embargo, un cuello de botella demasiado restrictivo deteriora también la
-reconstrucción normal, mientras que un modelo que copie la entrada puede
-reconstruir anomalías \cite{baur2021autoencoders}. Kascenas et al.
-\cite{kascenas2022denoising} proponen evitar el cuello de botella restrictivo y
-entrenar una U-Net para eliminar ruido grueso. La naturaleza espacial del ruido
-obliga a aprender patrones anatómicos, en lugar de la identidad píxel a píxel.
+sus pesos se ajustan solo con imágenes normales, una hipótesis habitual es que
+represente mejor la anatomía observada durante entrenamiento y produzca residuos
+mayores ante patrones distintos. Sin embargo, un autoencoder demasiado
+restrictivo puede reconstruir mal también tejido normal, mientras que uno con
+demasiada capacidad puede aproximarse a la identidad y reconstruir anomalías
+\cite{baur2021autoencoders}. Kascenas et al. \cite{kascenas2022denoising}
+proponen entrenar una U-Net para eliminar ruido espacial grueso. El objetivo deja
+de ser copiar la entrada y pasa a ser recuperar una imagen normal limpia desde
+una versión artificialmente corrompida.
 
-\subsection{Pregunta y aportaciones}
-
+\subsection{Pregunta de investigación y aportación}
 La pregunta de investigación es: \emph{¿puede un DAE entrenado solo con cortes
-FLAIR normales separar de forma útil y reproducible los cortes normales de los
-anómalos en BraTS2021\_slice?} Las aportaciones son: una adaptación unimodal y
-por imagen del método de Kascenas et al.; un protocolo sin uso del test para
-seleccionar pesos o umbral; una implementación reproducible con tres semillas;
-y un análisis explícito de las diferencias respecto del trabajo original.
+FLAIR normales separar cortes normales de anómalos en
+BraTS2021\_slice mediante el error de reconstrucción?} Este trabajo adapta el
+método de Kascenas et al. al formato disponible en BMAD: una única modalidad
+FLAIR, imágenes 2D independientes y una etiqueta global por corte. Se mantiene
+separado el aprendizaje de pesos, la selección de época, la calibración del
+umbral y la evaluación final.
 
 \section{Objetivos}
-
-El objetivo general es diseñar, implementar y evaluar un detector no
-supervisado basado en reconstrucción. Los objetivos específicos son:
+El objetivo general es diseñar, implementar y evaluar un detector de anomalías
+basado en reconstrucción. Los objetivos específicos son:
 \begin{enumerate}
-  \item revisar la detección de anomalías mediante autoencoders;
-  \item auditar datos, particiones y preprocesado;
-  \item implementar el DAE, el ruido grueso y el score por imagen;
-  \item entrenar los pesos solo con normales y calibrar únicamente en validación;
-  \item medir AUROC y exactitud balanceada sobre test con tres semillas; y
+  \item revisar el uso de autoencoders para detección de anomalías;
+  \item auditar el dataset, sus particiones y su preprocesado;
+  \item implementar un DAE tipo U-Net y la corrupción por ruido grueso;
+  \item entrenar los pesos exclusivamente con imágenes normales;
+  \item definir una puntuación escalar por corte a partir del residuo;
+  \item calibrar el umbral únicamente con validación etiquetada;
+  \item medir AUROC y exactitud balanceada en test; y
   \item conservar configuración, pesos, scores e historial para reproducibilidad.
 \end{enumerate}
 
 \section{Fundamentos y estado del arte}
-
 Los autoencoders convencionales comprimen la entrada y minimizan una distancia
-de reconstrucción. Los VAE regularizan el espacio latente
+de reconstrucción. Los VAE regularizan explícitamente el espacio latente
 \cite{kingma2014vae}; los métodos adversariales incorporan generadores y
 discriminadores \cite{goodfellow2014gan}; y los masked autoencoders predicen
-regiones ocultas \cite{he2022mae,georgescu2023masked}. Estas alternativas
-añaden hipótesis y complejidad. En imagen cerebral, las reconstrucciones pueden
-ser borrosas o producir falsos positivos en tejido sano
+regiones ocultas \cite{he2022mae,georgescu2023masked}. Estas familias son
+relevantes, pero añaden hipótesis y complejidad que no son necesarias para la
+línea base estudiada aquí. En imagen cerebral, además, la reconstrucción puede
+ser borrosa o producir falsos positivos en tejido sano
 \cite{baur2021autoencoders}.
 
 El método de referencia \cite{kascenas2022denoising} utiliza una U-Net sin
-cuello de botella vectorial. Su contribución principal es un ruido gaussiano
-muestreado a baja resolución e interpolado: el ruido píxel a píxel resultó
-menos eficaz, mientras que $16\times16$ con $\sigma=0{,}2$ obtuvo el mejor
-compromiso de su ablación. Este trabajo conserva ese principio y lo adapta al
-formato de clasificación de BMAD \cite{bao2024bmad}.
+cuello de botella vectorial restrictivo. Una de sus ideas centrales es generar
+ruido gaussiano a baja resolución e interpolarlo antes de sumarlo a la imagen.
+De esta forma la corrupción presenta estructura espacial de baja frecuencia y
+la red necesita contexto anatómico para retirarla. Este trabajo conserva esa
+idea y utiliza los valores principales $16\times16$ y $\sigma=0{,}2$, adaptando
+la salida al problema de clasificación por corte de BMAD \cite{bao2024bmad}.
 
 \section{Datos y protocolo}
 
-\subsection{Dataset y preprocesado}
-
+\subsection{Dataset}
 Se emplea \texttt{BraTS2021\_slice}, una partición de BMAD derivada de
-BraTS2021. Cada ejemplo es un PNG FLAIR monocromo. El conjunto contiene 7.500
-cortes normales para entrenamiento, 39 normales y 44 anómalos para validación,
-y 640 normales y 3.075 anómalos para test. La etiqueta es por corte; no se
-dispone de la máscara tumoral en el flujo utilizado.
+BraTS2021. Cada ejemplo utilizado es un PNG FLAIR monocromo. La estructura que
+consume el código es \texttt{train/good}, \texttt{valid/good},
+\texttt{valid/Ungood}, \texttt{test/good} y \texttt{test/Ungood}. El conjunto
+contiene 7.500 cortes normales para entrenamiento, 39 normales y 44 anómalos
+para validación, y 640 normales y 3.075 anómalos para test. El flujo de este
+proyecto utiliza una etiqueta por corte y no una máscara tumoral.
 
-Las imágenes se convierten a escala de grises, se redimensionan de
-$240\times240$ a $128\times128$ mediante interpolación bilineal y se dividen por
-255. No se aplica data augmentation geométrica. El fondo se identifica como
-$x\leq0{,}01$, umbral que evita incluir valores residuales de la interpolación.
+\subsection{Preprocesado}
+Cada PNG se abre con PIL, se convierte a escala de grises y se redimensiona a
+$128\times128$ mediante interpolación bilineal. Los valores se convierten a
+\texttt{float32} y se dividen por 255, por lo que la entrada queda en el rango
+$[0,1]$. Finalmente se añade la dimensión de canal para obtener tensores
+$1\times128\times128$. No se aplica data augmentation geométrica.
 
-\subsection{Separación de responsabilidades}
+El fondo se identifica mediante $x\leq0{,}01$. El umbral no representa una
+propiedad clínica; es una decisión de preprocesado para excluir el fondo negro y
+pequeños valores residuales generados por la interpolación.
 
-Los pesos se optimizan con \emph{train/good}. La pérdida de validación se
-calcula con \emph{valid/good} y selecciona la mejor época. Después, las dos
-clases de validación determinan el umbral. El test solo interviene en el cálculo
-final de métricas. Por tanto, las etiquetas no actualizan los pesos, aunque la
-decisión binaria sí es calibrada de forma supervisada en validación.
+\subsection{Separación de train, validación y test}
+Los pesos se optimizan únicamente con \emph{train/good}. La pérdida de
+validación se calcula únicamente con \emph{valid/good} y sirve para seleccionar
+la época con menor error de reconstrucción normal. Después, normales y anómalas
+de validación se usan para calibrar el umbral de decisión. El test interviene
+solo en el cálculo final de métricas. Por tanto, las etiquetas no actualizan los
+pesos del DAE, aunque la decisión binaria sí se calibra de forma supervisada en
+validación.
 
 \section{Método propuesto}
 
-\subsection{Generación de ruido y función objetivo}
-
-Para cada lote limpio $x$ se muestrea
-$n_s\sim\mathcal N(0,I)$ a resolución $16\times16$, se interpola bilinealmente
-a $128\times128$ y se traslada de forma circular una cantidad aleatoria. Con
-$M=\mathbb{1}(x>0{,}01)$ y $\sigma=0{,}2$:
+\subsection{Generación de ruido}
+Para cada lote limpio $x$ se muestrea ruido
+$n_s\sim\mathcal N(0,I)$ a resolución $16\times16$. El ruido se interpola
+bilinealmente hasta $128\times128$ y se desplaza circularmente una cantidad
+aleatoria en los dos ejes. Con $M=\mathbb{1}(x>0{,}01)$ y $\sigma=0{,}2$:
 \[
- \widetilde{x}=x+\sigma\,M\odot\operatorname{roll}
-  \left(\operatorname{up}(n_s)\right).
+ \widetilde{x}=x+\sigma\,M\odot
+ \operatorname{roll}(\operatorname{up}(n_s)).
 \]
-No se recorta $\widetilde{x}$ a $[0,1]$: el ruido es una corrupción sintética
-que el modelo debe retirar. La salida $\hat{x}=f_\theta(\widetilde{x})$ se
-optimiza mediante MSE de primer plano:
+La máscara hace que la corrupción afecte al primer plano cerebral y no al fondo.
+No se recorta $\widetilde{x}$ a $[0,1]$: durante entrenamiento es una entrada
+sintéticamente corrompida cuya función es obligar a la red a aprender la
+restauración de una imagen limpia.
+
+\subsection{Función objetivo}
+El modelo produce $\hat{x}=f_\theta(\widetilde{x})$. La pérdida es una MSE
+calculada exclusivamente en el primer plano:
 \[
  \mathcal L(\theta)=
  \frac{\sum M\odot(\hat{x}-x)^2}{\max(\sum M,1)}.
 \]
+Excluir el fondo evita que una gran región negra, trivial de reconstruir, domine
+la función objetivo. El cuadrado penaliza con mayor intensidad los errores de
+reconstrucción grandes y proporciona una función diferenciable para actualizar
+los parámetros mediante descenso por gradiente.
 
 \subsection{Arquitectura DAE}
-
 La red es una U-Net 2D con cuatro bloques de resolución y tres operaciones de
-pooling. Cada bloque aplica dos veces convolución $3\times3$, SiLU y GroupNorm
-con ocho grupos. El codificador usa 64, 128, 256 y 512 canales. El decoder
-interpola bilinealmente, aplica una convolución y concatena la activación del
-encoder de igual escala. Una convolución $1\times1$ genera el canal FLAIR sin
-sigmoide de salida. Con la configuración base suma 8.558.721 parámetros.
+reducción. Cada \texttt{ConvBlock} aplica dos secuencias de convolución
+$3\times3$, SiLU y GroupNorm con ocho grupos. El codificador utiliza 64, 128,
+256 y 512 canales. Entre bloques se aplica \texttt{AvgPool2d(2)}, de modo que la
+resolución evoluciona $128\rightarrow64\rightarrow32\rightarrow16$.
+
+El decoder realiza tres subidas. Cada una interpola bilinealmente por un factor
+2, aplica una convolución $3\times3$ y concatena la activación del encoder de la
+misma escala mediante una conexión de salto. El último bloque conserva 64
+canales y una convolución $1\times1$ los proyecta a un único canal FLAIR. No se
+usa sigmoide final: el problema se formula como regresión de intensidades y la
+salida permanece lineal durante el entrenamiento. Con \texttt{base\_ch=64}, la
+arquitectura contiene exactamente 8.558.721 parámetros entrenables.
 
 \begin{figure*}[t]
 \centering
@@ -275,35 +299,71 @@ Encoder 1 & Encoder 2 & Encoder 3 & Encoder 4 & Decoder 3 & Decoder 2 & Decoder 
 Encoder 2--Decoder 2 y Encoder 3--Decoder 3.}
 \caption{Arquitectura del DAE para una entrada $1\times128\times128$. El
 encoder reduce mediante average pooling; el decoder usa interpolación bilineal
-seguida de convolución. Las conexiones de salto conservan el detalle espacial.}
+seguida de convolución.}
 \label{fig:dae-arch}
 \end{figure*}
 
-\subsection{Puntuación de anomalía}
+\subsection{Justificación de las decisiones arquitectónicas}
+Las convoluciones $3\times3$ explotan la estructura espacial de la imagen y
+mantienen la resolución gracias a \texttt{padding=1}. La duplicación progresiva
+de canales permite aumentar la capacidad representacional mientras disminuye la
+resolución espacial. SiLU aporta una no linealidad suave. GroupNorm no depende
+de estadísticas entre ejemplos del minibatch y resulta adecuada con batches
+moderados o pequeños. El average pooling produce una reducción suave de la
+resolución. Las conexiones de salto recuperan detalle espacial necesario para
+reconstrucción, mientras que el entrenamiento de denoising reduce el riesgo de
+que la red aprenda únicamente una identidad píxel a píxel.
 
-En inferencia se introduce la imagen limpia; no se añade ruido. Primero se
-erosiona la máscara mediante average pooling $5\times5$ para reducir errores en
-el borde del cráneo. Se calcula el residuo absoluto y se aplica un filtro de
-mediana $5\times5$:
+Se usa interpolación bilineal seguida de convolución para separar explícitamente
+la ampliación espacial del aprendizaje de filtros. Las convoluciones que van
+seguidas de GroupNorm omiten el bias por ser redundante con el desplazamiento
+aprendido por la normalización.
+
+\subsection{Optimización}
+La configuración actual usa batch 16, Adam con AMSGrad, learning rate
+$10^{-4}$ y weight decay $10^{-5}$. El scheduler es
+\texttt{CosineAnnealingLR} con $T_{\max}=100$ y se actualiza después de cada
+lote. Por tanto, $T_{\max}$ está expresado en actualizaciones del optimizador, no
+en épocas. Con 7.500 imágenes, batch 16 y 50 épocas se realizan aproximadamente
+$\lceil7500/16\rceil\times50=23.450$ actualizaciones.
+
+La ejecución reproducible predeterminada utiliza 50 épocas y semilla 42. Se
+fijan las semillas de Python, NumPy y PyTorch; en CUDA se fijan también todas las
+semillas y se configura cuDNN en modo determinista. En cada época se calcula la
+MSE de validación sobre imágenes normales y se conserva en memoria el estado con
+menor valor. Tras terminar las 50 épocas se recargan esos pesos, por lo que la
+época elegida puede ser anterior a la última.
+
+\subsection{Puntuación de anomalía}
+En inferencia se introduce la imagen limpia $x$; no se añade ruido. El modelo
+produce $f_\theta(x)$ y se calcula el residuo absoluto. Para reducir respuestas
+en el borde del cerebro, la máscara binaria se promedia localmente con una
+ventana $5\times5$ y solo se conservan posiciones con promedio superior a
+0,95. Después se aplica un filtro de mediana $5\times5$ al mapa de error:
 \[
  A(x)=f_{\mathrm{med},5}\left(
   \widetilde M\odot|x-f_\theta(x)|\right).
 \]
-Como BMAD proporciona una etiqueta por corte, el mapa se reduce a
-$s(x)=\max_{i,j}A(x)_{ij}$. El máximo busca una región local intensa y la
-mediana impide que un único píxel aislado domine la decisión.
+La mediana reduce el efecto de valores aislados. Dado que BMAD proporciona una
+etiqueta global por corte, el mapa se reduce a un único valor:
+\[
+ s(x)=\max_{i,j} A(x)_{ij}.
+\]
+El máximo busca detectar la presencia de una región local con error elevado. El
+filtrado previo es importante porque un máximo directo sería muy sensible a un
+único píxel espurio.
 
-\subsection{Optimización}
+\subsection{Calibración del umbral}
+A partir de los scores y etiquetas de validación se construye la curva ROC. El
+umbral elegido maximiza
+\[
+ J=TPR-FPR,
+\]
+el índice de Youden. Como $1-FPR$ es la especificidad, maximizar $J$ busca un
+compromiso entre sensibilidad y especificidad. El umbral seleccionado en
+validación se congela y se aplica posteriormente al test sin reajustes.
 
-Se usa Adam con AMSGrad, $\mathrm{lr}=10^{-4}$, weight decay $10^{-5}$ y batch
-16. El scheduler coseno se actualiza por lote con $T_{\max}=100$, equivalente a
-un ciclo máximo--máximo de 200 actualizaciones. Con 7.500 imágenes, 143 épocas
-suponen aproximadamente 67.067 actualizaciones, próximas a las 67.200 del
-paper. Se ejecutan las semillas 13, 42 y 73; se fija el comportamiento
-determinista de cuDNN y se guarda la época con menor MSE normal de validación.
-
-\subsection{Diferencias respecto del paper}
-
+\subsection{Diferencias respecto del método de referencia}
 \begin{table*}[t]
 \centering
 \small
@@ -312,85 +372,96 @@ determinista de cuDNN y se guarda la época con menor MSE normal de validación.
 Aspecto & Kascenas et al. & Adaptación de este trabajo \\
 \midrule
 Entrada & Cuatro modalidades: T1, T1Gd, T2 y FLAIR & Un único canal FLAIR, acorde con los PNG de BMAD \\
-Tarea & Segmentación y score por píxel & Clasificación por corte mediante el máximo del mapa filtrado \\
-Convolución & Weight standardization y padding por reflexión & \texttt{Conv2d} estándar, padding cero y bias omitido junto a GroupNorm \\
-Ampliación & Convolución transpuesta $2\times2$ & Interpolación bilineal y convolución $3\times3$, para una subida suave \\
-Normalización & Grupos calculados según los canales & Ocho grupos fijos, válidos para todos los anchos usados \\
-Intensidad & División por percentil 99 de cada modalidad y volumen & Conversión directa del PNG a $[0,1]$ \\
-Evaluación & AUPRC y Dice píxel a píxel; componentes conexas 3D opcionales & AUROC y balanced accuracy por corte; sin postprocesado 3D \\
-Calibración & Umbral óptimo de Dice explorado sobre test & Umbral de Youden en validación, congelado antes del test \\
+Tarea & Detección/localización basada en mapa de anomalía & Clasificación por corte mediante un score escalar \\
+Convolución & Implementación específica del trabajo de referencia & \texttt{Conv2d} estándar con GroupNorm \\
+Ampliación & Arquitectura original del paper & Interpolación bilineal seguida de convolución $3\times3$ \\
+Normalización & Configuración del método original & Ocho grupos fijos, compatibles con 64, 128, 256 y 512 canales \\
+Intensidad & Preprocesado multimodal del trabajo original & PNG FLAIR convertido directamente a $[0,1]$ \\
+Evaluación & Evaluación espacial propia de la tarea original & AUROC y balanced accuracy por corte \\
+Calibración & Protocolo del trabajo original & Youden en validación, congelado antes de test \\
 \bottomrule
 \end{tabularx}
-\caption{Cambios necesarios para adaptar el método de referencia al dato y al
-objetivo de este proyecto.}
+\caption{Principales adaptaciones necesarias para trabajar con el formato de
+BraTS2021\_slice utilizado en este proyecto.}
 \label{tab:differences}
 \end{table*}
 
-\section{Evaluación y reproducibilidad}
+\section{Evaluación}
 
-El AUROC mide la probabilidad de ordenar un corte anómalo por encima de uno
-normal y no depende de un umbral. La exactitud balanceada es la media de
-sensibilidad y especificidad, adecuada porque el test está desbalanceado. El
-umbral se escoge en validación maximizando $TPR-FPR$ y se aplica sin cambios a
-test. Cada ejecución guarda \texttt{model.pt}, \texttt{metrics.json}, los CSV
-de scores y una rejilla de reconstrucciones. Se informa media y desviación
-estándar de las tres semillas.
+\subsection{AUROC}
+El AUROC resume la capacidad del score para ordenar imágenes anómalas por encima
+de normales sin fijar un umbral concreto. Puede interpretarse como la
+probabilidad de que una imagen anómala elegida al azar reciba mayor puntuación
+que una normal elegida al azar. Un valor de 0,5 corresponde a una separación
+aleatoria y 1 a una ordenación perfecta.
 
-\begin{figure}[ht]
-  \centering
-  \includegraphics[width=\columnwidth]{../results/experiments/dae_seed42/reconstructions.png}
-  \caption{Reconstrucciones obtenidas en la ejecución local reducida. Arriba:
-  originales; abajo: reconstrucciones. La figura verifica el flujo, pero no
-  pertenece a la campaña científica final.}
-  \label{fig:reconstructions}
-\end{figure}
+\subsection{Exactitud balanceada}
+Una vez fijado el umbral se generan predicciones binarias. Debido al fuerte
+desbalance del test, se utiliza exactitud balanceada en lugar de accuracy
+convencional:
+\[
+ \mathrm{BA}=\frac{1}{2}\left(
+ \frac{TP}{TP+FN}+\frac{TN}{TN+FP}
+ \right).
+\]
+Así, sensibilidad y especificidad contribuyen con el mismo peso aunque haya
+muchas más imágenes anómalas que normales.
 
-\section{Resultados provisionales}
+\section{Reproducibilidad e implementación}
+La implementación se divide en cuatro responsabilidades. \texttt{data.py}
+localiza las imágenes, crea los datasets y realiza el preprocesado;
+\texttt{dae.py} define la arquitectura; \texttt{experiment.py} contiene
+entrenamiento, validación, scoring, selección de umbral y métricas; y
+\texttt{train.py} expone la interfaz de línea de comandos.
 
-\noindent\fcolorbox{red!70!black}{red!5}{\parbox{0.93\columnwidth}{\small
-\textbf{Advertencia.} Los valores de esta sección son simulados para cerrar la
-maquetación mientras finaliza Colab. No son resultados experimentales y deben
-reemplazarse por los tres \texttt{metrics.json} definitivos.}}
+Cada ejecución completa guarda \texttt{model.pt}, \texttt{metrics.json},
+\texttt{validation\_scores.csv}, \texttt{test\_scores.csv} y una imagen de
+reconstrucciones. \texttt{metrics.json} conserva la configuración, el historial
+de pérdidas, la época seleccionada, el umbral y las métricas. El notebook de
+Colab clona explícitamente la rama \texttt{brain}, comprueba la disponibilidad
+de GPU, descarga los datos, ejecuta un smoke test y lanza la configuración
+completa de 50 épocas con semilla 42.
 
-\begin{center}
-\small
-\begin{tabular}{lcc}
-\toprule
-Semilla & AUROC test & Balanced accuracy test \\
-\midrule
-13 & 0,876 & 0,798 \\
-42 & 0,899 & 0,827 \\
-73 & 0,886 & 0,811 \\
-\midrule
-Media $\pm$ d.t. & \ProvAUROC & \ProvBA \\
-\bottomrule
-\end{tabular}
-\end{center}
+\section{Resultados}
+La rama actual no incorpora al documento valores cuantitativos simulados. Las
+métricas finales deben copiarse únicamente de una ejecución completa generada
+por el mismo código y configuración descritos en esta memoria. Esta decisión
+evita presentar como evidencia experimental números de maquetación o resultados
+de pruebas reducidas. El flujo está preparado para registrar AUROC, balanced
+accuracy, umbral, época seleccionada y scores individuales de validación y test.
 
-Estos valores ficticios únicamente reservan espacio y muestran cómo se
-presentará la variabilidad entre semillas. No se interpretan ni se comparan con
-el estado del arte. La ejecución local reducida tampoco se incorpora: utilizó
-128 imágenes, cinco épocas y 32 ejemplos por clase, por lo que solo constituye
-una prueba funcional.
+\section{Limitaciones}
+El proyecto trabaja con una sola modalidad FLAIR y cortes 2D independientes, por
+lo que pierde información multimodal y tridimensional disponible en estudios de
+RM completos. La etiqueta por corte no permite evaluar directamente la calidad
+de localización de una lesión. El score basado en el máximo puede reaccionar a
+artefactos locales; la erosión implícita de la máscara y el filtro de mediana
+reducen este efecto, pero no lo eliminan. La validación contiene pocas imágenes,
+lo que puede hacer inestable la estimación del umbral. Finalmente, un benchmark
+no demuestra generalización a otros centros, poblaciones o escáneres.
 
-\section{Limitaciones y conclusiones}
+Otra limitación metodológica es que el sistema es no supervisado respecto al
+aprendizaje de los pesos, pero no completamente libre de etiquetas: el umbral de
+clasificación utiliza las etiquetas de validación. Esta separación debe quedar
+explícita para interpretar correctamente el alcance del método.
 
-La adaptación conserva la aportación central del paper ---aprender a retirar
-ruido espacial grueso con una U-Net entrenada solo en normalidad---, pero cambia
-el problema científico. Se pierde la información multimodal y tridimensional,
-y una etiqueta por corte no permite medir localización tumoral. El máximo del
-mapa es interpretable, aunque puede ser sensible a artefactos locales; la
-erosión de máscara y la mediana mitigan, pero no eliminan, esta limitación. La
-validación contiene pocas imágenes y el conjunto procede de un benchmark, por
-lo que no demuestra generalización clínica ni externa.
+\section{Conclusiones y trabajo futuro}
+Se ha implementado una adaptación unimodal y por corte de un denoising
+autoencoder para detección de anomalías cerebrales. El modelo aprende
+exclusivamente de imágenes normales, utiliza ruido espacial grueso como tarea de
+restauración y convierte el error de reconstrucción en un score de anomalía
+filtrado. El protocolo mantiene separados entrenamiento, selección de pesos,
+calibración y test, y conserva los artefactos necesarios para reproducir una
+ejecución.
 
-La contribución del trabajo es una línea base DAE compacta en concepto,
-reproducible y metodológicamente separada entre entrenamiento, calibración y
-test. Las conclusiones cuantitativas se incorporarán solo tras completar las
-tres ejecuciones de Colab. Como trabajo futuro se propone evaluar mapas con
-máscaras de lesión, recuperar las cuatro modalidades, analizar resultados por
-paciente y validar en datos de otros centros. El software es experimental y no
-apto para decisiones asistenciales.
+La contribución principal no es un nuevo modelo clínico, sino una línea base
+reproducible y explicable que adapta el principio de Kascenas et al. al formato
+2D FLAIR de BMAD. Como trabajo futuro se propone estudiar varias semillas,
+evaluar la sensibilidad a hiperparámetros como $\sigma$, resolución del ruido y
+tamaño del filtro, recuperar información multimodal y tridimensional, utilizar
+máscaras de lesión cuando estén disponibles y validar externamente en datos de
+otros centros. El software es experimental y no es apto para decisiones
+asistenciales.
 
 \bibliographystyle{plain}
 \bibliography{referencias}
