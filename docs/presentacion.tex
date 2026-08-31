@@ -12,7 +12,6 @@
 \usecolortheme{whale}
 \definecolor{UIBblue}{RGB}{0,63,136}
 \definecolor{UIBlight}{RGB}{213,224,238}
-\definecolor{ProvRed}{RGB}{155,25,25}
 \setbeamercolor{structure}{fg=UIBblue}
 \setbeamercolor{palette primary}{bg=UIBblue,fg=white}
 \setbeamercolor{palette secondary}{bg=UIBblue,fg=white}
@@ -29,9 +28,6 @@
       at (current page.north east)
       {\includegraphics[height=0.55cm]{assets/uib-logo.png}};
   \end{tikzpicture}}
-
-\newcommand{\ProvAUROC}{0{,}887 $\pm$ 0{,}011}
-\newcommand{\ProvBA}{0{,}812 $\pm$ 0{,}014}
 
 \title[Detección no supervisada mediante DAE]
       {Detección no supervisada de anomalías en cortes cerebrales mediante un DAE}
@@ -54,94 +50,46 @@
   \tableofcontents
 \end{frame}
 
-\section{Motivación y objetivo}
+\section{Problema y objetivo}
 
-\begin{frame}{¿Por qué detección de anomalías?}
-  \begin{block}{Limitación del aprendizaje supervisado en imagen médica}
-    \begin{itemize}
-      \item Necesita ejemplos anotados de cada alteración posible.
-      \item La anotación radiológica requiere tiempo experto y presenta variabilidad.
-      \item Una clase patológica no observada durante el entrenamiento puede quedar fuera.
-    \end{itemize}
+\begin{frame}{¿Qué problema intento resolver?}
+  \begin{block}{Planteamiento}
+    En lugar de enseñar al modelo todas las patologías posibles, se aprende
+    únicamente cómo son los cortes \textbf{normales}.
   \end{block}
 
-  \vspace{0.35cm}
+  \vspace{0.25cm}
   \centering
-  Aprender solo la \textbf{normalidad} y puntuar cuánto se aparta cada imagen:
   \[
     s(x_N)<s(x_A),\qquad x_N\sim p_N,\quad x_A\not\sim p_N.
   \]
+
+  \begin{itemize}
+    \item Los pesos se entrenan solo con \texttt{train/good}.
+    \item Una anomalía es una imagen incompatible con la normalidad aprendida.
+    \item El sistema no identifica una enfermedad concreta ni sustituye un diagnóstico.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}{Pregunta de investigación}
   \begin{center}
   \begin{beamercolorbox}[rounded=true,shadow=true,sep=1em]{structure}
     \large ¿Puede un \textbf{denoising autoencoder}, entrenado solo con cortes
-    FLAIR \textbf{normales}, separar de forma útil y reproducible los cortes
-    normales de los anómalos en BraTS2021\_slice?
+    FLAIR \textbf{normales}, separar cortes normales de anómalos en
+    BraTS2021\_slice mediante el error de reconstrucción?
   \end{beamercolorbox}
   \end{center}
 
-  \vspace{0.4cm}
+  \vspace{0.35cm}
   \begin{itemize}
-    \item ``Anómalo'' significa no normal según BMAD; no confirma una patología.
-    \item Objetivo: línea base sencilla, explicable y reproducible.
-    \item Protocolo: pesos con train normal, umbral en validación, una evaluación en test.
+    \item Aprendizaje de pesos: no utiliza imágenes anómalas.
+    \item Selección de mejor época: validación normal.
+    \item Calibración del umbral: validación normal + anómala.
+    \item Evaluación final: test sin reajustar el modelo ni el umbral.
   \end{itemize}
 \end{frame}
 
-\section{Fundamento del DAE}
-
-\begin{frame}{Del autoencoder al denoising autoencoder}
-  \begin{columns}[T]
-    \begin{column}{0.46\textwidth}
-      \textbf{Autoencoder convencional}
-      \begin{itemize}
-        \item Aprende $x\rightarrow\hat{x}$.
-        \item Un cuello de botella fuerte puede degradar tejido normal.
-        \item Demasiada capacidad puede copiar también la anomalía.
-      \end{itemize}
-    \end{column}
-    \begin{column}{0.50\textwidth}
-      \textbf{DAE de Kascenas et al. \cite{kascenas2022denoising}}
-      \begin{itemize}
-        \item Aprende $\widetilde{x}\rightarrow x$.
-        \item U-Net con conexiones de salto.
-        \item Sin vector latente restrictivo.
-        \item El ruido espacial obliga a aprender anatomía normal.
-      \end{itemize}
-    \end{column}
-  \end{columns}
-
-  \vspace{0.35cm}
-  \begin{alertblock}{Idea central}
-    Una lesión hiperintensa no vista puede parecer una corrupción: el DAE tiende
-    a retirarla o reconstruirla mal, dejando un residuo elevado.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Ruido grueso durante el entrenamiento}
-  \[
-  n_s\sim\mathcal N(0,I)_{16\times16},\qquad
-  \widetilde{x}=x+0{,}2\,M\odot\operatorname{roll}(\operatorname{up}(n_s))
-  \]
-
-  \begin{enumerate}
-    \item Muestrear ruido gaussiano a $16\times16$.
-    \item Interpolarlo bilinealmente a $128\times128$.
-    \item Trasladarlo aleatoriamente para variar los centros de los patrones.
-    \item Aplicarlo solo al cerebro: $M=\mathbb{1}(x>0{,}01)$.
-  \end{enumerate}
-
-  \begin{block}{Objetivo}
-    \[
-      \mathcal L=\frac{\sum M\odot(f_\theta(\widetilde{x})-x)^2}{\max(\sum M,1)}
-    \]
-    MSE únicamente sobre el primer plano; el fondo no domina el aprendizaje.
-  \end{block}
-\end{frame}
-
-\section{Datos y arquitectura}
+\section{Datos y preprocesado}
 
 \begin{frame}{Datos: BraTS2021\_slice (BMAD)}
   \begin{center}
@@ -158,12 +106,100 @@
 
   \vspace{0.35cm}
   \begin{itemize}
-    \item Cortes 2D FLAIR, PNG monocromos; etiqueta por imagen.
-    \item Conversión a escala de grises y rango $[0,1]$.
+    \item Cortes 2D FLAIR en PNG monocromo.
     \item Redimensionado de $240\times240$ a $128\times128$.
-    \item \textbf{Sin} data augmentation geométrica.
+    \item Conversión a \texttt{float32} y normalización a $[0,1]$.
+    \item Tensor final por imagen: $1\times128\times128$.
+    \item Sin data augmentation geométrica.
   \end{itemize}
 \end{frame}
+
+\begin{frame}{¿Por qué una máscara de primer plano?}
+  El fondo de la resonancia es prácticamente negro y no aporta información útil
+  para detectar anomalías cerebrales.
+
+  \[
+    M=\mathbb{1}(x>0{,}01)
+  \]
+
+  \begin{itemize}
+    \item El umbral 0,01 separa fondo casi negro de primer plano.
+    \item El ruido de entrenamiento se aplica solo donde $M=1$.
+    \item La MSE también se calcula solo sobre el primer plano.
+    \item Así el modelo no obtiene una pérdida artificialmente baja por reconstruir fondo negro.
+  \end{itemize}
+\end{frame}
+
+\section{Denoising Autoencoder}
+
+\begin{frame}{¿Por qué un DAE y no copiar la entrada?}
+  \begin{columns}[T]
+    \begin{column}{0.46\textwidth}
+      \textbf{Autoencoder convencional}
+      \[
+        x\longrightarrow f_\theta(x)\approx x
+      \]
+      \begin{itemize}
+        \item Puede aproximarse demasiado a la identidad.
+        \item Una red potente podría reconstruir también anomalías.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.50\textwidth}
+      \textbf{Denoising Autoencoder}
+      \[
+        \widetilde{x}\longrightarrow f_\theta(\widetilde{x})\approx x
+      \]
+      \begin{itemize}
+        \item La entrada se corrompe artificialmente.
+        \item El objetivo es recuperar la anatomía normal limpia.
+        \item La tarea obliga a utilizar contexto espacial.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.3cm}
+  Basado en la idea de Kascenas et al. \cite{kascenas2022denoising}.
+\end{frame}
+
+\begin{frame}{Ruido grueso durante el entrenamiento}
+  \[
+  n_s\sim\mathcal N(0,I)_{16\times16},\qquad
+  \widetilde{x}=x+0{,}2\,M\odot\operatorname{roll}(\operatorname{up}(n_s))
+  \]
+
+  \begin{enumerate}
+    \item Generar ruido gaussiano a baja resolución: $16\times16$.
+    \item Interpolarlo bilinealmente a $128\times128$.
+    \item Desplazarlo circularmente en posiciones aleatorias.
+    \item Aplicarlo solo al primer plano cerebral.
+  \end{enumerate}
+
+  \begin{block}{Por qué ruido grueso}
+    Produce perturbaciones espaciales suaves y de mayor escala; eliminar ruido
+    píxel a píxel sería una tarea más local y potencialmente más trivial.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Función de pérdida}
+  La red reconstruye la imagen limpia:
+  \[
+    \hat{x}=f_\theta(\widetilde{x})
+  \]
+
+  y optimiza una MSE de primer plano:
+  \[
+    \mathcal L(\theta)=
+    \frac{\sum M\odot(\hat{x}-x)^2}{\max(\sum M,1)}.
+  \]
+
+  \begin{itemize}
+    \item Es una regresión píxel a píxel.
+    \item El cuadrado penaliza especialmente errores grandes.
+    \item El fondo se excluye para centrar el aprendizaje en tejido cerebral.
+  \end{itemize}
+\end{frame}
+
+\section{Arquitectura}
 
 \begin{frame}{Arquitectura U-Net del DAE}
 \centering
@@ -189,132 +225,191 @@
   \draw[->,dashed,blue,bend left=20] (e3) to node[below]{skip} (d3);
 \end{tikzpicture}}
 
-\vspace{0.45cm}
+\vspace{0.4cm}
 \begin{itemize}
-  \item Cada bloque: $[\mathrm{Conv}_{3\times3}\rightarrow\mathrm{SiLU}
-        \rightarrow\mathrm{GroupNorm}]\times2$.
-  \item Average pooling; subida bilineal seguida de convolución; head $1\times1$.
-  \item 3 reducciones, sin bottleneck vectorial, \textbf{8.558.721 parámetros}.
+  \item Cuatro niveles: 64, 128, 256 y 512 canales.
+  \item Tres reducciones por \texttt{AvgPool2d(2)}.
+  \item Tres subidas bilineales + convolución.
+  \item Skip connections entre escalas equivalentes.
+  \item Salida final $1\times128\times128$ mediante convolución $1\times1$.
+  \item \textbf{8.558.721 parámetros entrenables}.
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Por qué estas decisiones}
-  \begin{tabular}{p{3.6cm}p{7.8cm}}
+\begin{frame}{Qué hace cada bloque}
+  Cada \texttt{ConvBlock} aplica dos veces:
+  \[
+    \mathrm{Conv}_{3\times3}\rightarrow\mathrm{SiLU}\rightarrow\mathrm{GroupNorm}(8).
+  \]
+
+  \begin{tabular}{p{3.6cm}p{7.6cm}}
     \toprule
-    Decisión & Función \\
+    Elemento & Motivo \\
     \midrule
-    Convolución $3\times3$ & Extraer contexto local conservando resolución \\
-    SiLU/Swish & Activación suave utilizada en el método de referencia \\
-    GroupNorm & Estabilidad sin depender de lotes grandes \\
-    Average pooling & Reducir resolución preservando intensidades suaves \\
-    Skip connections & Recuperar bordes y detalle anatómico normal \\
+    Conv. $3\times3$ & Extraer patrones espaciales locales con pocos parámetros \\
+    \texttt{padding=1} & Mantener altura y anchura dentro de cada bloque \\
+    SiLU & Introducir una no linealidad suave \\
+    GroupNorm & Normalizar sin depender de estadísticas entre ejemplos del batch \\
+    Average pooling & Reducir resolución de forma suave \\
+    Skip connections & Recuperar detalle espacial para la reconstrucción \\
     Salida lineal & Regresión de intensidad sin saturación de una sigmoide \\
     \bottomrule
   \end{tabular}
 \end{frame}
 
-\section{Score y adaptación del paper}
-
-\begin{frame}{De la reconstrucción al score por corte}
-  En test se introduce la imagen \textbf{limpia}; no se añade ruido.
+\begin{frame}{¿Qué ocurre en una skip connection?}
+  Ejemplo en la primera etapa del decoder:
   \[
-    A(x)=f_{\mathrm{med},5}\left(
-    \widetilde M\odot|x-f_\theta(x)|\right),\qquad
-    s(x)=\max_{i,j}A(x)_{ij}.
+    d_3=\mathrm{dec3}\left(
+      \operatorname{cat}(\mathrm{up3}(e_4),e_3)
+    \right).
   \]
 
-  \begin{enumerate}
-    \item Erosionar la máscara para ignorar errores del borde del cráneo.
-    \item Calcular error absoluto por píxel.
-    \item Aplicar mediana $5\times5$ para eliminar respuestas aisladas.
-    \item Tomar el máximo espacial: una puntuación por corte.
-  \end{enumerate}
+  \begin{itemize}
+    \item $e_4$: representación profunda a $16\times16\times512$.
+    \item \texttt{up3}: la convierte en $32\times32\times256$.
+    \item $e_3$: conserva detalle del encoder a $32\times32\times256$.
+    \item La concatenación se hace en canales: $256+256=512$.
+    \item \texttt{dec3} transforma esos 512 canales en 256.
+  \end{itemize}
 
-  \begin{alertblock}{Diferencia clave}
-    El paper conserva $A(x)$ para segmentar; BMAD exige reducirlo a $s(x)$ para
-    clasificar toda la imagen.
-  \end{alertblock}
+  \begin{block}{Idea}
+    El decoder combina contexto profundo con información espacial de alta resolución.
+  \end{block}
 \end{frame}
 
-\begin{frame}{Qué conservamos y qué adaptamos}
-  \begin{columns}[T]
-    \begin{column}{0.47\textwidth}
-      \textbf{Conservado del paper}
-      \begin{itemize}
-        \item U-Net, 3 reducciones y skips.
-        \item Canales 64--128--256--512.
-        \item SiLU, GroupNorm y average pooling.
-        \item Ruido $16\times16$, $\sigma=0{,}2$ y roll.
-        \item MSE de primer plano.
-        \item Residuo absoluto + mediana $5\times5$.
-      \end{itemize}
-    \end{column}
-    \begin{column}{0.49\textwidth}
-      \textbf{Adaptado al proyecto}
-      \begin{itemize}
-        \item 1 FLAIR en lugar de 4 modalidades.
-        \item Clasificación por corte, no segmentación.
-        \item Convolución estándar, sin weight standardization.
-        \item Bilinear + conv en lugar de transposed conv.
-        \item 8 grupos fijos y padding cero.
-        \item Normalización del PNG a $[0,1]$.
-      \end{itemize}
-    \end{column}
-  \end{columns}
-\end{frame}
+\section{Entrenamiento}
 
-\begin{frame}{Por qué cambia la evaluación}
-  \begin{center}
-  \begin{tabular}{lll}
-    \toprule
-    & Paper & Este proyecto \\
-    \midrule
-    Dato & 4 modalidades + máscara & FLAIR + etiqueta de corte \\
-    Salida evaluada & mapa por píxel & score escalar \\
-    Métricas & AUPRC y Dice & AUROC y balanced accuracy \\
-    Umbral & Dice óptimo analítico & Youden en validación \\
-    Postproceso & mediana y CC 3D & mediana 2D \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-
-  \vspace{0.35cm}
-  \textbf{Razón metodológica}: no inventar máscaras ni estructura 3D ausentes y
-  no utilizar test para calibrar la decisión.
-\end{frame}
-
-\section{Entrenamiento y evaluación}
-
-\begin{frame}{Configuración reproducible}
+\begin{frame}{Configuración actual}
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
-      \textbf{Entrenamiento}
+      \textbf{Hiperparámetros}
       \begin{itemize}
+        \item Imagen: $128\times128$.
         \item Batch: 16.
+        \item Épocas: 50.
+        \item Semilla: 42.
         \item Adam + AMSGrad.
-        \item $\mathrm{lr}_{\max}=10^{-4}$.
+        \item Learning rate: $10^{-4}$.
         \item Weight decay: $10^{-5}$.
-        \item Ciclo coseno: 200 updates.
-        \item 143 épocas $\approx$ 67.067 updates.
+        \item Ruido: $\sigma=0{,}2$, resolución 16.
       \end{itemize}
     \end{column}
     \begin{column}{0.48\textwidth}
       \textbf{Control experimental}
       \begin{itemize}
-        \item Semillas: 13, 42 y 73.
+        \item Python, NumPy y PyTorch con semilla fija.
         \item cuDNN determinista.
-        \item Mejor época por MSE normal de validación.
-        \item Umbral fijado con validación etiquetada.
+        \item Mejor época por MSE en \texttt{valid/good}.
+        \item Umbral fijado después con validación etiquetada.
         \item Test evaluado sin reajustes.
       \end{itemize}
     \end{column}
   \end{columns}
 \end{frame}
 
+\begin{frame}{Adam y scheduler}
+  Para cada lote:
+  \[
+    \texttt{zero\_grad}\rightarrow
+    \texttt{forward}\rightarrow
+    \mathcal L\rightarrow
+    \texttt{backward}\rightarrow
+    \texttt{optimizer.step}.
+  \]
+
+  \begin{itemize}
+    \item \textbf{Adam}: adapta el tamaño de actualización usando momentos del gradiente.
+    \item \textbf{AMSGrad}: variante de Adam que conserva un máximo histórico del segundo momento.
+    \item \textbf{Weight decay}: regulariza los pesos.
+    \item \textbf{CosineAnnealingLR}: $T_{\max}=100$.
+  \end{itemize}
+
+  \begin{alertblock}{Detalle del código actual}
+    \texttt{scheduler.step()} se ejecuta por lote, por lo que $T_{\max}=100$
+    está expresado en \textbf{actualizaciones}, no en épocas.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Selección del mejor modelo}
+  Después de cada época se evalúan únicamente imágenes normales de validación.
+
+  \[
+    e^*=\arg\min_e\;\mathrm{MSE}_{\mathrm{valid/good}}(e)
+  \]
+
+  \begin{itemize}
+    \item Se entrenan las 50 épocas.
+    \item Cuando mejora la MSE normal de validación se guarda una copia de los pesos.
+    \item Al terminar, se recargan los pesos de la mejor época.
+    \item Las imágenes anómalas no participan en esta selección.
+  \end{itemize}
+\end{frame}
+
+\section{Inferencia y score}
+
+\begin{frame}{De la reconstrucción al mapa de anomalía}
+  En inferencia se introduce la imagen \textbf{limpia}; no se añade ruido.
+  \[
+    e(x)=|x-f_\theta(x)|
+  \]
+
+  Después:
+  \begin{enumerate}
+    \item Refinar la máscara con average pooling $5\times5$ y umbral 0,95.
+    \item Eliminar el error fuera del interior cerebral.
+    \item Aplicar mediana local $5\times5$.
+  \end{enumerate}
+
+  \[
+    A(x)=f_{\mathrm{med},5}\left(
+      \widetilde M\odot|x-f_\theta(x)|
+    \right).
+  \]
+
+  El filtro de mediana reduce respuestas puntuales aisladas.
+\end{frame}
+
+\begin{frame}{¿Por qué el máximo como score?}
+  BMAD proporciona una etiqueta por corte, por lo que el mapa debe reducirse a
+  un único número:
+  \[
+    s(x)=\max_{i,j}A(x)_{ij}.
+  \]
+
+  \begin{itemize}
+    \item Una anomalía puede ocupar una región pequeña.
+    \item Un promedio global podría diluirla entre miles de píxeles normales.
+    \item El máximo pregunta si existe alguna región con error especialmente alto.
+    \item La mediana previa evita que un único píxel ruidoso domine el score.
+  \end{itemize}
+\end{frame}
+
+\section{Calibración y evaluación}
+
+\begin{frame}{Selección del umbral}
+  Con los scores y etiquetas de \textbf{validación} se calcula la curva ROC.
+  El código selecciona:
+  \[
+    t^*=\arg\max_t\left(TPR(t)-FPR(t)\right).
+  \]
+
+  Es el criterio de Youden:
+  \[
+    J=\mathrm{sensibilidad}+\mathrm{especificidad}-1.
+  \]
+
+  \begin{block}{Regla metodológica}
+    El threshold se selecciona una sola vez en validación y después se aplica
+    sin cambios al test.
+  \end{block}
+\end{frame}
+
 \begin{frame}{Métricas}
   \begin{block}{AUROC}
-    Probabilidad de que una imagen anómala elegida al azar reciba mayor score
-    que una normal. No depende del umbral; $0{,}5$ equivale al azar.
+    Evalúa la capacidad del score para ordenar anómalas por encima de normales
+    sin depender de un threshold concreto. $0{,}5$ equivale al azar y 1 a
+    separación perfecta.
   \end{block}
 
   \begin{block}{Balanced accuracy}
@@ -322,84 +417,94 @@
       \mathrm{BA}=\frac{1}{2}
       \left(\frac{TP}{TP+FN}+\frac{TN}{TN+FP}\right).
     \]
-    Da el mismo peso a normales y anómalas pese al desbalance de test.
+    Es adecuada porque el test contiene 640 normales y 3.075 anómalas.
   \end{block}
-
-  Se reportará \textbf{media $\pm$ desviación típica} de las tres semillas.
 \end{frame}
 
-\section{Resultados provisionales}
+\section{Adaptación, reproducibilidad y conclusiones}
 
-\begin{frame}{Resultados simulados para maquetación}
-  \begin{alertblock}{No son resultados experimentales}
-    Estos números son marcadores provisionales. Se sustituirán por los tres
-    \texttt{metrics.json} de Colab antes de interpretar o entregar el trabajo.
+\begin{frame}{Qué se conserva y qué se adapta}
+  \begin{columns}[T]
+    \begin{column}{0.47\textwidth}
+      \textbf{Principios conservados}
+      \begin{itemize}
+        \item DAE tipo U-Net.
+        \item Tres reducciones y skips.
+        \item Ruido gaussiano grueso.
+        \item $16\times16$ y $\sigma=0{,}2$.
+        \item MSE de primer plano.
+        \item Error absoluto y filtro mediana.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \textbf{Adaptaciones del proyecto}
+      \begin{itemize}
+        \item Un canal FLAIR.
+        \item Cortes 2D independientes.
+        \item Score escalar por imagen.
+        \item Interpolación bilineal + convolución.
+        \item GroupNorm con 8 grupos.
+        \item AUROC y balanced accuracy.
+        \item Threshold de Youden en validación.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Reproducibilidad}
+  La implementación separa responsabilidades:
+  \begin{itemize}
+    \item \texttt{data.py}: carga, particiones y preprocesado.
+    \item \texttt{dae.py}: arquitectura U-Net del DAE.
+    \item \texttt{experiment.py}: entrenamiento, score, threshold y métricas.
+    \item \texttt{train.py}: interfaz de ejecución.
+    \item Notebook Colab: GPU, descarga de datos, smoke test y entrenamiento completo.
+  \end{itemize}
+
+  \vspace{0.2cm}
+  Cada ejecución guarda pesos, configuración, historial, scores individuales,
+  threshold, métricas y reconstrucciones.
+\end{frame}
+
+\begin{frame}{Estado de resultados}
+  \begin{alertblock}{Sin números simulados}
+    La documentación actual no presenta métricas ficticias. Los resultados
+    cuantitativos deben salir únicamente de una ejecución completa del código
+    descrito en esta presentación.
   \end{alertblock}
 
-  \begin{center}
-  \begin{tabular}{lcc}
-    \toprule
-    Semilla & AUROC test & Balanced accuracy test \\
-    \midrule
-    13 & 0,876 & 0,798 \\
-    42 & 0,899 & 0,827 \\
-    73 & 0,886 & 0,811 \\
-    \midrule
-    Media $\pm$ d.t. & \ProvAUROC & \ProvBA \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-
-  \centering\color{ProvRed}\small No citar ni comparar estos valores.
-\end{frame}
-
-\begin{frame}{Comprobación funcional local}
-  \begin{center}
-    \includegraphics[width=0.86\textwidth]{../results/experiments/dae_seed42/reconstructions.png}
-  \end{center}
-  \small Arriba: imágenes normales. Abajo: reconstrucciones del DAE. Esta
-  ejecución utilizó 128 imágenes y 5 épocas: valida el flujo, no el rendimiento.
-\end{frame}
-
-\section{Reproducibilidad y conclusiones}
-
-\begin{frame}{Entregables reproducibles}
   \begin{itemize}
-    \item Configuración, historial completo y época seleccionada en \texttt{metrics.json}.
-    \item Pesos y arquitectura en \texttt{model.pt}.
-    \item Scores individuales de validación y test en CSV.
-    \item Reconstrucciones visuales de control.
-    \item Notebook de Colab con comprobación de GPU, smoke test y campaña completa.
-    \item Ejecución final de tres semillas y resumen agregado en
-          \texttt{results/resultados.csv}.
+    \item Configuración predeterminada: 50 épocas, seed 42.
+    \item El código registra AUROC y balanced accuracy de validación y test.
+    \item También guarda época seleccionada, threshold y score por cada imagen.
   \end{itemize}
 \end{frame}
 
 \begin{frame}{Limitaciones}
   \begin{itemize}
-    \item Una modalidad 2D pierde información multimodal y tridimensional.
-    \item La etiqueta por corte no permite evaluar localización tumoral.
-    \item El máximo espacial puede reaccionar a artefactos locales.
+    \item Una modalidad FLAIR 2D pierde información multimodal y tridimensional.
+    \item Una etiqueta por corte no permite evaluar localización de lesión.
+    \item El máximo espacial puede ser sensible a artefactos locales.
     \item La validación es pequeña: 39 normales y 44 anómalas.
-    \item Un benchmark no demuestra generalización a otros centros o escáneres.
-    \item Software experimental; no apto para diagnóstico ni decisiones clínicas.
+    \item El threshold usa etiquetas de validación: los pesos son no supervisados,
+          pero la decisión binaria final está calibrada supervisadamente.
+    \item Un benchmark no demuestra generalización clínica externa.
   \end{itemize}
 \end{frame}
 
 \begin{frame}{Conclusiones}
   \begin{itemize}
-    \item Se implementó una adaptación unimodal y por corte del DAE de
-          Kascenas et al., entrenada \textbf{solo con normales}.
-    \item La red conserva el núcleo del método: U-Net sin bottleneck restrictivo,
-          ruido grueso y error de reconstrucción filtrado.
-    \item Entrenamiento, selección de época, calibración y test están separados.
-    \item La campaña de tres semillas permitirá cuantificar rendimiento y variabilidad.
-    \item Las conclusiones cuantitativas quedan pendientes de los resultados de Colab.
+    \item Se implementó un DAE tipo U-Net entrenado \textbf{solo con normales}.
+    \item El ruido grueso convierte el aprendizaje en una tarea de restauración,
+          no en una simple copia de la entrada.
+    \item El error de reconstrucción se filtra y reduce a un score por corte.
+    \item Pesos, calibración y test están metodológicamente separados.
+    \item El proyecto prioriza una línea base explicable y reproducible.
   \end{itemize}
 
   \vspace{0.25cm}
-  \textbf{Trabajo futuro}: recuperar cuatro modalidades y máscaras, evaluar por
-  paciente y validar externamente.
+  \textbf{Trabajo futuro}: varias semillas, ablaciones de hiperparámetros,
+  información multimodal/3D, máscaras de lesión y validación externa.
 \end{frame}
 
 \begin{frame}[plain]
