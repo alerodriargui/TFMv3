@@ -260,12 +260,12 @@ def _save_reconstructions(
             )
     canvas.save(path)
 
-# Selección del umbral
+# Selección del umbral (Youden J statistic) para maximizar la diferencia entre TPR y FPR
 def _select_threshold(labels: np.ndarray, scores: np.ndarray) -> float:
     fpr, tpr, thresholds = roc_curve(labels, scores)
     return float(thresholds[np.argmax(tpr - fpr)])
 
-# Evaluación
+# Calcular métricas de evaluación (AUROC y Balanced Accuracy) dado un umbral
 def _evaluate(
     labels: np.ndarray, scores: np.ndarray, threshold: float
 ) -> dict[str, float]:
@@ -298,20 +298,28 @@ def run(config: ExperimentConfig) -> dict:
         config.max_eval_images_per_class,
         config.seed,
     )
+
+    # Calcular puntuaciones de validación y test
     val_labels, val_scores, val_paths, samples = score_dataset_dae(
         model, validation, config.batch_size, device,
     )
     test_labels, test_scores, test_paths, _ = score_dataset_dae(
         model, test, config.batch_size, device,
     )
+
+    # Selección del umbral 
     threshold = _select_threshold(val_labels, val_scores)
+
+    # Evaluación de métricas de validación y test
     validation_metrics = _evaluate(val_labels, val_scores, threshold)
     test_metrics = _evaluate(test_labels, test_scores, threshold)
 
+    # Guardar puntuaciones y reconstrucciones
     _save_scores(config.output_dir / "validation_scores.csv", val_labels, val_scores, val_paths)
     _save_scores(config.output_dir / "test_scores.csv", test_labels, test_scores, test_paths)
     _save_reconstructions(config.output_dir / "reconstructions.png", *samples)
 
+    # Contar parámetros del modelo
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
 
