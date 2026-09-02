@@ -58,19 +58,28 @@ def _loader(dataset: RadiographDataset, batch_size: int, shuffle: bool) -> DataL
 
 # Añade ruido gaussiano grueso a las radiografías
 def _coarse_noise(images: torch.Tensor, sigma: float, resolution: int) -> torch.Tensor:
+    # Obtiene las dimensiones del lote de imágenes
     b, c, h, w = images.shape
+    # Genera ruido gaussiano de baja resolución
     noise_small = torch.randn(b, c, resolution, resolution, device=images.device)
+    # Interpola el ruido a la resolución de la imagen
     noise = F.interpolate(noise_small, size=(h, w), mode="bilinear", align_corners=False)
+    # Desplaza el ruido aleatoriamente para evitar patrones repetitivos
     noise = torch.roll(
         noise, shifts=(random.randrange(h), random.randrange(w)), dims=(-2, -1)
     )
+    # Aplica el ruido solo a los píxeles de interés (no fondo negro)
     mask = (images > 0.01).float()
+    # Devuelve la imagen con ruido
     return images + sigma * noise * mask
 
 # Función de pérdida MSE
 def _foreground_mse(reconstructed: torch.Tensor, images: torch.Tensor) -> torch.Tensor:
+    # La máscara evita los píxeles de fondo (negros)
     mask = (images > 0.01).float()
+    # Calcula el error cuadrático en los píxeles de interés
     squared_error = (reconstructed - images).square() * mask
+    # Devuelve el error cuadrático medio en los píxeles de interés
     return squared_error.sum() / mask.sum().clamp_min(1)
 
 # Entrenamiento de un lote
@@ -81,11 +90,16 @@ def _train_batch_dae(
     sigma: float,
     noise_resolution: int,
 ) -> float:
+    # Prepara el optimizador para el entrenamiento
     optimizer.zero_grad(set_to_none=True)
+    # Aplica ruido a las imágenes
     noisy = _coarse_noise(images, sigma, noise_resolution)
+    # Reconstruye las imágenes ruidosas
     reconstructed = model(noisy)
+    # Calcula la pérdida
     loss = _foreground_mse(reconstructed, images)
-    loss.backward()
+    # Realiza el backward pass
+    loss.backward()   
     optimizer.step()
     return float(loss.detach())
 
@@ -116,6 +130,7 @@ def train_dae(
 ) -> tuple[torch.nn.Module, list[dict], int]:
     from .dae import DAE
 
+    # Preparación de los conjuntos de entrenamiento y validación
     train_set = RadiographDataset.normal_only(
         split_dir(config.data_root, "train"),
         config.image_size,
@@ -128,6 +143,7 @@ def train_dae(
         None,
         config.seed,
     )
+    
     train_loader = _loader(train_set, config.batch_size, True)
     validation_loader = _loader(validation_set, config.batch_size, False)
 
