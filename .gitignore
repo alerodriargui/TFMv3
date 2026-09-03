@@ -2,9 +2,12 @@ __pycache__/
 .ruff_cache/
 data/
 *.zip
+!notebooks/TFMv3_colab_dae.zip
 .venv/
 *.py[cod]
 results/*
+!results/dae_seed42/
+!results/dae_seed42/**
 !results/resultados.csv
 !results/demo_*.png
 checkpoints/*
