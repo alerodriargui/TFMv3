@@ -466,18 +466,44 @@
   threshold, métricas y reconstrucciones.
 \end{frame}
 
-\begin{frame}{Estado de resultados}
-  \begin{alertblock}{Sin números simulados}
-    La documentación actual no presenta métricas ficticias. Los resultados
-    cuantitativos deben salir únicamente de una ejecución completa del código
-    descrito en esta presentación.
-  \end{alertblock}
+\begin{frame}{Resultados de la ejecución completa}
+  \begin{columns}[T]
+    \begin{column}{0.53\textwidth}
+      \begin{table}
+      \centering
+      \small
+      \begin{tabular}{lcc}
+        \toprule
+        Partición & AUROC & BA \\
+        \midrule
+        Validación & 0,9452 & 0,8820 \\
+        Test & \textbf{0,9633} & \textbf{0,9097} \\
+        \bottomrule
+      \end{tabular}
+      \end{table}
+    \end{column}
+    \begin{column}{0.43\textwidth}
+      \begin{itemize}
+        \item 50 épocas; seed 42.
+        \item Época seleccionada: 47.
+        \item Threshold: 0,18611.
+        \item Tiempo: 1,58 h en GPU.
+      \end{itemize}
+    \end{column}
+  \end{columns}
 
-  \begin{itemize}
-    \item Configuración predeterminada: 50 épocas, seed 42.
-    \item El código registra AUROC y balanced accuracy de validación y test.
-    \item También guarda época seleccionada, threshold y score por cada imagen.
-  \end{itemize}
+  \begin{block}{Test: 3.715 cortes}
+    Sensibilidad: 0,9210; especificidad: 0,8984.\\
+    TP: 2.832; TN: 575; FP: 65; FN: 243.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Reconstrucciones obtenidas}
+  \centering
+  \includegraphics[width=0.91\textwidth,height=0.78\textheight,keepaspectratio]
+    {assets/reconstructions.png}
+
+  \small Entrada, reconstrucción y discrepancias locales usadas por el score.
 \end{frame}
 
 \begin{frame}{Limitaciones}
@@ -499,7 +525,7 @@
           no en una simple copia de la entrada.
     \item El error de reconstrucción se filtra y reduce a un score por corte.
     \item Pesos, calibración y test están metodológicamente separados.
-    \item El proyecto prioriza una línea base explicable y reproducible.
+    \item En test: AUROC 0,9633 y balanced accuracy 0,9097.
   \end{itemize}
 
   \vspace{0.25cm}

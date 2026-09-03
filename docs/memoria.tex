@@ -423,12 +423,46 @@ de GPU, descarga los datos, ejecuta un smoke test y lanza la configuración
 completa de 50 épocas con semilla 42.
 
 \section{Resultados}
-La rama actual no incorpora al documento valores cuantitativos simulados. Las
-métricas finales deben copiarse únicamente de una ejecución completa generada
-por el mismo código y configuración descritos en esta memoria. Esta decisión
-evita presentar como evidencia experimental números de maquetación o resultados
-de pruebas reducidas. El flujo está preparado para registrar AUROC, balanced
-accuracy, umbral, época seleccionada y scores individuales de validación y test.
+La ejecución científica completa se realizó durante 50 épocas con semilla 42,
+batch de 16 imágenes, tasa de aprendizaje $10^{-4}$ y ruido gaussiano de
+$\sigma=0{,}2$ generado a resolución $16\times16$. El entrenamiento duró
+5.706 segundos (1,58 horas) en GPU. La época 47 obtuvo el menor error de
+validación normal, 0,00298, y se empleó para generar los scores definitivos. El
+umbral de Youden calibrado exclusivamente en validación fue 0,18611.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+Partición & AUROC & Balanced accuracy \\
+\midrule
+Validación (83 cortes) & 0,9452 & 0,8820 \\
+Test (3.715 cortes) & 0,9633 & 0,9097 \\
+\bottomrule
+\end{tabular}
+\caption{Resultados de la ejecución completa del DAE con semilla 42.}
+\label{tab:results}
+\end{table}
+
+En test se clasificaron correctamente 2.832 de 3.075 cortes anómalos y 575 de
+640 cortes normales: 243 fueron falsos negativos y 65 falsos positivos. Esto
+equivale a una sensibilidad de 0,9210 y una especificidad de 0,8984. El AUROC
+de 0,9633 indica una separación elevada entre las distribuciones de scores; la
+balanced accuracy confirma que el resultado no se debe al desbalance de clases.
+
+La Figura~\ref{fig:reconstructions-results} muestra ejemplos producidos por el
+modelo seleccionado. Las reconstrucciones preservan la anatomía global mientras
+que el mapa de error resalta las discrepancias locales empleadas para calcular
+el score de anomalía.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.98\linewidth]{assets/reconstructions.png}
+  \caption{Ejemplos de entrada, reconstrucción y error de la ejecución completa
+  con semilla 42.}
+  \label{fig:reconstructions-results}
+\end{figure}
 
 \section{Limitaciones}
 El proyecto trabaja con una sola modalidad FLAIR y cortes 2D independientes, por
@@ -456,7 +490,8 @@ ejecución.
 
 La contribución principal no es un nuevo modelo clínico, sino una línea base
 reproducible y explicable que adapta el principio de Kascenas et al. al formato
-2D FLAIR de BMAD. Como trabajo futuro se propone estudiar varias semillas,
+2D FLAIR de BMAD. En la ejecución completa alcanzó un AUROC de 0,9633 y una
+balanced accuracy de 0,9097 en test. Como trabajo futuro se propone estudiar varias semillas,
 evaluar la sensibilidad a hiperparámetros como $\sigma$, resolución del ruido y
 tamaño del filtro, recuperar información multimodal y tridimensional, utilizar
 máscaras de lesión cuando estén disponibles y validar externamente en datos de
