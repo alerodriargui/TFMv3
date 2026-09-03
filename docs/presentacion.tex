@@ -65,9 +65,9 @@
   \]
 
   \begin{itemize}
-    \item Los pesos se entrenan solo con \texttt{train/good}.
-    \item Una anomalía es una imagen incompatible con la normalidad aprendida.
-    \item El sistema no identifica una enfermedad concreta ni sustituye un diagnóstico.
+    \item Los pesos se entrenan solo con \texttt{train/good} (imágenes normales).
+    \item Una anomalía es una imagen incompatible con la distribución normal aprendida.
+    \item El sistema no identifica una enfermedad concreta, eso requeriría un enfoque supervisado.
   \end{itemize}
 \end{frame}
 
@@ -81,12 +81,12 @@
   \end{center}
 
   \vspace{0.35cm}
-  \begin{itemize}
-    \item Aprendizaje de pesos: no utiliza imágenes anómalas.
-    \item Selección de mejor época: validación normal.
-    \item Calibración del umbral: validación normal + anómala.
-    \item Evaluación final: test sin reajustar el modelo ni el umbral.
-  \end{itemize}
+\begin{itemize}
+    \item \textbf{Entrenamiento del modelo:} aprendizaje de los pesos utilizando únicamente imágenes normales.
+    \item \textbf{Selección del modelo:} elección de la mejor época mediante el conjunto de validación normal.
+    \item \textbf{Calibración del umbral:} determinación del umbral de decisión utilizando imágenes normales y anómalas de validación.
+    \item \textbf{Evaluación final:} evaluación sobre el conjunto de prueba, sin reajustar los pesos del modelo ni el umbral de decisión.
+\end{itemize}
 \end{frame}
 
 \section{Datos y preprocesado}
@@ -107,7 +107,7 @@
   \vspace{0.35cm}
   \begin{itemize}
     \item Cortes 2D FLAIR en PNG monocromo.
-    \item Redimensionado de $240\times240$ a $128\times128$.
+    \item Redimensionado de $240\times240$ a $128\times128$ para reducir coste computacional.
     \item Conversión a \texttt{float32} y normalización a $[0,1]$.
     \item Tensor final por imagen: $1\times128\times128$.
     \item Sin data augmentation geométrica.
@@ -128,25 +128,6 @@
     \item La MSE también se calcula solo sobre el primer plano.
     \item Así el modelo no obtiene una pérdida artificialmente baja por reconstruir fondo negro.
   \end{itemize}
-\end{frame}
-
-\begin{frame}{Decisiones sobre los datos: defensa razonada}
-  \scriptsize
-  \begin{tabular}{p{3.0cm}p{5.2cm}p{3.2cm}}
-    \toprule
-    Decisión & Por qué se toma & Coste o alternativa \\
-    \midrule
-    Solo FLAIR & Es el canal disponible en los PNG y resalta alteraciones con alto contenido de agua & T1, T1Gd y T2 aportarían información complementaria \\
-    Cortes 2D & Coincide con el formato del benchmark y reduce memoria y coste computacional & Se pierde contexto entre cortes \\
-    $128\times128$ & Compromiso entre detalle, memoria y tiempo; divisible por $2^3$ para tres poolings & Puede borrar lesiones pequeñas \\
-    Intensidad $[0,1]$ & Escala estable para optimización y coherente con PNG de 8 bits & No corrige variación entre escáneres \\
-    Sin aumento geométrico & Evita transformaciones no validadas anatómicamente & Menor diversidad de entrenamiento \\
-    \bottomrule
-  \end{tabular}
-
-  \vspace{0.15cm}
-  \textbf{Defensa:} se respeta el formato de BMAD para construir una línea base
-  reproducible; no se afirma que sea la configuración clínicamente óptima.
 \end{frame}
 
 \section{Del autoencoder al DAE}
@@ -173,32 +154,11 @@
       \textbf{Decoder}
       \begin{itemize}
         \item Recupera la resolución original.
-        \item Convierte características en intensidades.
+        \item Transforma las características aprendidas en la imagen reconstruida.
         \item Produce $\hat{x}$ con el mismo tamaño que $x$.
       \end{itemize}
     \end{column}
   \end{columns}
-\end{frame}
-
-\begin{frame}{¿Qué aprende realmente un AE?}
-  Durante el entrenamiento minimiza una discrepancia entre entrada y salida:
-  \[
-    \theta^*=\arg\min_\theta\;\mathbb E_{x\sim p_N}
-    \left[\lVert x-f_\theta(x)\rVert_2^2\right].
-  \]
-
-  \begin{itemize}
-    \item Aquí $p_N$ contiene solo cortes normales: no se le enseña un tumor.
-    \item Los pesos capturan regularidades repetidas de anatomía e intensidad.
-    \item En inferencia, un error grande sugiere que la entrada no encaja bien
-          con esas regularidades.
-  \end{itemize}
-
-  \begin{alertblock}{Matiz que puede preguntar el tribunal}
-    Un AE no ``conoce'' la normalidad por definición. Si tiene demasiada
-    capacidad, puede aprender una función casi identidad y reconstruir también
-    entradas anómalas. Por eso usamos una tarea de \emph{denoising}.
-  \end{alertblock}
 \end{frame}
 
 \begin{frame}{Entonces, ¿qué es un DAE y qué hace?}

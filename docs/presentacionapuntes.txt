@@ -1,0 +1,58 @@
+
+s(xN) < s(xA), xN ∼ pN , xA ≁ pN 
+
+Si xn es una muestra normal, entonces será similar a la distribución (patrón estadístico) de los datos normales. 
+Si xa es una muestra anormal, entonces no será similar a la distribución de los datos normales. 
+
+Por tanto, el modelo se encarga de aprender una función de puntuación S que asigna valores más bajos a los datos normales
+que siguen la distibución pN y valor más altos a los datos anómalos
+
+
+Conversión a float32 y normalización a [0,1.]
+
+Convierto las imágenes a float32 porque la red neuronal trabaja con valores en coma flotante. 
+Después normalizo las intensidades al intervalo [0,1] para mantener una escala uniforme y estable,
+lo que facilita la optimización y evita trabajar directamente con valores de píxel entre 0 y 255.
+
+
+M =⊮(x >0,01)
+La función indicadora asigna M=1 a los píxeles que superan el umbral de 0,01 y M=0 al resto. 
+De esta forma se crea una máscara que separa el cerebro del fondo casi negro.
+
+
+x encoder g𝜙
+−−−−−−−−→comprime z decoder h𝜓
+−−−−−−−−→reconstruye ˆx,f𝜃=h𝜓◦g𝜙
+
+«La imagen original entra en el encoder, que la transforma en una representación comprimida. 
+Después, el decoder utiliza esa representación para generar una reconstrucción lo más parecida
+ posible a la imagen original
+
+
+Entrenamiento
+
+- (x): imagen original limpia.
+- (n): ruido artificial.
+- (widetilde{x}): imagen con ruido.
+- (hat{x}): reconstrucción producida por el modelo.
+
+L(\hat{x},x)
+Es la función de pérdida: mide la diferencia entre la reconstrucción (hat{x}) y la imagen original (x). 
+El modelo modifica sus pesos para reducir esa diferencia.
+
+Inferencia
+
+x --> \hat{x}
+Se introduce la imagen directamente, sin añadir ruido, y el modelo la reconstruye.
+
+A(x)=|x-\hat{x}|
+\Se calcula la diferencia absoluta entre la imagen original y su reconstrucción.
+Esa diferencia es el mapa de anomalía: cuanto mayor sea el error, más sospechosa es la región.
+
+
+x =x +0,2 M ⊙roll(up(ns))
+Aqui explicamos como se genera una imagen con ruido. 
+
+
+\(M\odot(\hat{x}-x)^2\): la máscara elimina los errores correspondientes al fondo.
+\(\max(\sum M,1)\) evita dividir entre cero si la máscara estuviera vacía.
