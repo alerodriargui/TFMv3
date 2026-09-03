@@ -130,7 +130,97 @@
   \end{itemize}
 \end{frame}
 
-\section{Denoising Autoencoder}
+\begin{frame}{Decisiones sobre los datos: defensa razonada}
+  \scriptsize
+  \begin{tabular}{p{3.0cm}p{5.2cm}p{3.2cm}}
+    \toprule
+    Decisión & Por qué se toma & Coste o alternativa \\
+    \midrule
+    Solo FLAIR & Es el canal disponible en los PNG y resalta alteraciones con alto contenido de agua & T1, T1Gd y T2 aportarían información complementaria \\
+    Cortes 2D & Coincide con el formato del benchmark y reduce memoria y coste computacional & Se pierde contexto entre cortes \\
+    $128\times128$ & Compromiso entre detalle, memoria y tiempo; divisible por $2^3$ para tres poolings & Puede borrar lesiones pequeñas \\
+    Intensidad $[0,1]$ & Escala estable para optimización y coherente con PNG de 8 bits & No corrige variación entre escáneres \\
+    Sin aumento geométrico & Evita transformaciones no validadas anatómicamente & Menor diversidad de entrenamiento \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.15cm}
+  \textbf{Defensa:} se respeta el formato de BMAD para construir una línea base
+  reproducible; no se afirma que sea la configuración clínicamente óptima.
+\end{frame}
+
+\section{Del autoencoder al DAE}
+
+\begin{frame}{Primero: ¿qué es un autoencoder (AE)?}
+  Un \textbf{autoencoder} es una red neuronal que aprende a reproducir su entrada
+  sin necesitar una etiqueta de clase.
+  \[
+    x\xrightarrow[\text{comprime}]{\text{encoder }g_\phi}
+    z\xrightarrow[\text{reconstruye}]{\text{decoder }h_\psi}
+    \hat{x},\qquad f_\theta=h_\psi\circ g_\phi.
+  \]
+
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{Encoder}
+      \begin{itemize}
+        \item Extrae características relevantes.
+        \item Reduce progresivamente la resolución.
+        \item Aumenta el contexto espacial de cada activación.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{Decoder}
+      \begin{itemize}
+        \item Recupera la resolución original.
+        \item Convierte características en intensidades.
+        \item Produce $\hat{x}$ con el mismo tamaño que $x$.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{¿Qué aprende realmente un AE?}
+  Durante el entrenamiento minimiza una discrepancia entre entrada y salida:
+  \[
+    \theta^*=\arg\min_\theta\;\mathbb E_{x\sim p_N}
+    \left[\lVert x-f_\theta(x)\rVert_2^2\right].
+  \]
+
+  \begin{itemize}
+    \item Aquí $p_N$ contiene solo cortes normales: no se le enseña un tumor.
+    \item Los pesos capturan regularidades repetidas de anatomía e intensidad.
+    \item En inferencia, un error grande sugiere que la entrada no encaja bien
+          con esas regularidades.
+  \end{itemize}
+
+  \begin{alertblock}{Matiz que puede preguntar el tribunal}
+    Un AE no ``conoce'' la normalidad por definición. Si tiene demasiada
+    capacidad, puede aprender una función casi identidad y reconstruir también
+    entradas anómalas. Por eso usamos una tarea de \emph{denoising}.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Entonces, ¿qué es un DAE y qué hace?}
+  Un \textbf{denoising autoencoder (DAE)} es un AE entrenado para recuperar una
+  imagen limpia $x$ a partir de una versión corrompida $\widetilde{x}$:
+  \[
+    x\xrightarrow{q(\widetilde{x}\mid x)}\widetilde{x}
+    \xrightarrow{f_\theta}\hat{x}\approx x.
+  \]
+
+  \begin{enumerate}
+    \item Toma un corte cerebral normal y añade una corrupción artificial.
+    \item El encoder identifica estructura y contexto que sobreviven al ruido.
+    \item El decoder restaura una versión limpia plausible.
+    \item Para lograrlo, aprende patrones de los cortes normales, no una copia píxel a píxel.
+  \end{enumerate}
+
+  \begin{block}{Diferencia esencial}
+    AE: $x\mapsto x$. DAE: $\widetilde{x}\mapsto x$. La etiqueta objetivo sigue
+    siendo la propia imagen, pero la entrada y el objetivo ya no son idénticos.
+  \end{block}
+\end{frame}
 
 \begin{frame}{¿Por qué un DAE y no copiar la entrada?}
   \begin{columns}[T]
@@ -159,6 +249,35 @@
 
   \vspace{0.3cm}
   Basado en la idea de Kascenas et al. \cite{kascenas2022denoising}.
+\end{frame}
+
+\begin{frame}{Entrenamiento e inferencia no hacen lo mismo}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{Entrenamiento}
+      \[
+        \widetilde{x}=x+n\longrightarrow \hat{x},
+        \qquad \mathcal L(\hat{x},x)
+      \]
+      \begin{itemize}
+        \item Solo imágenes normales.
+        \item Se añade ruido nuevo en cada pasada.
+        \item Se actualizan los pesos para recuperar $x$.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{Inferencia}
+      \[
+        x\longrightarrow\hat{x},
+        \qquad A(x)=|x-\hat{x}|
+      \]
+      \begin{itemize}
+        \item Se introduce la imagen limpia.
+        \item No se actualizan pesos ni se añade ruido.
+        \item El residuo se convierte en score de anomalía.
+      \end{itemize}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 \begin{frame}{Ruido grueso durante el entrenamiento}
@@ -278,6 +397,41 @@
   \end{block}
 \end{frame}
 
+\begin{frame}{¿Por qué una U-Net para un autoencoder?}
+  \begin{itemize}
+    \item La \textbf{rama descendente} aumenta el campo receptivo: permite usar
+          contexto anatómico y no solo comparar píxeles aislados.
+    \item La \textbf{rama ascendente} devuelve la representación a la resolución
+          necesaria para producir un mapa de error espacial.
+    \item Las \textbf{skip connections} recuperan bordes y detalle que podrían
+          perderse al reducir resolución.
+    \item Los canales 64--128--256--512 aumentan la capacidad al disminuir el
+          tamaño espacial, donde las activaciones son más baratas.
+  \end{itemize}
+
+  \begin{alertblock}{¿Las skips no facilitan copiar la anomalía?}
+    Sí, es un riesgo real. Se conservan porque la reconstrucción médica necesita
+    precisión espacial; el entrenamiento con corrupción gruesa obliga a combinar
+    esas características locales con contexto. Es un compromiso, no una garantía.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Justificación de las operaciones arquitectónicas}
+  \small
+  \begin{tabular}{p{3.0cm}p{8.8cm}}
+    \toprule
+    Elección & Justificación \\
+    \midrule
+    Dos conv. $3\times3$ & Amplían el campo receptivo con menos parámetros que una convolución grande y permiten dos transformaciones no lineales \\
+    SiLU & Activación suave y derivable, con gradiente también para entradas negativas \\
+    GroupNorm (8 grupos) & No usa estadísticas del lote; es estable con batch 16 y divide exactamente todos los anchos de canal \\
+    Average pooling & Reduce resolución suavizando, en lugar de escoger solo el máximo local \\
+    Bilinear + conv. & Separa ampliación y aprendizaje y evita patrones de tablero asociados a algunas convoluciones transpuestas \\
+    Cabeza $1\times1$ lineal & Combina los 64 canales en una intensidad sin añadir contexto ni saturar la salida \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
 \section{Entrenamiento}
 
 \begin{frame}{Configuración actual}
@@ -308,6 +462,26 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{¿Por qué estos hiperparámetros?}
+  \small
+  \begin{tabular}{p{2.7cm}p{6.1cm}p{3.0cm}}
+    \toprule
+    Valor & Motivo práctico & Qué faltaría demostrar \\
+    \midrule
+    Batch 16 & Cabe en GPU y ofrece varias muestras por actualización & Compararlo con otros batches \\
+    50 épocas & Permite observar convergencia; se conserva la mejor, no necesariamente la última & Curva con más épocas \\
+    LR $10^{-4}$ & Paso conservador para Adam en una regresión densa & Barrido de tasas \\
+    Weight decay $10^{-5}$ & Penalización leve para limitar pesos excesivos & Ablación sin regularización \\
+    Base 64 & Capacidad suficiente manteniendo coste manejable: 8,56 M de parámetros & Comparar anchuras \\
+    $\sigma=0{,}2$ & Corrupción visible sin destruir por completo la anatomía & Análisis de sensibilidad \\
+    Ruido $16^2$ & Al ampliarlo a $128^2$ genera variaciones espaciales suaves & Comparar otras escalas \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.15cm}
+  Valores inspirados en el método de referencia y fijados antes de mirar test.
+\end{frame}
+
 \begin{frame}{Adam y scheduler}
   Para cada lote:
   \[
@@ -327,7 +501,27 @@
 
   \begin{alertblock}{Detalle del código actual}
     \texttt{scheduler.step()} se ejecuta por lote, por lo que $T_{\max}=100$
-    está expresado en \textbf{actualizaciones}, no en épocas.
+    está expresado en \textbf{actualizaciones}, no en épocas. Esto produce ciclos
+    rápidos de la tasa y debe revisarse mediante una ablación, no presentarse
+    como una ventaja demostrada.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{¿Por qué Adam, AMSGrad y reproducibilidad?}
+  \begin{itemize}
+    \item \textbf{Adam} adapta el paso de cada parámetro usando medias móviles del
+          gradiente y su cuadrado; ayuda cuando distintas capas tienen escalas
+          de gradiente diferentes.
+    \item \textbf{AMSGrad} conserva el máximo histórico del segundo momento; se
+          adopta como variante conservadora de Adam.
+    \item La \textbf{semilla 42} fija Python, NumPy, PyTorch y CUDA.
+    \item \textbf{cuDNN determinista} y \texttt{benchmark=False} priorizan
+          repetibilidad frente a velocidad máxima.
+  \end{itemize}
+
+  \begin{alertblock}{Límite de la semilla}
+    Una ejecución reproducible no mide variabilidad. Para afirmar robustez hacen
+    falta varias semillas y media $\pm$ desviación estándar.
   \end{alertblock}
 \end{frame}
 
@@ -385,6 +579,27 @@
   \end{itemize}
 \end{frame}
 
+\begin{frame}{¿Por qué error absoluto, máscara y mediana?}
+  \small
+  \begin{tabular}{p{3.1cm}p{5.6cm}p{3.1cm}}
+    \toprule
+    Operación & Función & Riesgo controlado \\
+    \midrule
+    $|x-\hat{x}|$ & Mide magnitud del residuo sin cancelar signos & Una diferencia no implica por sí sola patología \\
+    Máscara erosionada & Exige que casi todo el vecindario $5\times5$ sea cerebro & Bordes cráneo--fondo producen errores altos \\
+    Mediana $5\times5$ & Conserva respuestas locales consistentes y elimina impulsos & Un píxel espurio dominaría el máximo \\
+    Máximo espacial & Detecta una región pequeña sin diluirla & Puede favorecer un artefacto local persistente \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.25cm}
+  \begin{block}{Por qué no MSE como mapa de inferencia}
+    El error absoluto mantiene el residuo en la escala de intensidad y crece
+    linealmente; la MSE se reserva como objetivo de entrenamiento, donde interesa
+    penalizar con fuerza reconstrucciones muy alejadas.
+  \end{block}
+\end{frame}
+
 \section{Calibración y evaluación}
 
 \begin{frame}{Selección del umbral}
@@ -405,6 +620,25 @@
   \end{block}
 \end{frame}
 
+\begin{frame}{¿Por qué Youden y por qué nunca calibrar en test?}
+  \begin{itemize}
+    \item Youden maximiza $TPR-FPR$, equivalente a maximizar
+          sensibilidad $+$ especificidad $-1$.
+    \item Da el mismo peso a ambas clases y no depende de su proporción en el
+          conjunto, algo importante con clases desbalanceadas.
+    \item Produce una regla binaria única sin imponer aquí un coste clínico
+          específico para FP o FN.
+    \item Calibrar en test filtraría información del conjunto reservado y daría
+          una estimación optimista del rendimiento.
+  \end{itemize}
+
+  \begin{alertblock}{Qué no significa}
+    No es necesariamente el umbral clínico óptimo. Si el coste de un falso
+    negativo fuese mayor, habría que elegir otro punto operativo y validarlo
+    prospectivamente.
+  \end{alertblock}
+\end{frame}
+
 \begin{frame}{Métricas}
   \begin{block}{AUROC}
     Evalúa la capacidad del score para ordenar anómalas por encima de normales
@@ -418,6 +652,32 @@
       \left(\frac{TP}{TP+FN}+\frac{TN}{TN+FP}\right).
     \]
     Es adecuada porque el test contiene 640 normales y 3.075 anómalas.
+  \end{block}
+\end{frame}
+
+\begin{frame}{¿Por qué AUROC y balanced accuracy juntas?}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{AUROC: calidad del ranking}
+      \begin{itemize}
+        \item Usa todos los umbrales posibles.
+        \item No depende del threshold seleccionado.
+        \item Mide si una anómala tiende a recibir mayor score que una normal.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{BA: decisión operativa}
+      \begin{itemize}
+        \item Evalúa el threshold ya congelado.
+        \item Promedia sensibilidad y especificidad.
+        \item Evita que las 3.075 anómalas oculten el rendimiento en 640 normales.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+
+  \begin{block}{Por qué no accuracy convencional}
+    Predecir siempre la clase mayoritaria ya daría $3.075/3.715=82{,}8\%$ de
+    accuracy, aunque la especificidad fuese cero.
   \end{block}
 \end{frame}
 
@@ -503,7 +763,40 @@
   \includegraphics[width=0.91\textwidth,height=0.78\textheight,keepaspectratio]
     {assets/reconstructions.png}
 
-  \small Entrada, reconstrucción y discrepancias locales usadas por el score.
+  \small Fila superior: entradas originales. Fila inferior: reconstrucciones
+  generadas por el DAE. El score se calcula después a partir de su diferencia.
+\end{frame}
+
+\begin{frame}{¿Cómo interpretar los resultados?}
+  \begin{itemize}
+    \item AUROC 0,9633: el score ordena correctamente una pareja
+          anómala--normal elegida al azar en aproximadamente el 96,3\% de los casos.
+    \item Sensibilidad 0,9210: detecta 2.832 de 3.075 cortes anómalos.
+    \item Especificidad 0,8984: identifica como normales 575 de 640 cortes normales.
+    \item Balanced accuracy 0,9097: promedio de las dos tasas anteriores.
+    \item La mejora de AUROC de validación (0,9452) a test (0,9633) puede ser
+          variación muestral; no demuestra que el modelo mejore al ver test.
+  \end{itemize}
+
+  \begin{alertblock}{Conclusión proporcionada}
+    Los resultados apoyan la separabilidad en este benchmark y esta ejecución;
+    no prueban diagnóstico, localización exacta ni generalización clínica.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Preguntas previsibles del tribunal}
+  \small
+  \begin{tabular}{p{5.0cm}p{6.9cm}}
+    \toprule
+    Pregunta & Respuesta breve \\
+    \midrule
+    ¿Es realmente no supervisado? & Los pesos se aprenden solo con normales y sin etiquetas; el threshold sí usa etiquetas de validación: es calibración supervisada \\
+    ¿Por qué no entrenar un clasificador? & Requeriría anomalías etiquetadas y aprendería las patologías presentes; aquí se evalúa modelado de normalidad \\
+    ¿El error reconstruye el tumor o lo localiza? & Es una señal de discrepancia; con etiquetas por corte solo validamos clasificación, no segmentación \\
+    ¿Por qué no afirmar uso clínico? & Falta validación externa, análisis por paciente, múltiples semillas y estudio de errores clínicos \\
+    ¿Es definitivo el threshold 0,18611? & No: depende de validación, preprocesado y coste de errores; no debe transferirse sin recalibrar \\
+    \bottomrule
+  \end{tabular}
 \end{frame}
 
 \begin{frame}{Limitaciones}
