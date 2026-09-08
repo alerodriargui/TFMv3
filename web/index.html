@@ -25,8 +25,8 @@
     /* Los cortes que aparecen en la explicación proceden del dataset BraTS2021_slice. */
     .brain{background:#000 url("assets/brain-normal-axial.png") center/contain no-repeat!important;filter:none!important;border-radius:3px!important;box-shadow:0 0 45px rgba(116,225,208,.1)!important}
     .brain:after{display:none!important}
-    .brain-main,.brain.has-lesion{background-image:url("assets/brain-anomaly-high.png")!important}
-    .brain-main{width:62%;height:62%;top:19%}
+    .brain.has-lesion{background-image:url("assets/brain-anomaly-high.png")!important}
+    .brain-main{background-image:url("assets/demo/sample-01.png")!important;width:62%;height:62%;top:19%}
     .lesion{display:none!important}
     .thumb{background:#000 url("assets/brain-normal.png") center/contain no-repeat!important;border-radius:3px!important;box-shadow:none!important}
     .thumb.anomalous{background-image:url("assets/brain-anomaly.png")!important}
@@ -76,7 +76,7 @@
         <div class="scan-label top"><span>FLAIR · corte real del dataset</span><span>test / Ungood</span></div>
         <div class="scan-stage">
           <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
-          <div class="brain brain-main" role="img" aria-label="Corte cerebral FLAIR anómalo real del dataset"><div class="scanline"></div></div>
+          <div class="brain brain-main" role="img" aria-label="Corte cerebral FLAIR de la demo: Corte 01"><div class="scanline"></div></div>
           <div class="callout callout-a"><span>01</span><b>Entrada desconocida</b><small>Sin etiqueta</small></div>
           <div class="callout callout-b"><span>02</span><b>Error local</b><small>Residuo elevado</small></div>
           <svg class="pointer" viewBox="0 0 150 90" aria-hidden="true"><path d="M2 84 C55 84 55 16 137 16"/><circle cx="140" cy="16" r="4"/></svg>
