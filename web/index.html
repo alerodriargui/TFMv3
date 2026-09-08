@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071310">
+  <meta name="description" content="Guía visual del DAE para detección no supervisada de anomalías en cortes cerebrales FLAIR.">
+  <title>Dentro del DAE · Guía visual del proyecto</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .metric-ring{position:relative}
+    .hero-copy,.hero-visual{min-width:0}
+    .confusion-matrix .axis.top{grid-column:2 / 4;grid-row:1}
+    .confusion-matrix .col-normal{grid-column:2;grid-row:2}
+    .confusion-matrix .col-anomalous{grid-column:3;grid-row:2}
+    .confusion-matrix .row-normal{grid-column:1;grid-row:3}
+    .confusion-matrix .row-anomalous{grid-column:1;grid-row:4}
+    .confusion-matrix .true-negative{grid-column:2;grid-row:3}
+    .confusion-matrix .false-positive{grid-column:3;grid-row:3}
+    .confusion-matrix .false-negative{grid-column:2;grid-row:4}
+    .confusion-matrix .true-positive{grid-column:3;grid-row:4}
+    /* Los cortes que aparecen en la explicación proceden del dataset BraTS2021_slice. */
+    .brain{background:#000 url("assets/brain-normal-axial.png") center/contain no-repeat!important;filter:none!important;border-radius:3px!important;box-shadow:0 0 45px rgba(116,225,208,.1)!important}
+    .brain:after{display:none!important}
+    .brain-main,.brain.has-lesion{background-image:url("assets/brain-anomaly-high.png")!important}
+    .brain-main{width:62%;height:62%;top:19%}
+    .lesion{display:none!important}
+    .thumb{background:#000 url("assets/brain-normal.png") center/contain no-repeat!important;border-radius:3px!important;box-shadow:none!important}
+    .thumb.anomalous{background-image:url("assets/brain-anomaly.png")!important}
+    #pipeline .pipe-step:first-child .brain{background-image:url("assets/brain-normal-model-input.png")!important}
+    .noise-art .brain{background-image:url("assets/brain-normal-coarse-noise.png")!important}
+    #pipeline.inference .pipe-step:first-child .brain,
+    #pipeline.inference .noise-art .brain{background-image:url("assets/brain-anomaly-model-input.png")!important}
+    .mini-flow{gap:18px}
+    .mini-flow>strong{font-size:9px;max-width:145px}
+    .dataset-stack{position:relative;width:142px;height:82px;flex:0 0 142px}
+    .dataset-stack .thumb{position:absolute;top:0}
+    .dataset-stack .thumb:nth-child(1){left:0;z-index:3}
+    .dataset-stack .thumb:nth-child(2){left:34px;z-index:2}
+    .dataset-stack .thumb:nth-child(3){left:68px;z-index:1}
+    .dataset-stack.mixed .thumb:nth-child(2){left:54px}
+    .dataset-stack small{position:absolute;left:0;bottom:0;font:7px/1.35 var(--mono);letter-spacing:.05em;white-space:nowrap;color:#326349}
+    @media(max-width:560px){.hero{grid-template-columns:minmax(0,1fr)}h1{font-size:46px;overflow-wrap:anywhere}.hero-facts{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.hero-facts>div{min-width:0}.hero-facts span{letter-spacing:.03em;overflow-wrap:anywhere}.lead{overflow-wrap:anywhere}}
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <nav class="nav" aria-label="Navegación principal">
+    <a class="brand" href="#inicio"><span class="brand-mark">DÆ</span><span>Dentro del modelo</span></a>
+    <div class="nav-links">
+      <a href="#idea">La idea</a><a href="#proceso">Proceso</a><a href="#arquitectura">Arquitectura</a><a href="#resultados">Resultados</a>
+    </div>
+    <a class="nav-cta" href="demo.html">Probar el modelo <span>↗</span></a>
+  </nav>
+
+  <main>
+    <section class="hero" id="inicio">
+      <div class="hero-copy reveal">
+        <div class="eyebrow"><span></span> Trabajo Fin de Máster · IA + imagen médica</div>
+        <h1>Enseñar a una red<br>a reconocer lo que<br><em>nunca ha visto.</em></h1>
+        <p class="lead">Un detector de anomalías cerebrales que aprende únicamente de cortes sanos. Si no puede reconstruir algo, lo señala.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#idea">Entender la idea <span>↘</span></a>
+          <a class="button ghost" href="#resultados">Ir a los resultados</a>
+        </div>
+        <div class="hero-facts">
+          <div><strong>7.500</strong><span>cortes normales para aprender</span></div>
+          <div><strong>0</strong><span>anomalías vistas al entrenar</span></div>
+          <div><strong>96,33%</strong><span>AUROC en test</span></div>
+        </div>
+      </div>
+      <div class="hero-visual reveal" aria-label="Visualización conceptual de un corte cerebral y su anomalía">
+        <div class="scan-label top"><span>FLAIR · corte real del dataset</span><span>test / Ungood</span></div>
+        <div class="scan-stage">
+          <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
+          <div class="brain brain-main" role="img" aria-label="Corte cerebral FLAIR anómalo real del dataset"><div class="scanline"></div></div>
+          <div class="callout callout-a"><span>01</span><b>Entrada desconocida</b><small>Sin etiqueta</small></div>
+          <div class="callout callout-b"><span>02</span><b>Error local</b><small>Residuo elevado</small></div>
+          <svg class="pointer" viewBox="0 0 150 90" aria-hidden="true"><path d="M2 84 C55 84 55 16 137 16"/><circle cx="140" cy="16" r="4"/></svg>
+        </div>
+        <div class="scan-label bottom"><span>ANOMALY MAP</span><span class="signal"><i></i><i></i><i></i><i></i><i></i></span></div>
+      </div>
+      <div class="hero-scroll">SCROLL TO EXPLORE <span>↓</span></div>
+    </section>
+
+    <section class="statement" id="idea">
+      <div class="section-index">01 — LA PREGUNTA</div>
+      <div class="statement-grid">
+        <h2>¿Y si no necesitáramos enseñar a la máquina <em>todas</em> las enfermedades?</h2>
+        <div class="statement-side">
+          <p>Los sistemas supervisados necesitan ejemplos anotados de cada patología. En medicina, esas etiquetas son caras, requieren especialistas y nunca cubren todo lo inesperado.</p>
+          <p>Este proyecto cambia la pregunta: en lugar de aprender “qué aspecto tiene un tumor”, aprende <strong>qué aspecto tiene la normalidad</strong>.</p>
+        </div>
+      </div>
+      <div class="compare-cards reveal">
+        <article class="compare-card muted">
+          <div class="card-top"><span>Enfoque convencional</span><b>SUPERVISADO</b></div>
+          <div class="mini-flow">
+            <div class="dataset-stack mixed" aria-label="Dataset con imágenes normales y anómalas etiquetadas"><i class="thumb normal"></i><i class="thumb anomalous"></i><small>NORMAL + ANÓMALO<br>CON ETIQUETAS</small></div>
+            <span>→</span><strong>CLASES APRENDIDAS</strong>
+          </div>
+          <h3>“Enséñame cada anomalía”</h3><p>Necesita imágenes normales, anómalas y sus etiquetas durante el aprendizaje.</p>
+        </article>
+        <article class="compare-card accent">
+          <div class="card-top"><span>Este proyecto</span><b>NO SUPERVISADO*</b></div>
+          <div class="mini-flow">
+            <div class="dataset-stack normal-set" aria-label="Dataset de 7.500 cortes normales"><i class="thumb normal"></i><i class="thumb normal"></i><i class="thumb normal"></i><small>7.500 CORTES NORMALES</small></div>
+            <span>→</span><strong>NORMALIDAD APRENDIDA</strong>
+          </div>
+          <h3>“Enséñame solo lo normal”</h3><p>Los pesos ven exclusivamente <code>train/good</code>. Lo diferente produce más error.</p>
+        </article>
+      </div>
+      <p class="fine-print">* No supervisado respecto al aprendizaje de pesos. El umbral final sí se calibra con etiquetas de validación.</p>
+    </section>
+
+    <section class="principle dark-section">
+      <div class="section-index light">02 — EL PRINCIPIO</div>
+      <div class="principle-head">
+        <h2>Reconstruir para<br><em>descubrir.</em></h2>
+        <p>El modelo intenta devolver una versión limpia de cada imagen. La distancia entre lo que entra y lo que reconstruye se convierte en evidencia.</p>
+      </div>
+      <div class="principle-equation reveal">
+        <div class="equation-case">
+          <div class="brain tiny"></div>
+          <div><span>Corte normal</span><strong>s(x<sub>N</sub>)</strong></div>
+          <div class="score low"><i></i><span>error bajo</span></div>
+        </div>
+        <div class="operator">&lt;</div>
+        <div class="equation-case">
+          <div class="brain tiny has-lesion"><div class="lesion"></div></div>
+          <div><span>Corte anómalo</span><strong>s(x<sub>A</sub>)</strong></div>
+          <div class="score high"><i></i><span>error alto</span></div>
+        </div>
+      </div>
+      <div class="plain-translation"><span>En lenguaje llano</span><p>“Si no se parece a lo que aprendí como normal, me costará más reconstruirlo.”</p></div>
+    </section>
+
+    <section class="journey" id="proceso">
+      <div class="section-index">03 — DOS MOMENTOS DISTINTOS</div>
+      <div class="journey-title"><h2>Aprender y detectar<br>no son lo mismo.</h2><p>El ruido solo existe durante el entrenamiento. En uso real, la imagen entra limpia.</p></div>
+      <div class="mode-switch" role="tablist" aria-label="Fase del modelo">
+        <button class="active" data-mode="train" role="tab"><span>01</span> Entrenamiento</button>
+        <button data-mode="infer" role="tab"><span>02</span> Inferencia</button>
+      </div>
+      <div class="pipeline" id="pipeline">
+        <div class="pipe-step">
+          <div class="pipe-number">01</div><div class="pipe-art"><div class="brain medium"></div></div>
+          <h3 id="step1-title">Corte normal limpio</h3><p id="step1-copy">Se toma una imagen de <code>train/good</code>, sin ninguna anomalía.</p>
+        </div>
+        <div class="pipe-arrow"><span>→</span><small id="arrow1">corromper</small></div>
+        <div class="pipe-step">
+          <div class="pipe-number">02</div><div class="pipe-art noise-art"><div class="brain medium"></div></div>
+          <h3 id="step2-title">Añadir ruido gaussiano grueso</h3><p id="step2-copy">n ~ N(0, I) a 16×16; interpolación bilineal a 128×128, desplazamiento aleatorio y suma con σ = 0,2 solo donde x &gt; 0,01.</p>
+        </div>
+        <div class="pipe-arrow"><span>→</span><small id="arrow2">reconstruir</small></div>
+        <div class="pipe-step model-step">
+          <div class="pipe-number">03</div><div class="pipe-art model-art"><span>ENC</span><i></i><b>z</b><i></i><span>DEC</span></div>
+          <h3 id="step3-title">Recuperar lo limpio</h3><p id="step3-copy">La U-Net recibe la versión ruidosa e intenta producir la original.</p>
+        </div>
+        <div class="pipe-arrow"><span>→</span><small id="arrow3">comparar</small></div>
+        <div class="pipe-step">
+          <div class="pipe-number">04</div><div class="pipe-art target-art"><span>x</span><b>−</b><span>x̂</span><strong>²</strong></div>
+          <h3 id="step4-title">Minimizar la MSE</h3><p id="step4-copy">El error cuadrático actualiza 8,56 M de parámetros para restaurar mejor.</p>
+        </div>
+      </div>
+      <div class="formula-card"><span>OBJETIVO DURANTE EL ENTRENAMIENTO</span><div>ℒ(θ) = <span class="fraction"><b>Σ M ⊙ (x̂ − x)²</b><i>max(Σ M, 1)</i></span></div><p>La máscara <b>M</b> ignora el fondo negro: así la red dedica su capacidad a la anatomía.</p></div>
+    </section>
+
+    <section class="architecture dark-section" id="arquitectura">
+      <div class="section-index light">04 — DENTRO DE LA RED</div>
+      <div class="architecture-head"><h2>Una U-Net que comprime<br>sin olvidar los detalles.</h2><div><p>El encoder entiende el contexto global. El decoder recupera la resolución. Las conexiones de salto conservan información espacial fina.</p><span class="pill">8.558.721 parámetros</span></div></div>
+      <div class="unet-wrap reveal">
+        <div class="unet-label encoder-label">ENCODER · COMPRIME</div><div class="unet-label decoder-label">DECODER · RECONSTRUYE</div>
+        <div class="unet">
+          <div class="u-node n1"><b>128²</b><span>64 ch</span></div><div class="u-link down"></div>
+          <div class="u-node n2"><b>64²</b><span>128 ch</span></div><div class="u-link down"></div>
+          <div class="u-node n3"><b>32²</b><span>256 ch</span></div><div class="u-link down"></div>
+          <div class="u-node bottleneck"><small>LATENTE</small><b>16²</b><span>512 ch</span></div><div class="u-link up"></div>
+          <div class="u-node n3 out"><b>32²</b><span>256 ch</span></div><div class="u-link up"></div>
+          <div class="u-node n2 out"><b>64²</b><span>128 ch</span></div><div class="u-link up"></div>
+          <div class="u-node n1 out"><b>128²</b><span>64 ch</span></div>
+          <svg class="skip-lines" viewBox="0 0 1000 290" preserveAspectRatio="none" aria-label="Conexiones de salto"><path d="M65 80 C65 5 935 5 935 80"/><path d="M210 150 C210 60 790 60 790 150"/><path d="M355 220 C355 135 645 135 645 220"/></svg>
+        </div>
+        <div class="unet-caption"><span><i class="dot cyan"></i> Conv 3×3 · SiLU · GroupNorm</span><span><i class="dot green"></i> Bilinear upsample + Conv 3×3</span><span><i class="line"></i> Skip connection</span></div>
+      </div>
+      <div class="why-grid">
+        <article><span>01</span><h3>¿Por qué ruido?</h3><p>Evita que la red aprenda una copia trivial. La obliga a modelar la estructura normal para poder restaurarla.</p></article>
+        <article><span>02</span><h3>¿Por qué U-Net?</h3><p>Combina contexto y detalle. Es especialmente adecuada para imágenes donde importa la posición de cada región.</p></article>
+        <article><span>03</span><h3>¿Por qué sin sigmoid?</h3><p>La salida es una regresión lineal de intensidades, sin saturar artificialmente la reconstrucción.</p></article>
+      </div>
+    </section>
+
+    <section class="scoring" id="recorrido">
+      <div class="section-index">05 — DE UNA IMAGEN A UNA DECISIÓN</div>
+      <div class="scoring-head"><h2>El residuo se convierte<br>en una sola puntuación.</h2><p>Cuatro operaciones limpian el error antes de decidir. El objetivo es que un píxel aislado no active una alarma.</p></div>
+      <div class="score-steps">
+        <article><div class="score-visual two-brains"><div class="brain small"></div><b>−</b><div class="brain small faded"></div></div><span>01</span><h3>Error absoluto</h3><code>|x − fθ(x)|</code></article>
+        <article><div class="score-visual mask-visual"><div class="brain small"></div><i></i></div><span>02</span><h3>Máscara interior</h3><p>Promedio 5×5 &gt; 0,95</p></article>
+        <article><div class="score-visual pixels"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span>03</span><h3>Filtro mediana</h3><p>Ventana 5×5</p></article>
+        <article><div class="score-visual max-visual"><i></i><i></i><i></i><i></i><b>MAX</b></div><span>04</span><h3>Máximo espacial</h3><code>s(x) = max A(x)</code></article>
+      </div>
+      <div class="threshold-lab reveal">
+        <div class="lab-copy"><span class="lab-label">LABORATORIO DEL UMBRAL</span><h3>¿Dónde trazamos la línea?</h3><p>El umbral <strong>0,18611</strong> se eligió en validación maximizando el índice de Youden: sensibilidad − tasa de falsos positivos.</p><div class="threshold-read"><span>Normal</span><b id="thresholdValue">0,186</b><span>Anómalo</span></div><input id="threshold" type="range" min="0.075" max="0.55" step="0.001" value="0.186" aria-label="Umbral de anomalía"><p class="lab-note" id="thresholdNote">Umbral calibrado: equilibrio elegido antes de mirar el test.</p></div>
+        <div class="distribution"><div class="chart-title"><span>Distribución real de scores · test</span><span><i class="normal-key"></i> Normal <i class="anomaly-key"></i> Anómalo</span></div><svg id="histogram" viewBox="0 0 700 300" role="img" aria-label="Histograma de puntuaciones normales y anómalas"></svg></div>
+      </div>
+    </section>
+
+    <section class="results dark-section" id="resultados">
+      <div class="section-index light">06 — LO QUE OCURRIÓ</div>
+      <div class="results-head"><div><h2>Una separación alta,<br>medida de dos formas.</h2><p>Resultados de una ejecución completa con semilla 42. Test reservado: 3.715 cortes.</p></div><div class="run-stamp"><span>SCIENTIFIC RUN</span><b>50 épocas · GPU · 1h 35m</b></div></div>
+      <div class="metric-grid reveal">
+        <article class="metric hero-metric"><span>AUROC · TEST</span><strong>0,9633</strong><div class="metric-bar"><i style="width:96.33%"></i></div><p>En el 96,33% de las parejas, un corte anómalo recibe más score que uno normal.</p></article>
+        <article class="metric"><span>BALANCED ACCURACY</span><strong>0,9097</strong><div class="metric-ring" style="--value:90.97"><b>90,97%</b></div><p>Promedia sensibilidad y especificidad para no ocultar el desbalance.</p></article>
+        <article class="metric"><span>MEJOR CHECKPOINT</span><strong>47<small>/50</small></strong><div class="spark-wrap"><svg id="lossChart" viewBox="0 0 320 100" aria-label="Curva de pérdida de validación"></svg></div><p>MSE normal mínima: 0,00298.</p></article>
+      </div>
+      <div class="confusion-wrap">
+        <div><span class="overline">MATRIZ DE CONFUSIÓN · TEST</span><h3>3.407 aciertos.<br>308 errores.</h3><p>La exactitud simple sería engañosa porque hay casi cinco veces más cortes anómalos que normales.</p></div>
+        <div class="confusion-matrix"><div class="axis top">PREDICCIÓN</div><div class="axis side">REALIDAD</div><div class="cm-head col-normal">NORMAL</div><div class="cm-head col-anomalous">ANÓMALO</div><div class="cm-label row-normal">NORMAL</div><div class="cm-cell true-negative good"><strong>575</strong><span>verdaderos negativos</span></div><div class="cm-cell false-positive bad"><strong>65</strong><span>falsos positivos</span></div><div class="cm-label row-anomalous">ANÓMALO</div><div class="cm-cell false-negative bad"><strong>243</strong><span>falsos negativos</span></div><div class="cm-cell true-positive good"><strong>2.832</strong><span>verdaderos positivos</span></div></div>
+      </div>
+      <div class="reconstruction-block"><div><span class="overline">SALIDA REAL DEL MODELO</span><h3>Original arriba.<br>Reconstrucción abajo.</h3><p>La anatomía global se conserva. El score nace de las discrepancias locales entre ambas filas.</p></div><figure><img src="assets/reconstructions.png" alt="Ocho cortes FLAIR originales y sus reconstrucciones producidas por el DAE"><figcaption>Ejecución seleccionada · época 47 · semilla 42</figcaption></figure></div>
+    </section>
+
+    <section class="protocol">
+      <div class="section-index">07 — PROTOCOLO SIN ATAJOS</div>
+      <div class="protocol-head"><h2>Cada dato tiene<br>un único papel.</h2><p>Separar entrenamiento, selección, calibración y test evita que la respuesta final se filtre hacia el modelo.</p></div>
+      <div class="data-rail reveal">
+        <article><span class="rail-num">01</span><div class="rail-count">7.500</div><h3>Train · good</h3><p>Aprende los pesos</p><b>Solo normales</b></article>
+        <article><span class="rail-num">02</span><div class="rail-count">39</div><h3>Valid · good</h3><p>Elige la mejor época</p><b>Solo normales</b></article>
+        <article><span class="rail-num">03</span><div class="rail-count">83</div><h3>Valid · mixto</h3><p>Calibra el umbral</p><b>39 N + 44 A</b></article>
+        <article><span class="rail-num">04</span><div class="rail-count">3.715</div><h3>Test · mixto</h3><p>Mide el resultado final</p><b>640 N + 3.075 A</b></article>
+      </div>
+      <div class="config-strip"><span>CONFIGURACIÓN REPRODUCIBLE</span><div><b>128 × 128</b><small>resolución</small></div><div><b>16</b><small>batch</small></div><div><b>10<sup>−4</sup></b><small>learning rate</small></div><div><b>σ 0,2</b><small>ruido</small></div><div><b>42</b><small>semilla</small></div></div>
+    </section>
+
+    <section class="limits">
+      <div class="section-index light">08 — LEER EL RESULTADO CON HONESTIDAD</div>
+      <div class="limits-layout"><div><h2>Es prometedor.<br><em>No es un diagnóstico.</em></h2><p>La contribución es una línea base reproducible y explicable, no un sistema clínico.</p></div><div class="limits-list"><article><span>01</span><p>Trabaja con una sola modalidad <strong>FLAIR</strong> y cortes 2D independientes; pierde contexto 3D y multimodal.</p></article><article><span>02</span><p>La etiqueta es global por corte: no permite medir con rigor la <strong>localización</strong> de una lesión.</p></article><article><span>03</span><p>La validación tiene solo <strong>83 imágenes</strong>; el umbral podría variar con otras muestras.</p></article><article><span>04</span><p>Un benchmark no garantiza generalización a otros hospitales, escáneres o poblaciones.</p></article></div></div>
+      <div class="next-question"><span>LA SIGUIENTE PREGUNTA</span><p>¿Se mantiene el resultado con varias semillas, datos externos, volúmenes 3D y más modalidades?</p><b>→ Trabajo futuro</b></div>
+    </section>
+  </main>
+
+  <footer><div class="footer-mark">DÆ</div><div><strong>Detección no supervisada de anomalías<br>en cortes cerebrales mediante un DAE</strong><span>Proyecto académico · Uso experimental</span></div><div class="footer-links"><a href="../README.md">README</a><a href="../docs/memoria.pdf">Memoria PDF</a><a href="#inicio">Volver arriba ↑</a></div></footer>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -14,6 +14,24 @@ La implementacion esta basada en Kascenas, Pugeault y O'Neil,
 
 Articulo: https://proceedings.mlr.press/v172/kascenas22a.html
 
+## Guia visual del proyecto
+
+La explicacion interactiva y visual del proyecto esta en
+[`web/index.html`](web/index.html). Se puede abrir directamente en el navegador;
+no requiere instalar dependencias ni ejecutar un servidor.
+
+## Demo interactiva del modelo
+
+La demo carga el checkpoint congelado, permite elegir entre seis cortes o subir
+una imagen propia y muestra la reconstruccion, el mapa de residuo y el score:
+
+```powershell
+python -m tfm_ae.demo_server
+```
+
+Abre `http://127.0.0.1:8000`. Las imagenes subidas se procesan en memoria, no se
+guardan, y los pesos permanecen en modo evaluacion durante toda la inferencia.
+
 ## Instalacion
 
 ```powershell

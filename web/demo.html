@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07110f">
+  <meta name="description" content="Demo interactiva del autoencoder congelado para reconstrucción de cortes cerebrales FLAIR.">
+  <title>DAE Lab · Reconstrucción interactiva</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html"><span>DÆ</span><b>reconstruction lab</b></a>
+    <div class="model-state"><i></i><span>checkpoint</span><b>epoch_47 · frozen</b></div>
+    <a class="back-link" href="index.html">Cómo funciona <span>↗</span></a>
+  </header>
+
+  <main>
+    <section class="intro">
+      <p class="kicker"><span>LIVE INFERENCE</span> · DENOISING AUTOENCODER</p>
+      <h1>Enséñale un corte.<br><em>Observa qué recuerda.</em></h1>
+      <p class="intro-copy">El modelo solo aprendió anatomía normal. Compara la imagen con su reconstrucción y convierte las diferencias en un mapa de residuo.</p>
+      <div class="micro-stats">
+        <span><b>128²</b> entrada</span><span><b>8,56 M</b> parámetros</span><span><b>0,186</b> umbral</span>
+      </div>
+    </section>
+
+    <section class="lab" aria-label="Laboratorio de reconstrucción">
+      <aside class="source-panel">
+        <div class="panel-heading">
+          <span>01 · ELIGE UN CORTE</span>
+          <small>6 EJEMPLOS</small>
+        </div>
+        <div class="samples" id="samples">
+          <button class="sample active" data-src="assets/demo/sample-01.png" data-name="Corte 01"><img src="assets/demo/sample-01.png" alt="Corte cerebral de ejemplo 1"><span>01</span></button>
+          <button class="sample" data-src="assets/demo/sample-02.png" data-name="Corte 02"><img src="assets/demo/sample-02.png" alt="Corte cerebral de ejemplo 2"><span>02</span></button>
+          <button class="sample" data-src="assets/demo/sample-03.png" data-name="Corte 03"><img src="assets/demo/sample-03.png" alt="Corte cerebral de ejemplo 3"><span>03</span></button>
+          <button class="sample" data-src="assets/demo/sample-04.png" data-name="Corte 04"><img src="assets/demo/sample-04.png" alt="Corte cerebral de ejemplo 4"><span>04</span></button>
+          <button class="sample" data-src="assets/brain-normal-axial.png" data-name="Corte 05"><img src="assets/brain-normal-axial.png" alt="Corte cerebral de ejemplo 5"><span>05</span></button>
+          <button class="sample" data-src="assets/brain-anomaly-high.png" data-name="Corte 06"><img src="assets/brain-anomaly-high.png" alt="Corte cerebral de ejemplo 6"><span>06</span></button>
+        </div>
+
+        <div class="or"><span>o usa el tuyo</span></div>
+        <label class="dropzone" id="dropzone" for="fileInput">
+          <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp">
+          <span class="upload-icon">＋</span>
+          <b>Arrastra una imagen</b>
+          <small>PNG, JPG o WEBP · máx. 10 MB</small>
+        </label>
+        <p class="privacy"><i>✓</i> Se procesa localmente en este servidor y no se almacena.</p>
+      </aside>
+
+      <div class="workspace">
+        <div class="workspace-head">
+          <div><span>02 · RECONSTRUCCIÓN</span><b id="caseName">Corte 01</b></div>
+          <button id="runButton" class="run-button"><span>Ejecutar modelo</span><i>→</i></button>
+        </div>
+
+        <div class="error-banner" id="errorBanner" role="alert"></div>
+        <div class="viewer-grid" id="viewerGrid">
+          <figure class="scan-card input-card">
+            <figcaption><span>ENTRADA</span><small>FLAIR · 128 × 128</small></figcaption>
+            <div class="image-stage"><img id="inputImage" src="assets/demo/sample-01.png" alt="Imagen de entrada seleccionada"><div class="scanline"></div></div>
+          </figure>
+          <div class="flow-arrow"><i></i><span>DAE</span><i></i></div>
+          <figure class="scan-card output-card">
+            <figcaption><span>RECONSTRUCCIÓN</span><small>fθ(x)</small></figcaption>
+            <div class="image-stage result-stage"><div class="placeholder" id="reconPlaceholder"><span>∿</span><small>ESPERANDO<br>INFERENCIA</small></div><img id="reconImage" alt="Reconstrucción generada por el modelo"><div class="processing-grid"></div></div>
+          </figure>
+        </div>
+
+        <div class="analysis-panel" id="analysisPanel">
+          <div class="analysis-head">
+            <div><span>03 · LEE LA DIFERENCIA</span><p>El color señala dónde la reconstrucción se aleja de la entrada.</p></div>
+            <div class="view-tabs" role="tablist">
+              <button class="active" data-view="heatmap">Residuo</button>
+              <button data-view="compare">Comparador</button>
+            </div>
+          </div>
+
+          <div class="result-layout">
+            <div class="heatmap-wrap">
+              <div class="heatmap-empty" id="heatmapEmpty">El mapa aparecerá aquí</div>
+              <img id="heatmapImage" alt="Mapa de error de reconstrucción">
+              <div class="compare-view" id="compareView">
+                <img id="compareBefore" src="assets/demo/sample-01.png" alt="Entrada">
+                <div class="compare-after" id="compareAfter"><img id="compareRecon" alt="Reconstrucción"></div>
+                <input id="compareSlider" type="range" min="0" max="100" value="50" aria-label="Comparar entrada y reconstrucción">
+                <span class="compare-label before">ENTRADA</span><span class="compare-label after">RECON.</span>
+              </div>
+              <div class="heat-legend"><span>ERROR BAJO</span><i></i><span>ERROR ALTO</span></div>
+            </div>
+
+            <div class="score-card">
+              <span class="score-label">ANOMALY SCORE</span>
+              <strong id="scoreValue">—</strong>
+              <div class="gauge"><i id="gaugeFill"></i><b id="thresholdMark"><span>τ 0,186</span></b></div>
+              <div class="gauge-labels"><span>compatible</span><span>atípico</span></div>
+              <div class="verdict idle" id="verdict"><i></i><div><b>Sin analizar</b><span>Ejecuta el modelo para obtener una lectura.</span></div></div>
+              <p class="warning">Resultado experimental. No constituye un diagnóstico médico.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="how-read">
+      <span>UNA INFERENCIA, TRES VISTAS</span>
+      <div><b>01</b><h2>Entrada</h2><p>Se convierte a escala de grises y se ajusta a 128 × 128.</p></div>
+      <div><b>02</b><h2>Reconstrucción</h2><p>Los pesos están congelados: el modelo no aprende de tu imagen.</p></div>
+      <div><b>03</b><h2>Residuo</h2><p>El error filtrado se compara con el umbral calibrado en validación.</p></div>
+    </section>
+  </main>
+
+  <footer><span>DÆ · TFM</span><p>Detección no supervisada de anomalías en cortes cerebrales</p><a href="index.html">Volver al proyecto ↑</a></footer>
+  <script src="demo.js"></script>
+</body>
+</html>
