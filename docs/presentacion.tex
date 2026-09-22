@@ -64,6 +64,15 @@
     s(x_N)<s(x_A),\qquad x_N\sim p_N,\quad x_A\not\sim p_N.
   \]
 
+  {\small
+  \begin{description}
+    \item[$x_N$, $x_A$:] corte cerebral normal y corte cerebral anómalo, respectivamente.
+    \item[$p_N$:] distribución de las imágenes normales que se busca aprender.
+    \item[$s(x)$:] puntuación de anomalía del corte $x$, calculada a partir del error
+      de reconstrucción; un valor mayor indica mayor anomalía.
+  \end{description}
+  }
+
   \begin{itemize}
     \item Los pesos se entrenan solo con \texttt{train/good} (imágenes normales).
     \item Una anomalía es una imagen incompatible con la distribución normal aprendida.
@@ -114,22 +123,6 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{¿Por qué una máscara de primer plano?}
-  El fondo de la resonancia es prácticamente negro y no aporta información útil
-  para detectar anomalías cerebrales.
-
-  \[
-    M=\mathbb{1}(x>0{,}01)
-  \]
-
-  \begin{itemize}
-    \item El umbral 0,01 separa fondo casi negro de primer plano.
-    \item El ruido de entrenamiento se aplica solo donde $M=1$.
-    \item La MSE también se calcula solo sobre el primer plano.
-    \item Así el modelo no obtiene una pérdida artificialmente baja por reconstruir fondo negro.
-  \end{itemize}
-\end{frame}
-
 \section{Del autoencoder al DAE}
 
 \begin{frame}{Primero: ¿qué es un autoencoder (AE)?}
@@ -176,10 +169,6 @@
     \item Para lograrlo, aprende patrones de los cortes normales, no una copia píxel a píxel.
   \end{enumerate}
 
-  \begin{block}{Diferencia esencial}
-    AE: $x\mapsto x$. DAE: $\widetilde{x}\mapsto x$. La etiqueta objetivo sigue
-    siendo la propia imagen, pero la entrada y el objetivo ya no son idénticos.
-  \end{block}
 \end{frame}
 
 \begin{frame}{¿Por qué un DAE y no copiar la entrada?}
@@ -208,6 +197,27 @@
   \end{columns}
 
   \vspace{0.3cm}
+  Basado en la idea de Kascenas et al. \cite{kascenas2022denoising}.
+\end{frame}
+
+\begin{frame}{¿Por qué una máscara de primer plano?}
+  El fondo de la resonancia es prácticamente negro y no aporta información útil
+  para detectar anomalías cerebrales.
+
+  \[
+    M(x)=\begin{cases}
+      0, & \text{si } x\leq 0{,}01 \quad \text{(fondo)},\\
+      1, & \text{si } x>0{,}01 \quad \text{(primer plano)}.
+    \end{cases}
+  \]
+
+  \begin{itemize}
+    \item El umbral 0,01 separa fondo casi negro de primer plano.
+    \item El ruido de entrenamiento se aplica solo donde $M=1$.
+    \item La MSE también se calcula solo sobre el primer plano.
+    \item Así el modelo no obtiene una pérdida artificialmente baja por reconstruir fondo negro.
+  \end{itemize}
+
   Basado en la idea de Kascenas et al. \cite{kascenas2022denoising}.
 \end{frame}
 
