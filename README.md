@@ -5,12 +5,31 @@ FLAIR de Brain-AD / BraTS2021: un **Denoising Autoencoder (DAE)**.
 
 La implementacion esta basada en Kascenas, Pugeault y O'Neil,
 *Denoising Autoencoders for Unsupervised Anomaly Detection in Brain MRI*
-(MIDL 2022). El metodo es deliberadamente sencillo:
+(MIDL 2022), pero adapta el metodo a deteccion binaria a nivel de imagen
+utilizando unicamente la modalidad FLAIR.
 
-1. Entrena solo con imagenes normales.
-2. Anade ruido gaussiano de baja resolucion al primer plano.
+El pipeline actual es:
+
+1. Entrena solo con imagenes FLAIR normales.
+2. Anade coarse Gaussian noise de baja resolucion al primer plano.
 3. Reconstruye la imagen limpia con una U-Net de tres reducciones y conexiones skip.
-4. Usa el error absoluto de reconstruccion como puntuacion de anomalia.
+4. En inferencia no se anade ruido.
+5. Calcula el error absoluto entre original y reconstruccion.
+6. Aplica mascara de foreground y filtro de mediana 5x5.
+7. Reduce el mapa de error a un unico score mediante el maximo espacial.
+8. Selecciona el threshold en validacion mediante Youden J.
+9. Evalua en test con AUROC y balanced accuracy.
+
+### Diferencias principales respecto a Kascenas et al.
+
+- Nuestro modelo recibe unicamente FLAIR (1 canal), no las cuatro modalidades MRI combinadas.
+- El decoder usa upsampling bilinear seguido de Conv2d.
+- No se aplica weight standardization en las convoluciones.
+- El optimizador es Adam con AMSGrad y weight_decay=1e-5.
+- El scheduler actual es CosineAnnealingLR con T_max=100.
+- El objetivo final es clasificar cada corte como normal o anomalo a nivel de imagen.
+- El mapa de error se convierte en un score por imagen usando su maximo espacial.
+- El threshold se obtiene exclusivamente sobre validacion mediante el estadistico de Youden.
 
 Articulo: https://proceedings.mlr.press/v172/kascenas22a.html
 
@@ -73,10 +92,11 @@ Parametros principales:
 --noise-resolution    Resolucion del ruido antes de interpolar (def: 16)
 ```
 
-La configuracion sigue los valores principales de Kascenas et al.: batch 16,
-Adam con AMSGrad, learning rate maximo `1e-4`, ciclo coseno de 200 pasos, ruido
-gaussiano `16x16` con sigma `0.2`. La configuracion de ejecucion predeterminada
-entrena una unica semilla durante 50 epochs.
+La configuracion actual usa batch 16, Adam con AMSGrad y weight_decay=`1e-5`,
+learning rate inicial `1e-4`, CosineAnnealingLR con `T_max=100`, y ruido
+gaussiano coarse de `16x16` con sigma `0.2`. La ejecucion predeterminada
+entrena una unica semilla durante 50 epochs y conserva el checkpoint con menor
+perdida de validacion sobre imagenes normales.
 
 Cada ejecucion guarda `model.pt`, `metrics.json`, los scores de validacion y
 test, y una imagen con reconstrucciones en `results/experiments/dae_seed{N}/`.
