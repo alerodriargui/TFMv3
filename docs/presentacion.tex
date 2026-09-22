@@ -117,7 +117,7 @@
   \begin{itemize}
     \item Cortes 2D FLAIR en PNG monocromo.
     \item Redimensionado de $240\times240$ a $128\times128$ para reducir coste computacional.
-    \item Conversión a \texttt{float32} y normalización a $[0,1]$.
+    \item Conversión a \texttt{float32} y reescalado de las intensidades de 0--255 a 0--1.
     \item Tensor final por imagen: $1\times128\times128$.
     \item Sin data augmentation geométrica.
   \end{itemize}
@@ -179,7 +179,7 @@
         x\longrightarrow f_\theta(x)\approx x
       \]
       \begin{itemize}
-        \item Puede aproximarse demasiado a la identidad.
+        \item Puede acabar devolviendo prácticamente lo mismo que recibe, sin introducir cambios relevantes.
         \item Una red potente podría reconstruir también anomalías.
       \end{itemize}
     \end{column}
@@ -260,12 +260,12 @@
     \item Generar ruido gaussiano a baja resolución: $16\times16$.
     \item Interpolarlo bilinealmente a $128\times128$.
     \item Desplazarlo circularmente en posiciones aleatorias.
-    \item Aplicarlo solo al primer plano cerebral.
+    \item \textbf{Añadir el ruido únicamente a la zona de la imagen donde aparece el cerebro}, dejando intacto el fondo negro que lo rodea.
   \end{enumerate}
 
   \begin{block}{Por qué ruido grueso}
-    Produce perturbaciones espaciales suaves y de mayor escala; eliminar ruido
-    píxel a píxel sería una tarea más local y potencialmente más trivial.
+    Se utiliza ruido grueso para alterar regiones amplias de la imagen y favorecer
+    que la red aprenda la estructura normal del cerebro al reconstruirlas.
   \end{block}
 \end{frame}
 
