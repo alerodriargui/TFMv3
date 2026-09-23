@@ -51,7 +51,7 @@
   <nav class="nav" aria-label="Navegación principal">
     <a class="brand" href="#inicio"><span class="brand-mark">DÆ</span><span>Dentro del modelo</span></a>
     <div class="nav-links">
-      <a href="#idea">La idea</a><a href="#proceso">Proceso</a><a href="#arquitectura">Arquitectura</a><a href="#resultados">Resultados</a>
+      <a href="#idea">La idea</a><a href="#proceso">Proceso</a><a href="#arquitectura">Arquitectura</a><a href="#animacion">Animación</a><a href="#resultados">Resultados</a>
     </div>
     <a class="nav-cta" href="demo.html">Probar el modelo <span>↗</span></a>
   </nav>
@@ -193,6 +193,18 @@
       </div>
     </section>
 
+    <section class="training-viz" id="animacion" aria-labelledby="viz-title">
+      <div class="section-index light">05 — EL MODELO EN MOVIMIENTO</div>
+      <div class="viz-intro"><div><h2 id="viz-title">Ver a la red<br><em>aprender a reconstruir.</em></h2><p>Un recorrido visual por el DAE: el corte entra, se comprime, pasa por las conexiones de salto y vuelve a convertirse en imagen.</p></div><div class="viz-key"><span><i class="viz-dot cyan"></i> Encoder</span><span><i class="viz-dot lime"></i> Decoder</span><span><i class="viz-dot orange"></i> Error</span></div></div>
+      <div class="viz-frame">
+        <div class="viz-toolbar"><span class="viz-live"><i></i> VISUALIZACIÓN DEL DAE</span><div class="viz-tabs" role="group" aria-label="Fase de la animación"><button class="is-active" type="button" data-viz-mode="train" aria-pressed="true">Entrenamiento</button><button type="button" data-viz-mode="infer" aria-pressed="false">Detección</button></div></div>
+        <div class="viz-canvas-wrap"><canvas id="daeCanvas" width="1100" height="480" role="img" aria-label="Esquema animado del autoencoder: imagen FLAIR, tres niveles de compresión, cuello de botella, tres niveles de reconstrucción y salida"></canvas></div>
+        <div class="viz-readout"><div><span id="vizInputLabel">ENTRADA · NORMAL + RUIDO</span><strong>FLAIR 128 × 128</strong></div><div><span>MODELO</span><strong>U-Net · 3 reducciones + skip</strong></div><div><span id="vizOutputLabel">OBJETIVO · CORTE LIMPIO</span><strong id="vizOutputValue">Pérdida MSE en primer plano</strong></div></div>
+      </div>
+      <div class="viz-controls"><button id="vizPlay" type="button" aria-label="Pausar animación">⏸ <span>Pausar</span></button><div class="viz-timeline"><div class="viz-timeline-top"><label for="vizEpoch">EJECUCIÓN REGISTRADA · SEMILLA 42</label><output id="vizEpochValue" for="vizEpoch">Época 1 / 50</output></div><input id="vizEpoch" type="range" min="1" max="50" value="1" aria-label="Recorrer las 50 épocas registradas"><div class="viz-loss"><span>VALIDACIÓN MSE</span><strong id="vizLossValue">0,007729</strong></div></div></div>
+      <p class="viz-disclaimer" id="vizNote">La animación de capas y señales es ilustrativa. La pérdida por época procede de la ejecución registrada; las imágenes y activaciones no son una reproducción de cada paso del entrenamiento.</p>
+    </section>
+
     <section class="scoring" id="recorrido">
       <div class="section-index">05 — DE UNA IMAGEN A UNA DECISIÓN</div>
       <div class="scoring-head"><h2>El residuo se convierte<br>en una sola puntuación.</h2><p>Cuatro operaciones limpian el error antes de decidir. El objetivo es que un píxel aislado no active una alarma.</p></div>
@@ -244,5 +256,6 @@
 
   <footer><div class="footer-mark">DÆ</div><div><strong>Detección no supervisada de anomalías<br>en cortes cerebrales mediante un DAE</strong><span>Proyecto académico · Uso experimental</span></div><div class="footer-links"><a href="../README.md">README</a><a href="../docs/memoria.pdf">Memoria PDF</a><a href="#inicio">Volver arriba ↑</a></div></footer>
   <script src="app.js"></script>
+  <script src="training-viz.js"></script>
 </body>
 </html>
