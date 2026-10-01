@@ -408,53 +408,6 @@ if (youdenChart && youdenSlider) {
   renderYouden();
 }
 
-// Curva ROC del test y traducción dinámica a sensibilidad, especificidad y BA.
-const rocChart = $('#rocChart');
-const rocSlider = $('#rocPoint');
-if (rocChart && rocSlider) {
-  const rocPoints = [[0,0],[0,.0312],[0,.0621],[0,.0930],[0,.1242],[0,.1551],[0,.1860],[0,.2169],[0,.2481],[0,.2790],[0,.3099],[0,.3408],[0,.3720],[0,.4029],[0,.4338],[.0031,.4641],[.0047,.4950],[.0047,.5259],[.0047,.5567],[.0047,.5876],[.0063,.6185],[.0063,.6494],[.0063,.6803],[.0063,.7112],[.0078,.7421],[.0094,.7727],[.0141,.8026],[.0234,.8315],[.0391,.8595],[.0531,.8875],[.0813,.9125],[.1016,.9210],[.1297,.9333],[.2047,.9489],[.3031,.9593],[.3969,.9707],[.4938,.9815],[.6234,.9857],[.7516,.9899],[.8703,.9961],[1,1]];
-  const calibratedIndex = 31;
-  const rw = 460, rh = 360, rp = { l:58, r:20, t:22, b:52 };
-  const sx = value => rp.l + value * (rw - rp.l - rp.r);
-  const sy = value => rh - rp.b - value * (rh - rp.t - rp.b);
-  rocSlider.max = String(rocPoints.length - 1); rocSlider.value = String(calibratedIndex);
-
-  for (let i = 0; i <= 4; i += 1) {
-    const value = i / 4, x = sx(value), y = sy(value);
-    rocChart.append(svgEl('line',{x1:x,y1:rp.t,x2:x,y2:rh-rp.b,stroke:'#263b32','stroke-width':1}));
-    rocChart.append(svgEl('line',{x1:rp.l,y1:y,x2:rw-rp.r,y2:y,stroke:'#263b32','stroke-width':1}));
-    const tx = svgEl('text',{x,y:rh-25,fill:'#71847a','font-size':10,'text-anchor':'middle','font-family':'DM Mono'}); tx.textContent=value.toFixed(2).replace('.',','); rocChart.append(tx);
-    const ty = svgEl('text',{x:43,y:y+4,fill:'#71847a','font-size':10,'text-anchor':'end','font-family':'DM Mono'}); ty.textContent=value.toFixed(2).replace('.',','); rocChart.append(ty);
-  }
-  rocChart.append(svgEl('line',{x1:sx(0),y1:sy(0),x2:sx(1),y2:sy(1),stroke:'#65766e','stroke-width':1.5,'stroke-dasharray':'6 6'}));
-  const curve = rocPoints.map(([fpr,tpr]) => `${sx(fpr)},${sy(tpr)}`).join(' ');
-  rocChart.append(svgEl('polygon',{points:`${sx(0)},${sy(0)} ${curve} ${sx(1)},${sy(0)}`,fill:'#74e1d0','fill-opacity':.12}));
-  rocChart.append(svgEl('polyline',{points:curve,fill:'none',stroke:'#74e1d0','stroke-width':4,'stroke-linejoin':'round'}));
-  const rocPoint = svgEl('circle',{r:7,fill:'#ff6a3d',stroke:'#fff','stroke-width':2}); rocChart.append(rocPoint);
-  const xLabel = svgEl('text',{x:(rp.l+rw-rp.r)/2,y:rh-4,fill:'#91a39a','font-size':11,'text-anchor':'middle','font-family':'DM Mono'}); xLabel.textContent='TASA DE FALSOS POSITIVOS · 1 − especificidad'; rocChart.append(xLabel);
-  const yLabel = svgEl('text',{x:13,y:(rp.t+rh-rp.b)/2,fill:'#91a39a','font-size':11,'text-anchor':'middle','font-family':'DM Mono',transform:`rotate(-90 13 ${(rp.t+rh-rp.b)/2})`}); yLabel.textContent='SENSIBILIDAD'; rocChart.append(yLabel);
-
-  const renderRocPoint = () => {
-    const index = Number(rocSlider.value), [fpr,tpr] = rocPoints[index];
-    const specificity = 1 - fpr, balanced = (tpr + specificity) / 2;
-    rocPoint.setAttribute('cx', sx(fpr)); rocPoint.setAttribute('cy', sy(tpr));
-    $('#sensitivityValue').textContent = `${(tpr*100).toFixed(2).replace('.',',')}%`;
-    $('#specificityValue').textContent = `${(specificity*100).toFixed(2).replace('.',',')}%`;
-    $('#baValue').textContent = `${(balanced*100).toFixed(2).replace('.',',')}%`;
-    $('#baEquationValue').textContent = `= ${(balanced*100).toFixed(2).replace('.',',')}%`;
-    $('#sensitivityBar').style.width = `${tpr*100}%`; $('#specificityBar').style.width = `${specificity*100}%`;
-    const tp = Math.round(tpr * 3075), fn = 3075 - tp;
-    const tn = Math.round(specificity * 640), fp = 640 - tn;
-    const formatCount = value => value.toLocaleString('es-ES');
-    $('#sensitivityNumerator').textContent = formatCount(tp);
-    $('#sensitivityDenominator').textContent = `${formatCount(tp)} + ${formatCount(fn)}`;
-    $('#specificityNumerator').textContent = formatCount(tn);
-    $('#specificityDenominator').textContent = `${formatCount(tn)} + ${formatCount(fp)}`;
-    $('#rocMode').textContent = index === calibratedIndex ? 'Umbral calibrado · 0,18611' : index < calibratedIndex ? 'Umbral más estricto' : 'Umbral más permisivo';
-  };
-  rocSlider.addEventListener('input', renderRocPoint); renderRocPoint();
-}
-
 const sections = $$('main section[id]');
 const navLinks = $$('.nav-links a');
 const navObserver = new IntersectionObserver(entries => entries.forEach(entry => {

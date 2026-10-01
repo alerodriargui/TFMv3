@@ -270,7 +270,7 @@
 
     <section class="results dark-section" id="resultados">
       <div class="section-index light">06 — RESULTADO</div>
-      <div class="results-head"><div><h2>Una separación alta,<br>medida de dos formas.</h2><p>Resultados de una ejecución completa con semilla 42.</p></div><div class="run-stamp"><span>SCIENTIFIC RUN</span><b>50 épocas · GPU · 1h 35m</b></div></div>
+      <div class="results-head"><div><p>Resultados de una ejecución completa con semilla 42.</p></div><div class="run-stamp"><span>SCIENTIFIC RUN</span><b>50 épocas · GPU · 1h 35m</b></div></div>
       <div class="metric-grid reveal">
         <article class="metric hero-metric"><span>AUROC · TEST</span><strong>0,9633</strong><div class="metric-bar"><i style="width:96.33%"></i></div><p>En el 96,33% de las parejas, un corte anómalo recibe más score que uno normal.</p></article>
         <article class="metric"><span>BALANCED ACCURACY</span><strong>0,9097</strong><div class="metric-ring" style="--value:90.97"><b>90,97%</b></div><p>Promedia sensibilidad y especificidad para no ocultar el desbalance.</p></article>
@@ -294,27 +294,6 @@
         </p>
         <p class="youden-note">El umbral se selecciona exclusivamente en validación. Después se congela y se aplica una sola vez al test; no se elige mirando los resultados finales.</p>
       </div>
-      <div class="metrics-lab reveal" aria-labelledby="metrics-lab-title">
-        <div class="metrics-lab-heading"><span class="overline">LABORATORIO DE MÉTRICAS · TEST</span><h3 id="metrics-lab-title">Dos preguntas diferentes.</h3></div>
-        <div class="roc-panel">
-          <div class="metric-explain-title"><span>01 · AUROC</span><b>Área = 0,9633</b></div>
-          <svg id="rocChart" viewBox="0 0 460 360" role="img" aria-label="Curva ROC real del conjunto de test con punto de operación interactivo"></svg>
-          <p>Cuanto más se acerca la curva a la esquina superior izquierda, mejor separa anomalías de normales. La diagonal representa una ordenación aleatoria.</p>
-        </div>
-        <div class="balance-panel">
-          <div class="metric-explain-title"><span>02 · BALANCED ACCURACY</span><b id="baValue">90,97%</b></div>
-          <div class="class-counts"><span><i style="--count:20.8%"></i><b>640 normales</b></span><span><i style="--count:100%"></i><b>3.075 anómalos</b></span></div>
-          <div class="recall-row"><div><span>SENSIBILIDAD</span><b id="sensitivityValue">92,10%</b><small>Anómalos detectados</small></div><i><span id="sensitivityBar" style="width:92.10%"></span></i><div class="metric-fraction"><span>Sensibilidad =</span><span class="fraction-stack"><b>TP</b><i>TP + FN</i></span><span>=</span><span class="fraction-stack"><b id="sensitivityNumerator">2.832</b><i id="sensitivityDenominator">2.832 + 243</i></span></div></div>
-          <div class="recall-row"><div><span>ESPECIFICIDAD</span><b id="specificityValue">89,84%</b><small>Normales reconocidos</small></div><i><span id="specificityBar" style="width:89.84%"></span></i><div class="metric-fraction"><span>Especificidad =</span><span class="fraction-stack"><b>TN</b><i>TN + FP</i></span><span>=</span><span class="fraction-stack"><b id="specificityNumerator">575</b><i id="specificityDenominator">575 + 65</i></span></div></div>
-          <div class="ba-equation"><span>BA =</span><span class="ba-fraction"><b>sensibilidad + especificidad</b><i>2</i></span><strong id="baEquationValue">= 90,97%</strong></div>
-          <p>Cada clase aporta el 50%, aunque el test contenga casi cinco veces más cortes anómalos.</p>
-        </div>
-        <div class="roc-control">
-          <div><label for="rocPoint">MOVER EL UMBRAL SOBRE LA CURVA ROC</label><output id="rocMode" for="rocPoint">Umbral calibrado · 0,18611</output></div>
-          <input id="rocPoint" type="range" min="0" max="40" value="31" aria-label="Recorrer puntos de operación de la curva ROC">
-          <div class="roc-control-scale"><span>Umbral estricto<br>pocas alarmas</span><span>← cambia el equilibrio →</span><span>Umbral permisivo<br>más detecciones</span></div>
-        </div>
-      </div>
       <div class="confusion-wrap">
         <div><span class="overline">MATRIZ DE CONFUSIÓN · TEST</span><h3>3.407 aciertos.<br>308 errores.</h3><p>La exactitud simple sería engañosa porque hay casi cinco veces más cortes anómalos que normales.</p></div>
         <div class="confusion-matrix"><div class="axis top">PREDICCIÓN</div><div class="axis side">REALIDAD</div><div class="cm-head col-normal">NORMAL</div><div class="cm-head col-anomalous">ANÓMALO</div><div class="cm-label row-normal">NORMAL</div><div class="cm-cell true-negative good"><strong>575</strong><span>verdaderos negativos</span></div><div class="cm-cell false-positive bad"><strong>65</strong><span>falsos positivos</span></div><div class="cm-label row-anomalous">ANÓMALO</div><div class="cm-cell false-negative bad"><strong>243</strong><span>falsos negativos</span></div><div class="cm-cell true-positive good"><strong>2.832</strong><span>verdaderos positivos</span></div></div>
@@ -322,7 +301,7 @@
     </section>
 
     <section class="protocol">
-      <div class="section-index">07 — PROTOCOLO SIN ATAJOS</div>
+      <div class="section-index">07 — CONJUNTO DE DATOS</div>
       <div class="protocol-head"><h2>Cada dato tiene<br>un único papel.</h2><p>Separar entrenamiento, selección, calibración y test evita que la respuesta final se filtre hacia el modelo.</p></div>
       <div class="data-rail reveal">
         <article><span class="rail-num">01</span><div class="rail-count">7.500</div><h3>Entrenamiento</h3><p>Entrena el modelo</p><b>7.500 normales</b></article>
@@ -335,7 +314,7 @@
 
     <section class="limits">
       <div class="section-index light">08 — LEER EL RESULTADO CON HONESTIDAD</div>
-      <div class="limits-layout"><div><h2><em>No es un diagnóstico.</em></h2><p>La contribución es una línea base reproducible y explicable, no un sistema clínico.</p></div><div class="limits-list"><article><span>01</span><p>Trabaja con una sola modalidad <strong>FLAIR</strong> y cortes 2D independientes.</p></article><article><span>02</span><p>La etiqueta es global por corte: no permite medir con rigor la <strong>localización</strong> de una lesión.</p></article><article><span>03</span><p>La validación tiene solo <strong>83 imágenes</strong>; el umbral podría variar con otras muestras.</p></article><article><span>04</span><p>Un benchmark no garantiza generalización a otros hospitales, escáneres o poblaciones.</p></article></div></div>
+      <div class="limits-layout"><div><h2><em>No es un diagnóstico.</em></h2><p>La contribución es una línea base reproducible y explicable, no un sistema clínico.</p></div><div class="limits-list"><article><span>01</span><p>La etiqueta es global por corte: no permite medir con rigor la <strong>localización</strong> de una lesión.</p></article><article><span>02</span><p>La validación tiene solo <strong>83 imágenes</strong>; el umbral podría variar con otras muestras.</p></article><article><span>03</span><p>Un benchmark no garantiza generalización a otros hospitales, escáneres o poblaciones.</p></article></div></div>
       <div class="next-question"><span>LA SIGUIENTE PREGUNTA</span><p>¿Podemos pasar de detectar una imagen anómala a localizar exactamente el tumor?</p><b>→ Trabajo futuro</b></div>
     </section>
 
