@@ -55,6 +55,15 @@ if (unetStep) {
     ['Decoder · 64²','Se recupera más resolución y se combina con la información guardada en el encoder.'],
     ['Salida · 128²','La red vuelve al tamaño original y produce una intensidad reconstruida para cada píxel.']
   ];
+  const channelStages = [
+    [128,64,'En las primeras capas suelen aparecer respuestas sencillas: bordes, contrastes locales y texturas.'],
+    [64,128,'Con menos posiciones y más canales, la red combina patrones locales en características más variadas.'],
+    [32,256,'Las características abarcan regiones mayores y pueden responder a formas y estructuras anatómicas.'],
+    [16,512,'La representación más profunda tiene máxima variedad de características y el contexto espacial más amplio.'],
+    [32,256,'El decoder combina contexto profundo con características espaciales recuperadas mediante una conexión de salto.'],
+    [64,128,'Al expandirse, la representación reduce canales y recupera progresivamente la localización fina.'],
+    [128,64,'La última representación conserva alta resolución y se transforma en un único canal reconstruido.']
+  ];
   let current = 0, playing = !matchMedia('(prefers-reduced-motion: reduce)').matches, timer;
 
   const renderUnetStep = index => {
@@ -67,6 +76,11 @@ if (unetStep) {
     skips.forEach((path,i) => path.classList.toggle('active', index >= 4 && i === 6-index));
     $('#unetStepValue').textContent = `${String(index+1).padStart(2,'0')} / 07`;
     $('#unetStageTitle').textContent = stages[index][0]; $('#unetStageText').textContent = stages[index][1];
+    const [resolution,channels,meaning] = channelStages[index];
+    $('#channelResolution').textContent = `${resolution} × ${resolution}`;
+    $('#channelCount').textContent = `${channels} canales`;
+    $('#channelMeter').style.width = `${channels/512*100}%`;
+    $('#channelMeaning').textContent = meaning;
   };
   const restartTimer = () => {
     clearInterval(timer);
@@ -427,6 +441,13 @@ if (rocChart && rocSlider) {
     $('#baValue').textContent = `${(balanced*100).toFixed(2).replace('.',',')}%`;
     $('#baEquationValue').textContent = `= ${(balanced*100).toFixed(2).replace('.',',')}%`;
     $('#sensitivityBar').style.width = `${tpr*100}%`; $('#specificityBar').style.width = `${specificity*100}%`;
+    const tp = Math.round(tpr * 3075), fn = 3075 - tp;
+    const tn = Math.round(specificity * 640), fp = 640 - tn;
+    const formatCount = value => value.toLocaleString('es-ES');
+    $('#sensitivityNumerator').textContent = formatCount(tp);
+    $('#sensitivityDenominator').textContent = `${formatCount(tp)} + ${formatCount(fn)}`;
+    $('#specificityNumerator').textContent = formatCount(tn);
+    $('#specificityDenominator').textContent = `${formatCount(tn)} + ${formatCount(fp)}`;
     $('#rocMode').textContent = index === calibratedIndex ? 'Umbral calibrado · 0,18611' : index < calibratedIndex ? 'Umbral más estricto' : 'Umbral más permisivo';
   };
   rocSlider.addEventListener('input', renderRocPoint); renderRocPoint();

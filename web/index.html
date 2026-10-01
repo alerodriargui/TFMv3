@@ -167,6 +167,13 @@
         </div>
       </div>
       <div class="formula-card"><span>OBJETIVO DURANTE EL ENTRENAMIENTO</span><div>ℒ(θ) = <span class="fraction"><b>Σ M ⊙ (x̂ − x)²</b><i>max(Σ M, 1)</i></span></div><p>La máscara <b>M</b> ignora el fondo negro: así la red dedica su capacidad a la anatomía.</p></div>
+      <div class="error-purpose" aria-label="Diferencia entre la pérdida de entrenamiento y el error de inferencia">
+        <div class="error-purpose-title"><span>UNA DIFERENCIA CLAVE</span><h3>Aprender y detectar<br>no usan el error igual.</h3></div>
+        <article><span>ENTRENAMIENTO · ACTUALIZA LA RED</span><div class="error-purpose-formula">M ⊙ (x̂ − x)²</div><h4>Error cuadrático · MSE</h4><p>Se usa para modificar los pesos. Elevar al cuadrado hace que los errores grandes reciban una penalización especialmente fuerte.</p><div class="error-example"><span>Error 0,10</span><b>→</b><strong>0,01</strong><span>Error 0,50</span><b>→</b><strong>0,25</strong></div></article>
+        <i aria-hidden="true">≠</i>
+        <article><span>INFERENCIA · CONSTRUYE EL MAPA</span><div class="error-purpose-formula">|x − fθ(x)|</div><h4>Error absoluto · residuo</h4><p>Se calcula después de congelar la red. Mantiene la diferencia en la misma escala que las intensidades y forma el mapa de anomalía.</p><div class="error-example"><span>Error 0,10</span><b>→</b><strong>0,10</strong><span>Error 0,50</span><b>→</b><strong>0,50</strong></div></article>
+        <p class="error-purpose-summary"><b>MSE pregunta:</b> «¿cómo debo cambiar los pesos para reconstruir mejor?» <span>·</span> <b>Error absoluto pregunta:</b> «¿dónde difiere la reconstrucción de esta imagen?»</p>
+      </div>
     </section>
 
     <section class="noise-lab dark-section" id="ruido" aria-labelledby="noise-title">
@@ -229,6 +236,21 @@
           <button id="unetPlay" type="button" aria-label="Pausar animación de la U-Net">⏸ <span>Pausar</span></button>
           <div class="unet-timeline"><div><label for="unetStep">RECORRIDO POR LA RED</label><output id="unetStepValue" for="unetStep">01 / 07</output></div><input id="unetStep" type="range" min="0" max="6" value="0"><div class="unet-stage-copy"><b id="unetStageTitle">Entrada · 128²</b><span id="unetStageText">La red recibe el corte completo y extrae sus primeros patrones.</span></div></div>
         </div>
+        <div class="channel-explainer">
+          <div class="channel-copy"><span>¿QUÉ SIGNIFICA «CH»?</span><h3>No son nuevas resonancias.<br>Son mapas de características.</h3><p>Cada canal es una matriz aprendida que responde a algún patrón útil. La red decide durante el entrenamiento qué debe representar cada uno; no asignamos manualmente un canal a «bordes» o «texturas».</p></div>
+          <div class="channel-live">
+            <div class="channel-read"><div><span>RESOLUCIÓN ESPACIAL</span><b id="channelResolution">128 × 128</b><small>cuántas posiciones conserva cada mapa</small></div><i aria-hidden="true">↔</i><div><span>MAPAS DE CARACTERÍSTICAS</span><b id="channelCount">64 canales</b><small>cuántos patrones puede codificar</small></div></div>
+            <div class="channel-meter"><span id="channelMeter" style="width:12.5%"></span></div>
+            <p id="channelMeaning">En las primeras capas suelen aparecer respuestas sencillas: bordes, contrastes locales y texturas.</p>
+          </div>
+          <div class="feature-examples" aria-label="Ejemplos conceptuales de características aprendidas">
+            <div><i class="feature-map edges"></i><b>Bordes</b><span>cambios de intensidad</span></div>
+            <div><i class="feature-map textures"></i><b>Texturas</b><span>patrones locales</span></div>
+            <div><i class="feature-map shapes"></i><b>Formas</b><span>estructuras combinadas</span></div>
+            <div><i class="feature-map context"></i><b>Contexto</b><span>relaciones más amplias</span></div>
+          </div>
+          <p class="channel-rule"><b>En el encoder:</b> disminuyen las posiciones espaciales, pero aumentan los canales. La representación sabe menos sobre el detalle exacto de cada píxel y puede describir más tipos de características.</p>
+        </div>
         <p class="unet-disclaimer">Visualización didáctica de la resolución espacial. Las miniaturas permiten ver la compresión y recuperación de tamaño; no representan literalmente los canales ni las activaciones internas aprendidas.</p>
       </div>
       <div class="why-grid">
@@ -268,8 +290,8 @@
         <div class="balance-panel">
           <div class="metric-explain-title"><span>02 · BALANCED ACCURACY</span><b id="baValue">90,97%</b></div>
           <div class="class-counts"><span><i style="--count:20.8%"></i><b>640 normales</b></span><span><i style="--count:100%"></i><b>3.075 anómalos</b></span></div>
-          <div class="recall-row"><div><span>SENSIBILIDAD</span><b id="sensitivityValue">92,10%</b><small>Anómalos detectados</small></div><i><span id="sensitivityBar" style="width:92.10%"></span></i></div>
-          <div class="recall-row"><div><span>ESPECIFICIDAD</span><b id="specificityValue">89,84%</b><small>Normales reconocidos</small></div><i><span id="specificityBar" style="width:89.84%"></span></i></div>
+          <div class="recall-row"><div><span>SENSIBILIDAD</span><b id="sensitivityValue">92,10%</b><small>Anómalos detectados</small></div><i><span id="sensitivityBar" style="width:92.10%"></span></i><div class="metric-fraction"><span>Sensibilidad =</span><span class="fraction-stack"><b>TP</b><i>TP + FN</i></span><span>=</span><span class="fraction-stack"><b id="sensitivityNumerator">2.832</b><i id="sensitivityDenominator">2.832 + 243</i></span></div></div>
+          <div class="recall-row"><div><span>ESPECIFICIDAD</span><b id="specificityValue">89,84%</b><small>Normales reconocidos</small></div><i><span id="specificityBar" style="width:89.84%"></span></i><div class="metric-fraction"><span>Especificidad =</span><span class="fraction-stack"><b>TN</b><i>TN + FP</i></span><span>=</span><span class="fraction-stack"><b id="specificityNumerator">575</b><i id="specificityDenominator">575 + 65</i></span></div></div>
           <div class="ba-equation"><span>BA =</span><span class="ba-fraction"><b>sensibilidad + especificidad</b><i>2</i></span><strong id="baEquationValue">= 90,97%</strong></div>
           <p>Cada clase aporta el 50%, aunque el test contenga casi cinco veces más cortes anómalos.</p>
         </div>

@@ -52,28 +52,40 @@ class FrozenDAE:
         image = torch.from_numpy(pixels.copy()).unsqueeze(0).unsqueeze(0)
         reconstruction = self.model(image)
         foreground = F.avg_pool2d((image > 0.01).float(), 5, stride=1, padding=2) > 0.95
-        error = (reconstruction - image).abs() * foreground
+        raw_error = (reconstruction - image).abs()
+        error = raw_error * foreground
         patches = F.pad(error, (2, 2, 2, 2), mode="reflect")
         patches = patches.unfold(2, 5, 1).unfold(3, 5, 1)
         filtered = patches.contiguous().view(*error.shape, 25).median(-1).values
         anomaly_map = filtered.amax(dim=1)[0]
         score = float(anomaly_map.amax())
+        maximum_index = int(anomaly_map.argmax())
+        maximum_y, maximum_x = divmod(maximum_index, self.image_size)
 
         masked_reconstruction = reconstruction[0, 0] * (image[0, 0] > 0.01)
         input_png = (image[0, 0].clamp(0, 1).numpy() * 255).astype(np.uint8)
         recon_png = (masked_reconstruction.clamp(0, 1).numpy() * 255).astype(np.uint8)
+        raw_heatmap_png = self._colorize(raw_error[0, 0].numpy(), input_png, False)
+        mask_png = (foreground[0, 0].numpy() * 255).astype(np.uint8)
+        masked_heatmap_png = self._colorize(error[0, 0].numpy(), input_png)
         heatmap_png = self._colorize(anomaly_map.numpy(), input_png)
         return {
             "input": _png_base64(input_png),
             "reconstruction": _png_base64(recon_png),
             "heatmap": _png_base64(heatmap_png),
+            "raw_heatmap": _png_base64(raw_heatmap_png),
+            "mask": _png_base64(mask_png),
+            "masked_heatmap": _png_base64(masked_heatmap_png),
             "score": score,
             "threshold": THRESHOLD,
             "is_anomaly": score >= THRESHOLD,
+            "maximum": {"x": maximum_x, "y": maximum_y},
         }
 
     @staticmethod
-    def _colorize(error: np.ndarray, background: np.ndarray) -> np.ndarray:
+    def _colorize(
+        error: np.ndarray, background: np.ndarray, zero_background: bool = True,
+    ) -> np.ndarray:
         scale = np.clip(error / 0.45, 0, 1)
         stops = np.array(
             [[0, 15, 28], [0, 184, 180], [247, 225, 74], [255, 70, 35]],
@@ -87,7 +99,8 @@ class FrozenDAE:
         gray = np.repeat(background[..., None], 3, axis=2) * 0.2
         alpha = np.clip(scale[..., None] * 1.8, 0.12, 0.95)
         composed = gray * (1 - alpha) + colors * alpha
-        composed[background == 0] = 0
+        if zero_background:
+            composed[background == 0] = 0
         return composed.clip(0, 255).astype(np.uint8)
 
 

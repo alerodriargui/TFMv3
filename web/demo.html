@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="demo.css">
+  <link rel="stylesheet" href="demo-window.css?v=2">
 </head>
 <body>
   <header class="topbar">
@@ -21,7 +22,7 @@
   <main>
     <section class="intro">
       <p class="kicker"><span>LIVE INFERENCE</span> · DENOISING AUTOENCODER</p>
-      <h1>Enséñale un corte.<br><em>Observa qué recuerda.</em></h1>
+      <h1>Introduce un corte.<br><em>Observa cómo lo reconstruye.</em></h1>
       <p class="intro-copy">El modelo solo aprendió anatomía normal. Compara la imagen con su reconstrucción y convierte las diferencias en un mapa de residuo.</p>
       <div class="micro-stats">
         <span><b>128²</b> entrada</span><span><b>8,56 M</b> parámetros</span><span><b>0,186</b> umbral</span>
@@ -113,9 +114,60 @@
       <div><b>02</b><h2>Reconstrucción</h2><p>Los pesos están congelados: el modelo no aprende de tu imagen.</p></div>
       <div><b>03</b><h2>Residuo</h2><p>El error filtrado se compara con el umbral calibrado en validación.</p></div>
     </section>
+
+    <section class="window-lab" aria-labelledby="window-title">
+      <div class="window-intro"><span>LABORATORIO 5 × 5</span><h2 id="window-title">Dos ventanas iguales.<br><em>Dos trabajos distintos.</em></h2><p>Cada cuadrícula representa los 25 píxeles vecinos del píxel central. Pulsa las celdas y observa cómo cambia la decisión.</p></div>
+      <div class="window-panels">
+        <article class="window-panel mask-window">
+          <div class="window-heading"><span>01 · MÁSCARA INTERIOR</span><b>¿Está realmente dentro del cerebro?</b></div>
+          <div class="window-workspace">
+            <div><div class="pixel-grid" id="maskGrid" aria-label="Ventana interactiva de máscara de cinco por cinco"></div><small>Pulsa una celda para cambiarla</small></div>
+            <div class="window-math"><div><span>VECINOS DE CEREBRO</span><strong><b id="maskCount">24</b> / 25</strong></div><div class="fraction-read"><span id="maskFraction">24 ÷ 25 = 0,96</span><i>debe ser &gt; 0,95</i></div><div class="window-verdict keep" id="maskVerdict"><b>✓ CONSERVAR</b><span>El píxel central está en el interior cerebral; se conserva su error.</span></div></div>
+          </div>
+          <div class="window-presets"><button type="button" data-mask-preset="inside">Interior · 25/25</button><button class="active" type="button" data-mask-preset="limit">Límite · 24/25</button><button type="button" data-mask-preset="edge">Borde · 18/25</button></div>
+          <p>Se conservan 24 o 25 vecinos. Con 23 ya no se cumple <code>promedio &gt; 0,95</code>.</p>
+        </article>
+        <article class="window-panel median-window">
+          <div class="window-heading"><span>02 · FILTRO DE MEDIANA</span><b>¿Es un punto aislado o una región?</b></div>
+          <div class="window-workspace">
+            <div><div class="pixel-grid value-grid" id="medianGrid" aria-label="Ventana interactiva del filtro de mediana de cinco por cinco"></div><small>Oscuro = error bajo · naranja = alto</small></div>
+            <div class="window-math"><div><span>VALOR CENTRAL ANTES</span><strong id="medianBefore">0,90</strong></div><div class="median-sort"><span>Ordenar los 25 valores de menor a mayor</span><div class="ordered-values" id="medianOrdered" aria-label="Los 25 errores ordenados; el valor 13 es la mediana"></div><b>El valor resaltado ocupa la posición 13 y se escribe en el mapa nuevo.</b></div><div class="window-verdict remove" id="medianVerdict"><b>0,90 → 0,03 · SUSTITUIDO</b><span>El pico central se reemplaza por la mediana de sus vecinos.</span></div></div>
+          </div>
+          <div class="window-presets"><button class="active" type="button" data-median-preset="isolated">Píxel aislado</button><button type="button" data-median-preset="region">Región consistente</button><button type="button" data-median-preset="noise">Ruido disperso</button></div>
+          <p>La mediana no toma el promedio: ordena los 25 errores y conserva el valor que queda justo en el centro.</p>
+        </article>
+      </div>
+      <div class="window-summary"><span>ORDEN COMPLETO</span><b>Error absoluto</b><i>→</i><b>Máscara interior 5×5</b><i>→</i><b>Mediana 5×5</b><i>→</i><b>Máximo espacial</b></div>
+    </section>
+
+    <section class="image-process-lab" aria-labelledby="image-process-title">
+      <div class="process-intro"><span>APLICADO A LA IMAGEN REAL</span><h2 id="image-process-title">Del corte completo<br><em>a una decisión.</em></h2><p>Ejecuta el modelo arriba y reproduce las operaciones. Cada imagen de este recorrido procede de esa misma inferencia.</p></div>
+      <div class="process-shell waiting" id="processShell">
+        <div class="process-stage-list" role="tablist" aria-label="Etapas del cálculo del score">
+          <button class="active" type="button" data-process-stage="0"><span>01</span><b>Comparar</b><small>Original y reconstrucción</small></button>
+          <button type="button" data-process-stage="1"><span>02</span><b>Error bruto</b><small>|x − fθ(x)|</small></button>
+          <button type="button" data-process-stage="2"><span>03</span><b>Máscara 5×5</b><small>Interior cerebral</small></button>
+          <button type="button" data-process-stage="3"><span>04</span><b>Enmascarar</b><small>Eliminar fondo y borde</small></button>
+          <button type="button" data-process-stage="4"><span>05</span><b>Mediana 5×5</b><small>Eliminar picos aislados</small></button>
+          <button type="button" data-process-stage="5"><span>06</span><b>Máximo</b><small>Score frente al umbral</small></button>
+        </div>
+        <div class="process-viewer">
+          <div class="process-placeholder"><b>Ejecuta el modelo</b><span>El recorrido aparecerá aquí con los resultados de la inferencia.</span></div>
+          <div class="process-image-stage">
+            <img id="processImage" alt="Resultado de la etapa seleccionada">
+            <img id="processInset" alt="Imagen auxiliar de la etapa">
+            <span class="process-inset-label" id="processInsetLabel">RECONSTRUCCIÓN</span>
+            <i class="maximum-marker" id="maximumMarker"></i>
+          </div>
+        </div>
+        <div class="process-copy"><span id="processNumber">01 · COMPARAR</span><h3 id="processTitle">Original frente a reconstrucción</h3><p id="processText">La comparación estará disponible después de ejecutar el modelo.</p><code id="processFormula">x frente a fθ(x)</code><div class="process-score"><span>SCORE</span><b id="processScore">—</b><i>τ = 0,18611</i></div></div>
+        <div class="process-controls"><button id="processPlay" type="button" disabled>▶ <span>Reproducir</span></button><div><input id="processRange" type="range" min="0" max="5" value="0" disabled aria-label="Recorrer el procesamiento de la imagen"><div><span>Imagen</span><span>Mapa filtrado</span><span>Decisión</span></div></div></div>
+      </div>
+      <p class="process-note">El color representa la magnitud del error: azul oscuro indica poca diferencia; amarillo y naranja, una discrepancia mayor. La cruz final señala dónde aparece el máximo del mapa filtrado.</p>
+    </section>
   </main>
 
   <footer><span>DÆ · TFM</span><p>Detección no supervisada de anomalías en cortes cerebrales</p><a href="index.html">Volver al proyecto ↑</a></footer>
-  <script src="demo.js"></script>
+  <script src="demo.js?v=2"></script>
 </body>
 </html>
