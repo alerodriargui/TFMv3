@@ -30,7 +30,7 @@ class ConvBlock(nn.Module):
 
 # Autoencoder de eliminación de ruido (DAE) 
 class DAE(nn.Module):
-    # Inicializa el DAE con canales de entrada y un número base de canales, construyendo la arquitectura U-Net con bloques de convolución, capas de pooling y capas de upsampling.
+    # Inicializa el DAE con canales de entrada y un número base de canales
     def __init__(self, in_channels: int = 1, base_ch: int = 64) -> None:
         super().__init__()
         c = base_ch
@@ -62,7 +62,6 @@ class DAE(nn.Module):
 
         self.head = nn.Conv2d(c, in_channels, 1)
 
-    # Realiza la pasada hacia adelante del DAE, pasando la entrada a través de los bloques de codificación, aplicando pooling, luego pasando a través de los bloques de decodificación con concatenación de las características correspondientes de la codificación y finalmente produciendo la salida reconstruida.
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         e1 = self.enc1(x)
         e2 = self.enc2(self.pool(e1))
