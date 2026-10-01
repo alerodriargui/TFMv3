@@ -11,6 +11,30 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="demo.css">
   <link rel="stylesheet" href="demo-window.css?v=2">
+  <style>
+    .reference-comparison{margin:0 4vw 70px;padding:40px;background:#e7e5dc;color:#15221d}
+    .reference-head{display:grid;grid-template-columns:1.2fr .8fr;gap:8vw;align-items:end;margin-bottom:42px}
+    .reference-head h2 em{color:#1b6d58}
+    .reference-head p{margin:0;color:#59655e;font-size:13px;line-height:1.7}
+    .comparison-table-wrap{max-width:100%;overflow-x:auto;border:1px solid var(--line);background:#f5f4ee}
+    .comparison-table{width:100%;min-width:760px;border-collapse:collapse;table-layout:fixed}
+    .comparison-table th,.comparison-table td{padding:17px 18px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    .comparison-table th:last-child,.comparison-table td:last-child{border-right:0}
+    .comparison-table tbody tr:last-child td{border-bottom:0}
+    .comparison-table th{background:#10251e;color:#dce9e1;font:500 8px var(--mono);letter-spacing:.12em;text-transform:uppercase}
+    .comparison-table th:nth-child(1){width:20%}.comparison-table th:nth-child(2){width:27%}.comparison-table th:nth-child(3){width:28%}.comparison-table th:nth-child(4){width:25%}
+    .comparison-table td{color:#536159;font-size:12px;line-height:1.45}
+    .comparison-table td:first-child{color:#15221d;font-weight:700}
+    .comparison-table code{font-size:9px}
+    .method-status{display:block;width:max-content;margin-bottom:7px;padding:4px 6px;font:500 7px var(--mono);letter-spacing:.08em}
+    .method-status.same{background:#d8f3cc;color:#1d5b37}.method-status.changed{background:#ffe0d5;color:#8a351d}
+    .comparison-note{margin:14px 0 0;color:#6f7b74;font-size:9px;line-height:1.6}
+    .comparison-note a{color:#1b6d58;text-decoration:underline;text-underline-offset:3px}
+    @media(max-width:900px){.reference-head{grid-template-columns:1fr;gap:20px}}
+    .reference-comparison .section-index{font:10px var(--mono);letter-spacing:.12em;margin-bottom:24px;color:#59655e}
+    .reference-head h2{font:500 clamp(32px,4vw,56px)/1.05 var(--serif);margin:0}
+    @media(max-width:560px){.reference-comparison{margin-inline:0;padding:30px 5vw}.comparison-table th,.comparison-table td{padding:14px}}
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -108,8 +132,8 @@
       </div>
     </section>
 
-    <section class="image-process-lab" aria-labelledby="image-process-title">
-      <div class="process-intro"><span>APLICADO A LA IMAGEN REAL</span><h2 id="image-process-title">Del corte completo<br><em>a una decisión.</em></h2><p>Ejecuta el modelo arriba y reproduce las operaciones. Cada imagen de este recorrido procede de esa misma inferencia.</p></div>
+    <section class="image-process-lab" aria-label="Procesamiento de la imagen real">
+      <div class="process-intro"><span>APLICADO A LA IMAGEN REAL</span><p>Ejecuta el modelo arriba y reproduce las operaciones. Cada imagen de este recorrido procede de esa misma inferencia.</p></div>
       <div class="process-shell waiting" id="processShell">
         <div class="process-stage-list" role="tablist" aria-label="Etapas del cálculo del score">
           <button class="active" type="button" data-process-stage="0"><span>01</span><b>Comparar</b><small>Original y reconstrucción</small></button>
@@ -134,8 +158,8 @@
       <p class="process-note">El color representa la magnitud del error: azul oscuro indica poca diferencia; amarillo y naranja, una discrepancia mayor. La cruz final señala dónde aparece el máximo del mapa filtrado.</p>
     </section>
 
-    <section class="window-lab" aria-labelledby="window-title">
-      <div class="window-intro"><span>LABORATORIO 5 × 5</span><h2 id="window-title">Dos ventanas iguales.<br><em>Dos trabajos distintos.</em></h2><p>Cada cuadrícula representa los 25 píxeles vecinos del píxel central. Pulsa las celdas y observa cómo cambia la decisión.</p></div>
+    <section class="window-lab" aria-label="Laboratorio de ventanas 5 × 5">
+      <div class="window-intro"><span>LABORATORIO 5 × 5</span><p>Cada cuadrícula representa los 25 píxeles vecinos del píxel central. Pulsa las celdas y observa cómo cambia la decisión.</p></div>
       <div class="window-panels">
         <article class="window-panel mask-window">
           <div class="window-heading"><span>01 · MÁSCARA INTERIOR</span><b>¿Está realmente dentro del cerebro?</b></div>
@@ -157,6 +181,31 @@
         </article>
       </div>
       <div class="window-summary"><span>ORDEN COMPLETO</span><b>Error absoluto</b><i>→</i><b>Máscara interior 5×5</b><i>→</i><b>Mediana 5×5</b><i>→</i><b>Máximo espacial</b></div>
+    </section>
+    <section class="reference-comparison" id="comparacion-kascenas">
+      <div class="section-index">COMPARACIÓN CON KASCENAS</div>
+      <div class="reference-head">
+        <h2>Qué mantenemos.<br><em>Qué cambiamos.</em></h2>
+        <p>La misma idea, adaptada a nuestros datos.</p>
+      </div>
+      <div class="comparison-table-wrap" role="region" aria-label="Comparación con Kascenas et al." tabindex="0">
+        <table class="comparison-table">
+          <thead><tr><th>Parte</th><th>Kascenas</th><th>Este proyecto</th><th>Motivo</th></tr></thead>
+          <tbody>
+            <tr><td><span class="method-status same">IGUAL</span>Aprendizaje</td><td>Aprende solo con imágenes normales.</td><td>Aprende con 7.500 imágenes normales.</td><td>Misma idea.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Entrada</td><td>Usa 4 tipos de resonancia.</td><td>Usa solo FLAIR.</td><td>Solo tenemos FLAIR.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Preparación</td><td>Usa resonancias originales y crea cortes de 128×128.</td><td>Usa cortes PNG ya creados, de 128×128 y con valores de 0 a 1.</td><td>No tenemos las resonancias originales.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Red</td><td>U-Net con 4 canales: T1, T1Gd, T2 y FLAIR.</td><td>U-Net con 1 canal: FLAIR.</td><td>Nuestros datos solo incluyen FLAIR.</td></tr>
+            <tr><td><span class="method-status same">IGUAL</span>Ruido</td><td>Ruido 16×16 con σ=0,2.</td><td>Ruido 16×16 con σ=0,2.</td><td>Mismos valores.</td></tr>
+            <tr><td><span class="method-status same">IGUAL</span>Error</td><td>Compara solo la zona del cerebro (máscara).</td><td>Compara solo la zona del cerebro (máscara).</td><td>Ignora el fondo negro.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Entrenamiento</td><td>No indica un número de épocas. Entrena durante 67.200 lotes.</td><td>7.500 imágenes ÷ 16 por lote = 469 lotes por época. En 50 épocas: 23.450 lotes.</td><td>Elige la mejor época con 39 imágenes normales.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Mapa de error</td><td>Une el error de los 4 tipos de resonancia.</td><td>Usa el error de FLAIR y limpia puntos sueltos.</td><td>Solo tenemos FLAIR.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Resultado</td><td>Busca el tumor en cada píxel.</td><td>Decide si la imagen es normal o anómala.</td><td>Tenemos una etiqueta por imagen.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Prueba</td><td>Mide el resultado por píxel.</td><td>Mide el resultado por imagen.</td><td>Las etiquetas son por imagen.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="comparison-note">Referencia: <a href="https://proceedings.mlr.press/v172/kascenas22a.html" target="_blank" rel="noreferrer">Kascenas et al., MIDL 2022 ↗</a>.</p>
     </section>
   </main>
 

@@ -241,7 +241,7 @@ const processStages = [
   ['03 · MÁSCARA 5×5','Localizar el interior cerebral','Una celda se conserva cuando al menos 24 de sus 25 vecinos pertenecen al cerebro. Blanco significa interior válido.','Mᵢⱼ = 𝟙[avg₅×₅(x > 0,01) > 0,95]','mask','input'],
   ['04 · ENMASCARAR','Eliminar fondo y bordes','El error bruto se multiplica por la máscara. Todo lo que queda fuera del interior cerebral pasa a cero.','Eₘ = E ⊙ M','masked_heatmap',null],
   ['05 · MEDIANA 5×5','Suprimir errores aislados','En cada posición se ordenan los 25 errores vecinos y se usa el 13.º. Los picos aislados desaparecen; las regiones consistentes permanecen.','Aᵢⱼ = mediana₅×₅(Eₘ)','heatmap',null],
-  ['06 · MÁXIMO Y UMBRAL','Convertir el mapa en una decisión','La cruz señala el mayor error restante. Ese único valor se compara con el umbral calibrado para clasificar el corte completo.','s(x) = max A(x)  ·  s(x) ≥ 0,18611','heatmap',null]
+  ['06 · MÁXIMO Y UMBRAL','Convertir el mapa en una decisión','La cruz señala el mayor error restante. Ese único valor se compara con el umbral calibrado para clasificar la imagen completa.','s(x) = max A(x)  ·  s(x) ≥ 0,18611','heatmap',null]
 ];
 
 function processDataUrl(key) {

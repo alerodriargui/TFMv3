@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#071310">
-  <meta name="description" content="Guía visual del DAE para detección no supervisada de anomalías en cortes cerebrales FLAIR.">
+  <meta name="description" content="Guía visual del DAE para detección no supervisada de anomalías en imágenes cerebrales FLAIR.">
   <title>Dentro del DAE · Guía visual del proyecto</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,25 +45,6 @@
     .dataset-stack small{position:absolute;left:0;bottom:0;font:7px/1.35 var(--mono);letter-spacing:.05em;white-space:nowrap;color:#326349}
     .hero-copy h1{font-size:clamp(40px,4.7vw,74px);line-height:1}
     section:not(.hero) h2{font-size:clamp(32px,3.5vw,54px);line-height:1.02}
-    .reference-comparison{background:#e7e5dc;color:var(--ink)}
-    .reference-head{display:grid;grid-template-columns:1.2fr .8fr;gap:8vw;align-items:end;margin-bottom:42px}
-    .reference-head h2 em{color:#1b6d58}
-    .reference-head p{margin:0;color:#59655e;font-size:13px;line-height:1.7}
-    .comparison-table-wrap{max-width:100%;overflow-x:auto;border:1px solid var(--line);background:#f5f4ee}
-    .comparison-table{width:100%;min-width:760px;border-collapse:collapse;table-layout:fixed}
-    .comparison-table th,.comparison-table td{padding:17px 18px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-    .comparison-table th:last-child,.comparison-table td:last-child{border-right:0}
-    .comparison-table tbody tr:last-child td{border-bottom:0}
-    .comparison-table th{background:#10251e;color:#dce9e1;font:500 8px var(--mono);letter-spacing:.12em;text-transform:uppercase}
-    .comparison-table th:nth-child(1){width:20%}.comparison-table th:nth-child(2){width:27%}.comparison-table th:nth-child(3){width:28%}.comparison-table th:nth-child(4){width:25%}
-    .comparison-table td{color:#536159;font-size:12px;line-height:1.45}
-    .comparison-table td:first-child{color:#15221d;font-weight:700}
-    .comparison-table code{font-size:9px}
-    .method-status{display:block;width:max-content;margin-bottom:7px;padding:4px 6px;font:500 7px var(--mono);letter-spacing:.08em}
-    .method-status.same{background:#d8f3cc;color:#1d5b37}.method-status.changed{background:#ffe0d5;color:#8a351d}
-    .comparison-note{margin:14px 0 0;color:#6f7b74;font-size:9px;line-height:1.6}
-    .comparison-note a{color:#1b6d58;text-decoration:underline;text-underline-offset:3px}
-    @media(max-width:900px){.reference-head{grid-template-columns:1fr;gap:20px}}
     @media(max-width:560px){.hero{grid-template-columns:minmax(0,1fr)}.hero-copy h1{font-size:38px;overflow-wrap:anywhere}section:not(.hero) h2{font-size:32px}.hero-facts{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.hero-facts>div{min-width:0}.hero-facts span{letter-spacing:.03em;overflow-wrap:anywhere}.lead{overflow-wrap:anywhere}.comparison-table th,.comparison-table td{padding:14px}}
   </style>
 </head>
@@ -81,20 +62,20 @@
     <section class="hero" id="inicio">
       <div class="hero-copy reveal">
         <div class="eyebrow"><span></span> Trabajo Fin de Máster</div>
-        <h1>Denoising Autoencoder<br>para la detección de anomalías<br><em>en cortes cerebrales.</em></h1>
-        <p class="lead">Un detector de anomalías cerebrales entrenado únicamente con cortes sanos.</p>
+        <h1>Denoising Autoencoder<br>para la detección de anomalías<br><em>en imágenes cerebrales.</em></h1>
+        <p class="lead">Un detector de anomalías cerebrales entrenado únicamente con imágenes sanas.</p>
         <div class="hero-actions">
           <a class="button primary" href="#idea">Entender la idea <span>↘</span></a>
           <a class="button ghost" href="#resultados">Ir a los resultados</a>
         </div>
         <div class="hero-facts">
-          <div><strong>7.500</strong><span>cortes normales para aprender</span></div>
+          <div><strong>7.500</strong><span>imágenes normales para aprender</span></div>
           <div><strong>0</strong><span>anomalías vistas al entrenar</span></div>
         </div>
       </div>
-      <div class="hero-visual reveal" aria-label="Visualización conceptual de un corte cerebral y su anomalía">
+      <div class="hero-visual reveal" aria-label="Visualización conceptual de una imagen cerebral y su anomalía">
         <div class="scan-stage">
-          <div class="brain brain-main" role="img" aria-label="Corte cerebral FLAIR de la demo: Corte 01"></div>
+          <div class="brain brain-main" role="img" aria-label="Imagen cerebral FLAIR de la demo: Imagen 01"></div>
         </div>
       </div>
       <div class="hero-scroll">SCROLL TO EXPLORE <span>↓</span></div>
@@ -121,7 +102,7 @@
         <article class="compare-card accent">
           <div class="card-top"><span>Este proyecto</span><b>NO SUPERVISADO*</b></div>
           <div class="mini-flow">
-            <div class="dataset-stack normal-set" aria-label="Dataset de 7.500 cortes normales"><i class="thumb normal"></i><i class="thumb normal"></i><i class="thumb normal"></i><small>7.500 CORTES NORMALES</small></div>
+            <div class="dataset-stack normal-set" aria-label="Dataset de 7.500 imágenes normales"><i class="thumb normal"></i><i class="thumb normal"></i><i class="thumb normal"></i><small>7.500 CORTES NORMALES</small></div>
             <span>→</span><strong>NORMALIDAD APRENDIDA</strong>
           </div>
           <h3>“Enséñame solo lo normal”</h3><p>El modelo se entrena únicamente con <code>train/good</code>.</p>
@@ -133,7 +114,7 @@
     <section class="principle dark-section">
       <div class="section-index light">02 — EL PRINCIPIO</div>
       <div class="principle-head">
-        <h2>Reconstruir para<br><em>descubrir.</em></h2>
+        <h2>Reconstruir para<br><em>detectar.</em></h2>
         <p>El modelo intenta devolver una versión limpia de cada imagen. La distancia entre lo que entra y lo que reconstruye se convierte en evidencia.</p>
       </div>
       <div class="principle-equation reveal">
@@ -154,7 +135,7 @@
 
     <section class="journey" id="proceso">
       <div class="section-index">03 — DOS MOMENTOS DISTINTOS</div>
-      <div class="journey-title"><h2>Aprender y detectar<br>no son lo mismo.</h2><p>El ruido solo existe durante el entrenamiento. En uso real, la imagen entra limpia.</p></div>
+      <div class="journey-title"><h2>Aprendizaje e inferencia</h2><p>El ruido solo existe durante el entrenamiento. En uso real, la imagen entra limpia.</p></div>
       <div class="mode-switch" role="tablist" aria-label="Fase del modelo">
         <button class="active" data-mode="train" role="tab"><span>01</span> Entrenamiento</button>
         <button data-mode="infer" role="tab"><span>02</span> Inferencia</button>
@@ -232,7 +213,7 @@
 
     <section class="architecture dark-section" id="arquitectura">
       <div class="section-index light">05 — DENTRO DE LA RED</div>
-      <div class="architecture-head"><h2>Una U-Net que comprime<br>sin olvidar los detalles.</h2><div><p>El encoder entiende el contexto global. El decoder recupera la resolución. Las conexiones de salto conservan información espacial.</p><span class="pill">8.558.721 parámetros</span></div></div>
+      <div class="architecture-head"><h2>U-Net</h2><div><p>El encoder entiende el contexto global. El decoder recupera la resolución. Las conexiones de salto conservan información espacial.</p><span class="pill">8.558.721 parámetros</span></div></div>
       <div class="unet-wrap reveal">
         <div class="unet-label encoder-label">ENCODER · COMPRIME</div><div class="unet-label decoder-label">DECODER · RECONSTRUYE</div>
         <div class="unet">
@@ -272,12 +253,12 @@
       <div class="section-index light">06 — RESULTADO</div>
       <div class="results-head"><div><p>Resultados de una ejecución completa con semilla 42.</p></div><div class="run-stamp"><span>SCIENTIFIC RUN</span><b>50 épocas · GPU · 1h 35m</b></div></div>
       <div class="metric-grid reveal">
-        <article class="metric hero-metric"><span>AUROC · TEST</span><strong>0,9633</strong><div class="metric-bar"><i style="width:96.33%"></i></div><p>En el 96,33% de las parejas, un corte anómalo recibe más score que uno normal.</p></article>
+        <article class="metric hero-metric"><span>AUROC · TEST</span><strong>0,9633</strong><div class="metric-bar"><i style="width:96.33%"></i></div><p>En el 96,33% de las parejas, una imagen anómala recibe más score que una normal.</p></article>
         <article class="metric"><span>BALANCED ACCURACY</span><strong>0,9097</strong><div class="metric-ring" style="--value:90.97"><b>90,97%</b></div><p>Promedia sensibilidad y especificidad para no ocultar el desbalance.</p></article>
         <article class="metric"><span>MEJOR CHECKPOINT</span><strong>47<small>/50</small></strong><div class="spark-wrap"><svg id="lossChart" viewBox="0 0 320 100" aria-label="Curva de pérdida de validación"></svg></div><p>MSE normal mínima: 0,00298.</p></article>
       </div>
       <div class="youden-lab reveal" aria-labelledby="youden-title">
-        <div class="youden-heading"><div><span class="overline">LABORATORIO DE YOUDEN · VALIDACIÓN</span><h3 id="youden-title">Buscar la mayor distancia.</h3></div><p>Probamos todos los umbrales sobre 39 cortes normales y 44 anómalos de validación. Elegimos el que maximiza la sensibilidad y, a la vez, mantiene baja la tasa de falsas alarmas.</p></div>
+        <div class="youden-heading"><div><span class="overline">LABORATORIO DE YOUDEN · VALIDACIÓN</span><h3 id="youden-title">Buscar la mayor distancia.</h3></div><p>Probamos todos los umbrales sobre 39 imágenes normales y 44 anómalos de validación. Elegimos el que maximiza la sensibilidad y, a la vez, mantiene baja la tasa de falsas alarmas.</p></div>
         <div class="youden-chart-wrap"><svg id="youdenChart" viewBox="0 0 460 360" role="img" aria-label="Curva ROC de validación con distancia de Youden interactiva"></svg><div class="youden-legend"><span><i></i> Curva ROC</span><span><i></i> Distancia J</span><span><i></i> Máximo</span></div></div>
         <div class="youden-readout">
           <div class="youden-formula">J(t) = TPR(t) − FPR(t)<br>t* = arg max J(t)</div>
@@ -295,7 +276,7 @@
         <p class="youden-note">El umbral se selecciona exclusivamente en validación. Después se congela y se aplica una sola vez al test; no se elige mirando los resultados finales.</p>
       </div>
       <div class="confusion-wrap">
-        <div><span class="overline">MATRIZ DE CONFUSIÓN · TEST</span><h3>3.407 aciertos.<br>308 errores.</h3><p>La exactitud simple sería engañosa porque hay casi cinco veces más cortes anómalos que normales.</p></div>
+        <div><span class="overline">MATRIZ DE CONFUSIÓN · TEST</span><h3>3.407 aciertos.<br>308 errores.</h3><p>La exactitud simple sería engañosa porque hay casi cinco veces más imágenes anómalos que normales.</p></div>
         <div class="confusion-matrix"><div class="axis top">PREDICCIÓN</div><div class="axis side">REALIDAD</div><div class="cm-head col-normal">NORMAL</div><div class="cm-head col-anomalous">ANÓMALO</div><div class="cm-label row-normal">NORMAL</div><div class="cm-cell true-negative good"><strong>575</strong><span>verdaderos negativos</span></div><div class="cm-cell false-positive bad"><strong>65</strong><span>falsos positivos</span></div><div class="cm-label row-anomalous">ANÓMALO</div><div class="cm-cell false-negative bad"><strong>243</strong><span>falsos negativos</span></div><div class="cm-cell true-positive good"><strong>2.832</strong><span>verdaderos positivos</span></div></div>
       </div>
     </section>
@@ -314,38 +295,13 @@
 
     <section class="limits">
       <div class="section-index light">08 — LEER EL RESULTADO CON HONESTIDAD</div>
-      <div class="limits-layout"><div><h2><em>No es un diagnóstico.</em></h2><p>La contribución es una línea base reproducible y explicable, no un sistema clínico.</p></div><div class="limits-list"><article><span>01</span><p>La etiqueta es global por corte: no permite medir con rigor la <strong>localización</strong> de una lesión.</p></article><article><span>02</span><p>La validación tiene solo <strong>83 imágenes</strong>; el umbral podría variar con otras muestras.</p></article><article><span>03</span><p>Un benchmark no garantiza generalización a otros hospitales, escáneres o poblaciones.</p></article></div></div>
+      <div class="limits-layout"><div><h2><em>No es un diagnóstico.</em></h2><p>La contribución es una línea base reproducible y explicable, no un sistema clínico.</p></div><div class="limits-list"><article><span>01</span><p>La etiqueta es global por imagen: no permite medir con rigor la <strong>localización</strong> de una lesión.</p></article><article><span>02</span><p>La validación tiene solo <strong>83 imágenes</strong>; el umbral podría variar con otras muestras.</p></article><article><span>03</span><p>Un benchmark no garantiza generalización a otros hospitales, escáneres o poblaciones.</p></article></div></div>
       <div class="next-question"><span>LA SIGUIENTE PREGUNTA</span><p>¿Podemos pasar de detectar una imagen anómala a localizar exactamente el tumor?</p><b>→ Trabajo futuro</b></div>
     </section>
 
-    <section class="reference-comparison" id="comparacion-kascenas">
-      <div class="section-index">09 — COMPARACIÓN CON KASCENAS</div>
-      <div class="reference-head">
-        <h2>Qué mantenemos.<br><em>Qué cambiamos.</em></h2>
-        <p>La misma idea, adaptada a nuestros datos.</p>
-      </div>
-      <div class="comparison-table-wrap" role="region" aria-label="Comparación con Kascenas et al." tabindex="0">
-        <table class="comparison-table">
-          <thead><tr><th>Parte</th><th>Kascenas</th><th>Este proyecto</th><th>Motivo</th></tr></thead>
-          <tbody>
-            <tr><td><span class="method-status same">IGUAL</span>Aprendizaje</td><td>Aprende solo con imágenes normales.</td><td>Aprende con 7.500 imágenes normales.</td><td>Misma idea.</td></tr>
-            <tr><td><span class="method-status changed">CAMBIA</span>Entrada</td><td>Usa 4 tipos de resonancia.</td><td>Usa solo FLAIR.</td><td>Solo tenemos FLAIR.</td></tr>
-            <tr><td><span class="method-status changed">CAMBIA</span>Preparación</td><td>Usa resonancias originales y crea cortes de 128×128.</td><td>Usa cortes PNG ya creados, de 128×128 y con valores de 0 a 1.</td><td>No tenemos las resonancias originales.</td></tr>
-            <tr><td><span class="method-status changed">CAMBIA</span>Red</td><td>U-Net con 4 canales: T1, T1Gd, T2 y FLAIR.</td><td>U-Net con 1 canal: FLAIR.</td><td>Nuestros datos solo incluyen FLAIR.</td></tr>
-            <tr><td><span class="method-status same">IGUAL</span>Ruido</td><td>Ruido 16×16 con σ=0,2.</td><td>Ruido 16×16 con σ=0,2.</td><td>Mismos valores.</td></tr>
-            <tr><td><span class="method-status same">IGUAL</span>Error</td><td>Compara solo la zona del cerebro (máscara).</td><td>Compara solo la zona del cerebro (máscara).</td><td>Ignora el fondo negro.</td></tr>
-            <tr><td><span class="method-status changed">CAMBIA</span>Entrenamiento</td><td>No indica un número de épocas. Entrena durante 67.200 lotes.</td><td>7.500 imágenes ÷ 16 por lote = 469 lotes por época. En 50 épocas: 23.450 lotes.</td><td>Elige la mejor época con 39 imágenes normales.</td></tr>
-            <tr><td><span class="method-status changed">CAMBIA</span>Mapa de error</td><td>Une el error de los 4 tipos de resonancia.</td><td>Usa el error de FLAIR y limpia puntos sueltos.</td><td>Solo tenemos FLAIR.</td></tr>
-            <tr><td><span class="method-status changed">CAMBIA</span>Resultado</td><td>Busca el tumor en cada píxel.</td><td>Decide si la imagen es normal o anómala.</td><td>Tenemos una etiqueta por imagen.</td></tr>
-            <tr><td><span class="method-status changed">CAMBIA</span>Prueba</td><td>Mide el resultado por píxel.</td><td>Mide el resultado por imagen.</td><td>Las etiquetas son por imagen.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="comparison-note">Referencia: <a href="https://proceedings.mlr.press/v172/kascenas22a.html" target="_blank" rel="noreferrer">Kascenas et al., MIDL 2022 ↗</a>.</p>
-    </section>
   </main>
 
-  <footer><div class="footer-mark">DÆ</div><div><strong>Detección no supervisada de anomalías<br>en cortes cerebrales mediante un DAE</strong><span>Proyecto académico · Uso experimental</span></div><div class="footer-links"><a href="../README.md">README</a><a href="../docs/memoria.pdf">Memoria PDF</a><a href="#inicio">Volver arriba ↑</a></div></footer>
+  <footer><div class="footer-mark">DÆ</div><div><strong>Detección no supervisada de anomalías<br>en imágaenes cerebrales mediante un DAE</strong><span>Proyecto académico · Uso experimental</span></div><div class="footer-links"><a href="../README.md">README</a><a href="../docs/memoria.pdf">Memoria PDF</a><a href="#inicio">Volver arriba ↑</a></div></footer>
   <script src="app.js?v=2"></script>
 </body>
 </html>
