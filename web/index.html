@@ -90,7 +90,6 @@
         <div class="hero-facts">
           <div><strong>7.500</strong><span>cortes normales para aprender</span></div>
           <div><strong>0</strong><span>anomalías vistas al entrenar</span></div>
-          <div><strong>96,33%</strong><span>AUROC en test</span></div>
         </div>
       </div>
       <div class="hero-visual reveal" aria-label="Visualización conceptual de un corte cerebral y su anomalía">
@@ -168,7 +167,7 @@
         <div class="pipe-arrow"><span>→</span><small id="arrow1">corromper</small></div>
         <div class="pipe-step">
           <div class="pipe-number">02</div><div class="pipe-art noise-art"><div class="brain medium"></div></div>
-          <h3 id="step2-title">Añadir ruido gaussiano grueso</h3><p id="step2-copy">n ~ N(0, I) a 16×16; interpolación bilineal a 128×128, desplazamiento aleatorio y suma con σ = 0,2 solo donde x &gt; 0,01.</p>
+          <h3 id="step2-title">Añadir ruido gaussiano</h3><p id="step2-copy">Añadimos ruido suave en regiones amplias del cerebro, dejando intacto el fondo.</p>
         </div>
         <div class="pipe-arrow"><span>→</span><small id="arrow2">reconstruir</small></div>
         <div class="pipe-step model-step">
@@ -178,7 +177,7 @@
         <div class="pipe-arrow"><span>→</span><small id="arrow3">comparar</small></div>
         <div class="pipe-step">
           <div class="pipe-number">04</div><div class="pipe-art target-art" id="scoreFormula"><b>(</b><span>x</span><b>−</b><span>x̂</span><b>)</b><strong>²</strong></div>
-          <h3 id="step4-title">Minimizar la MSE</h3><p id="step4-copy">El error cuadrático actualiza 8,56 M de parámetros para restaurar mejor.</p>
+          <h3 id="step4-title">Minimizar la MSE</h3><p id="step4-copy">Durante el entrenamiento, se ajustan los 8,56 millones de parámetros para reducir el error entre la reconstrucción y la imagen normal sin ruido.</p>
         </div>
       </div>
       <div class="formula-card"><span>OBJETIVO DURANTE EL ENTRENAMIENTO</span><div>ℒ(θ) = <span class="fraction"><b>Σ M ⊙ (x̂ − x)²</b><i>max(Σ M, 1)</i></span></div><p>La máscara <b>M</b> ignora el fondo negro: así la red dedica su capacidad a la anatomía.</p></div>
@@ -233,7 +232,7 @@
 
     <section class="architecture dark-section" id="arquitectura">
       <div class="section-index light">05 — DENTRO DE LA RED</div>
-      <div class="architecture-head"><h2>Una U-Net que comprime<br>sin olvidar los detalles.</h2><div><p>El encoder entiende el contexto global. El decoder recupera la resolución. Las conexiones de salto conservan información espacial fina.</p><span class="pill">8.558.721 parámetros</span></div></div>
+      <div class="architecture-head"><h2>Una U-Net que comprime<br>sin olvidar los detalles.</h2><div><p>El encoder entiende el contexto global. El decoder recupera la resolución. Las conexiones de salto conservan información espacial.</p><span class="pill">8.558.721 parámetros</span></div></div>
       <div class="unet-wrap reveal">
         <div class="unet-label encoder-label">ENCODER · COMPRIME</div><div class="unet-label decoder-label">DECODER · RECONSTRUYE</div>
         <div class="unet">
@@ -249,14 +248,13 @@
         <div class="unet-caption"><span><i class="dot cyan"></i> Conv 3×3 · SiLU · GroupNorm</span><span><i class="dot green"></i> Bilinear upsample + Conv 3×3</span><span><i class="line"></i> Skip connection</span></div>
         <div class="unet-player">
           <button id="unetPlay" type="button" aria-label="Pausar animación de la U-Net">⏸ <span>Pausar</span></button>
-          <div class="unet-timeline"><div><label for="unetStep">RECORRIDO POR LA RED</label><output id="unetStepValue" for="unetStep">01 / 07</output></div><input id="unetStep" type="range" min="0" max="6" value="0"><div class="unet-stage-copy"><b id="unetStageTitle">Entrada · 128²</b><span id="unetStageText">La red recibe el corte completo y extrae sus primeros patrones.</span></div></div>
+          <div class="unet-timeline"><div><label for="unetStep">RECORRIDO POR LA RED</label><output id="unetStepValue" for="unetStep">01 / 07</output></div><input id="unetStep" type="range" min="0" max="6" value="0"><div class="unet-stage-copy"><b id="unetStageTitle">Entrada · 128²</b></div></div>
         </div>
         <div class="channel-explainer">
           <div class="channel-copy"><span>¿QUÉ SIGNIFICA «CH»?</span><h3>Son mapas de características.</h3><p>Cada canal es una matriz aprendida que responde a algún patrón útil. La red decide durante el entrenamiento qué debe representar cada uno; no asignamos manualmente un canal a «bordes» o «texturas».</p></div>
           <div class="channel-live">
             <div class="channel-read"><div><span>RESOLUCIÓN ESPACIAL</span><b id="channelResolution">128 × 128</b><small>cuántas posiciones conserva cada mapa</small></div><i aria-hidden="true">↔</i><div><span>MAPAS DE CARACTERÍSTICAS</span><b id="channelCount">64 canales</b><small>cuántos patrones puede codificar</small></div></div>
             <div class="channel-meter"><span id="channelMeter" style="width:12.5%"></span></div>
-            <p id="channelMeaning">En las primeras capas suelen aparecer respuestas sencillas: bordes, contrastes locales y texturas.</p>
           </div>
           <div class="feature-examples" aria-label="Ejemplos conceptuales de características aprendidas">
             <div><i class="feature-map edges"></i><b>Bordes</b><span>cambios de intensidad</span></div>
@@ -267,11 +265,6 @@
           <p class="channel-rule"><b>En el encoder:</b> disminuyen las posiciones espaciales, pero aumentan los canales. La representación sabe menos sobre el detalle exacto de cada píxel y puede describir más tipos de características.</p>
         </div>
         <p class="unet-disclaimer">Visualización didáctica de la resolución espacial. Las miniaturas permiten ver la compresión y recuperación de tamaño; no representan literalmente los canales ni las activaciones internas aprendidas.</p>
-      </div>
-      <div class="why-grid">
-        <article><span>01</span><h3>¿Por qué ruido?</h3><p>Evita que la red aprenda una copia trivial. La obliga a modelar la estructura normal para poder restaurarla.</p></article>
-        <article><span>02</span><h3>¿Por qué U-Net?</h3><p>Combina contexto y detalle. Es especialmente adecuada para imágenes donde importa la posición de cada región.</p></article>
-        <article><span>03</span><h3>¿Qué devuelve la red?</h3><p>Una imagen reconstruida de <code>128 × 128</code> y un canal. La clasificación no sale directamente de la U-Net: se calcula después a partir del error entre la entrada y su reconstrucción.</p></article>
       </div>
     </section>
 
@@ -287,16 +280,22 @@
         <div class="youden-heading"><div><span class="overline">LABORATORIO DE YOUDEN · VALIDACIÓN</span><h3 id="youden-title">Buscar la mayor distancia.</h3></div><p>Probamos todos los umbrales sobre 39 cortes normales y 44 anómalos de validación. Elegimos el que maximiza la sensibilidad y, a la vez, mantiene baja la tasa de falsas alarmas.</p></div>
         <div class="youden-chart-wrap"><svg id="youdenChart" viewBox="0 0 460 360" role="img" aria-label="Curva ROC de validación con distancia de Youden interactiva"></svg><div class="youden-legend"><span><i></i> Curva ROC</span><span><i></i> Distancia J</span><span><i></i> Máximo</span></div></div>
         <div class="youden-readout">
-          <div class="youden-formula">J = sensibilidad − tasa de falsos positivos</div>
+          <div class="youden-formula">J(t) = TPR(t) − FPR(t)<br>t* = arg max J(t)</div>
           <div class="youden-stat"><span>SENSIBILIDAD · TPR</span><b id="youdenTpr">84,09%</b><i><em id="youdenTprBar" style="width:84.09%"></em></i></div>
           <div class="youden-stat false-rate"><span>FALSOS POSITIVOS · FPR</span><b id="youdenFpr">7,69%</b><i><em id="youdenFprBar" style="width:7.69%"></em></i></div>
           <div class="youden-result"><span>ÍNDICE DE YOUDEN</span><strong id="youdenJ">0,7640</strong><small id="youdenStatus">Máximo encontrado</small></div>
         </div>
         <div class="youden-control"><div><label for="youdenThreshold">PROBAR UMBRALES DE VALIDACIÓN</label><output id="youdenThresholdValue" for="youdenThreshold">0,18611</output></div><input id="youdenThreshold" type="range" min="0" max="84" value="40" aria-label="Recorrer los umbrales evaluados en validación"><div><span>Estricto · pocas detecciones</span><button id="youdenBest" type="button">Ir al máximo</button><span>Permisivo · más alarmas</span></div></div>
+        <p class="youden-note">Comparamos los scores como posibles umbrales:<br>
+          t = 0,20244: J = 36/44 − 3/39 = 0,74126<br>
+          <strong>t = 0,18611: J = 37/44 − 3/39 = 0,84091 − 0,07692 = 0,76399 ← mayor valor</strong><br>
+          t = 0,18417: J = 37/44 − 4/39 = 0,73834<br>
+          Por eso elegimos <strong>umbral = 0,18611</strong>. Es un score de validación (0,1861136556 redondeado), no el resultado de la resta. Estos son los candidatos vecinos; el máximo se busca entre todos los scores.
+        </p>
         <p class="youden-note">El umbral se selecciona exclusivamente en validación. Después se congela y se aplica una sola vez al test; no se elige mirando los resultados finales.</p>
       </div>
       <div class="metrics-lab reveal" aria-labelledby="metrics-lab-title">
-        <div class="metrics-lab-heading"><span class="overline">LABORATORIO DE MÉTRICAS · TEST</span><h3 id="metrics-lab-title">Dos preguntas diferentes.</h3><p><strong>AUROC</strong> evalúa cómo ordena el modelo todos los cortes sin elegir un umbral. La <strong>balanced accuracy</strong> evalúa una decisión binaria en un punto concreto.</p></div>
+        <div class="metrics-lab-heading"><span class="overline">LABORATORIO DE MÉTRICAS · TEST</span><h3 id="metrics-lab-title">Dos preguntas diferentes.</h3></div>
         <div class="roc-panel">
           <div class="metric-explain-title"><span>01 · AUROC</span><b>Área = 0,9633</b></div>
           <svg id="rocChart" viewBox="0 0 460 360" role="img" aria-label="Curva ROC real del conjunto de test con punto de operación interactivo"></svg>

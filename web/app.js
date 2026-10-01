@@ -16,9 +16,9 @@ $$('.reveal').forEach(el => observer.observe(el));
 const modes = {
   train: [
     ['Corte normal limpio', 'Se toma una imagen de train/good, sin ninguna anomalía.'],
-    ['Añadir ruido gaussiano grueso', 'n ~ N(0, I) a 16×16; interpolación bilineal a 128×128, desplazamiento aleatorio y suma con σ = 0,2 solo donde x > 0,01.'],
+    ['Añadir ruido gaussiano', 'Añadimos ruido suave en regiones amplias del cerebro, dejando intacto el fondo.'],
     ['Recuperar lo limpio', 'La U-Net recibe la versión ruidosa e intenta producir la original.'],
-    ['Minimizar la MSE', 'El error cuadrático actualiza 8,56 M de parámetros para restaurar mejor.']
+    ['Minimizar la MSE', 'Durante el entrenamiento, se ajustan los 8,56 millones de parámetros para reducir el error entre la reconstrucción y la imagen normal sin ruido.']
   ],
   infer: [
     ['Corte desconocido', 'La imagen llega limpia y puede ser normal o anómala. No se usa su etiqueta.'],
@@ -50,22 +50,22 @@ if (unetStep) {
   const skips = [...document.querySelectorAll('.skip-lines path')];
   const playButton = $('#unetPlay');
   const stages = [
-    ['Entrada · 128²','La red recibe el corte completo y extrae sus primeros patrones.'],
-    ['Encoder · 64²','Reduce a la mitad el ancho y el alto; aumenta los canales para conservar más tipos de características.'],
-    ['Encoder · 32²','La representación pierde detalle fino y gana contexto sobre regiones más amplias.'],
-    ['Espacio latente · 16²','Es la resolución mínima: una representación compacta de la estructura cerebral.'],
-    ['Decoder · 32²','La imagen empieza a expandirse y recibe detalle del encoder mediante la conexión de salto interna.'],
-    ['Decoder · 64²','Se recupera más resolución y se combina con la información guardada en el encoder.'],
-    ['Salida · 128²','La red vuelve al tamaño original y produce una intensidad reconstruida para cada píxel.']
+    ['Entrada · 128²'],
+    ['Encoder · 64²'],
+    ['Encoder · 32²'],
+    ['Espacio latente · 16²'],
+    ['Decoder · 32²'],
+    ['Decoder · 64²'],
+    ['Salida · 128²']
   ];
   const channelStages = [
-    [128,64,'En las primeras capas suelen aparecer respuestas sencillas: bordes, contrastes locales y texturas.'],
-    [64,128,'Con menos posiciones y más canales, la red combina patrones locales en características más variadas.'],
-    [32,256,'Las características abarcan regiones mayores y pueden responder a formas y estructuras anatómicas.'],
-    [16,512,'La representación más profunda tiene máxima variedad de características y el contexto espacial más amplio.'],
-    [32,256,'El decoder combina contexto profundo con características espaciales recuperadas mediante una conexión de salto.'],
-    [64,128,'Al expandirse, la representación reduce canales y recupera progresivamente la localización fina.'],
-    [128,64,'La última representación conserva alta resolución y se transforma en un único canal reconstruido.']
+    [128,64],
+    [64,128],
+    [32,256],
+    [16,512],
+    [32,256],
+    [64,128],
+    [128,64]
   ];
   let current = 0, playing = !matchMedia('(prefers-reduced-motion: reduce)').matches, timer;
 
@@ -78,12 +78,11 @@ if (unetStep) {
     links.forEach((link,i) => link.classList.toggle('active', i < index));
     skips.forEach((path,i) => path.classList.toggle('active', index >= 4 && i === 6-index));
     $('#unetStepValue').textContent = `${String(index+1).padStart(2,'0')} / 07`;
-    $('#unetStageTitle').textContent = stages[index][0]; $('#unetStageText').textContent = stages[index][1];
-    const [resolution,channels,meaning] = channelStages[index];
+    $('#unetStageTitle').textContent = stages[index][0];
+    const [resolution,channels] = channelStages[index];
     $('#channelResolution').textContent = `${resolution} × ${resolution}`;
     $('#channelCount').textContent = `${channels} canales`;
     $('#channelMeter').style.width = `${channels/512*100}%`;
-    $('#channelMeaning').textContent = meaning;
   };
   const restartTimer = () => {
     clearInterval(timer);
