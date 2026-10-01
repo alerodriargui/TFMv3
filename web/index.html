@@ -43,7 +43,28 @@
     .dataset-stack .thumb:nth-child(3){left:68px;z-index:1}
     .dataset-stack.mixed .thumb:nth-child(2){left:54px}
     .dataset-stack small{position:absolute;left:0;bottom:0;font:7px/1.35 var(--mono);letter-spacing:.05em;white-space:nowrap;color:#326349}
-    @media(max-width:560px){.hero{grid-template-columns:minmax(0,1fr)}h1{font-size:46px;overflow-wrap:anywhere}.hero-facts{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.hero-facts>div{min-width:0}.hero-facts span{letter-spacing:.03em;overflow-wrap:anywhere}.lead{overflow-wrap:anywhere}}
+    .hero-copy h1{font-size:clamp(40px,4.7vw,74px);line-height:1}
+    section:not(.hero) h2{font-size:clamp(32px,3.5vw,54px);line-height:1.02}
+    .reference-comparison{background:#e7e5dc;color:var(--ink)}
+    .reference-head{display:grid;grid-template-columns:1.2fr .8fr;gap:8vw;align-items:end;margin-bottom:42px}
+    .reference-head h2 em{color:#1b6d58}
+    .reference-head p{margin:0;color:#59655e;font-size:13px;line-height:1.7}
+    .comparison-table-wrap{max-width:100%;overflow-x:auto;border:1px solid var(--line);background:#f5f4ee}
+    .comparison-table{width:100%;min-width:760px;border-collapse:collapse;table-layout:fixed}
+    .comparison-table th,.comparison-table td{padding:17px 18px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    .comparison-table th:last-child,.comparison-table td:last-child{border-right:0}
+    .comparison-table tbody tr:last-child td{border-bottom:0}
+    .comparison-table th{background:#10251e;color:#dce9e1;font:500 8px var(--mono);letter-spacing:.12em;text-transform:uppercase}
+    .comparison-table th:nth-child(1){width:20%}.comparison-table th:nth-child(2){width:27%}.comparison-table th:nth-child(3){width:28%}.comparison-table th:nth-child(4){width:25%}
+    .comparison-table td{color:#536159;font-size:12px;line-height:1.45}
+    .comparison-table td:first-child{color:#15221d;font-weight:700}
+    .comparison-table code{font-size:9px}
+    .method-status{display:block;width:max-content;margin-bottom:7px;padding:4px 6px;font:500 7px var(--mono);letter-spacing:.08em}
+    .method-status.same{background:#d8f3cc;color:#1d5b37}.method-status.changed{background:#ffe0d5;color:#8a351d}
+    .comparison-note{margin:14px 0 0;color:#6f7b74;font-size:9px;line-height:1.6}
+    .comparison-note a{color:#1b6d58;text-decoration:underline;text-underline-offset:3px}
+    @media(max-width:900px){.reference-head{grid-template-columns:1fr;gap:20px}}
+    @media(max-width:560px){.hero{grid-template-columns:minmax(0,1fr)}.hero-copy h1{font-size:38px;overflow-wrap:anywhere}section:not(.hero) h2{font-size:32px}.hero-facts{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.hero-facts>div{min-width:0}.hero-facts span{letter-spacing:.03em;overflow-wrap:anywhere}.lead{overflow-wrap:anywhere}.comparison-table th,.comparison-table td{padding:14px}}
   </style>
 </head>
 <body>
@@ -59,8 +80,8 @@
   <main>
     <section class="hero" id="inicio">
       <div class="hero-copy reveal">
-        <div class="eyebrow"><span></span> Trabajo Fin de Máster · IA + imagen médica</div>
-        <h1>Enseñar a una red<br>a reconocer lo que<br><em>nunca ha visto.</em></h1>
+        <div class="eyebrow"><span></span> Trabajo Fin de Máster</div>
+        <h1>Denoising Autoencoder<br>para la detección de anomalías<br><em>en cortes cerebrales.</em></h1>
         <p class="lead">Un detector de anomalías cerebrales entrenado únicamente con cortes sanos.</p>
         <div class="hero-actions">
           <a class="button primary" href="#idea">Entender la idea <span>↘</span></a>
@@ -73,15 +94,9 @@
         </div>
       </div>
       <div class="hero-visual reveal" aria-label="Visualización conceptual de un corte cerebral y su anomalía">
-        <div class="scan-label top"><span>FLAIR · corte real del dataset</span><span>test / Ungood</span></div>
         <div class="scan-stage">
-          <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
-          <div class="brain brain-main" role="img" aria-label="Corte cerebral FLAIR de la demo: Corte 01"><div class="scanline"></div></div>
-          <div class="callout callout-a"><span>01</span><b>Entrada desconocida</b><small>Sin etiqueta</small></div>
-          <div class="callout callout-b"><span>02</span><b>Error local</b><small>Residuo elevado</small></div>
-          <svg class="pointer" viewBox="0 0 150 90" aria-hidden="true"><path d="M2 84 C55 84 55 16 137 16"/><circle cx="140" cy="16" r="4"/></svg>
+          <div class="brain brain-main" role="img" aria-label="Corte cerebral FLAIR de la demo: Corte 01"></div>
         </div>
-        <div class="scan-label bottom"><span>ANOMALY MAP</span><span class="signal"><i></i><i></i><i></i><i></i><i></i></span></div>
       </div>
       <div class="hero-scroll">SCROLL TO EXPLORE <span>↓</span></div>
     </section>
@@ -110,7 +125,7 @@
             <div class="dataset-stack normal-set" aria-label="Dataset de 7.500 cortes normales"><i class="thumb normal"></i><i class="thumb normal"></i><i class="thumb normal"></i><small>7.500 CORTES NORMALES</small></div>
             <span>→</span><strong>NORMALIDAD APRENDIDA</strong>
           </div>
-          <h3>“Enséñame solo lo normal”</h3><p>Los pesos ven exclusivamente <code>train/good</code>. Lo diferente produce más error.</p>
+          <h3>“Enséñame solo lo normal”</h3><p>El modelo se entrena únicamente con <code>train/good</code>.</p>
         </article>
       </div>
       <p class="fine-print">* No supervisado respecto al aprendizaje de pesos. El umbral final sí se calibra con etiquetas de validación.</p>
@@ -162,16 +177,16 @@
         </div>
         <div class="pipe-arrow"><span>→</span><small id="arrow3">comparar</small></div>
         <div class="pipe-step">
-          <div class="pipe-number">04</div><div class="pipe-art target-art"><span>x</span><b>−</b><span>x̂</span><strong>²</strong></div>
+          <div class="pipe-number">04</div><div class="pipe-art target-art" id="scoreFormula"><b>(</b><span>x</span><b>−</b><span>x̂</span><b>)</b><strong>²</strong></div>
           <h3 id="step4-title">Minimizar la MSE</h3><p id="step4-copy">El error cuadrático actualiza 8,56 M de parámetros para restaurar mejor.</p>
         </div>
       </div>
       <div class="formula-card"><span>OBJETIVO DURANTE EL ENTRENAMIENTO</span><div>ℒ(θ) = <span class="fraction"><b>Σ M ⊙ (x̂ − x)²</b><i>max(Σ M, 1)</i></span></div><p>La máscara <b>M</b> ignora el fondo negro: así la red dedica su capacidad a la anatomía.</p></div>
       <div class="error-purpose" aria-label="Diferencia entre la pérdida de entrenamiento y el error de inferencia">
         <div class="error-purpose-title"><span>UNA DIFERENCIA CLAVE</span><h3>Aprender y detectar<br>no usan el error igual.</h3></div>
-        <article><span>ENTRENAMIENTO · ACTUALIZA LA RED</span><div class="error-purpose-formula">M ⊙ (x̂ − x)²</div><h4>Error cuadrático · MSE</h4><p>Se usa para modificar los pesos. Elevar al cuadrado hace que los errores grandes reciban una penalización especialmente fuerte.</p><div class="error-example"><span>Error 0,10</span><b>→</b><strong>0,01</strong><span>Error 0,50</span><b>→</b><strong>0,25</strong></div></article>
+        <article><span>ENTRENAMIENTO · ACTUALIZA LA RED</span><div class="error-purpose-formula">M ⊙ (x̂ − x)²</div><h4>Error cuadrático · MSE</h4><p>Se usa para modificar los pesos. Elevar al cuadrado hace que los errores grandes reciban una penalización especialmente fuerte.</p></article>
         <i aria-hidden="true">≠</i>
-        <article><span>INFERENCIA · CONSTRUYE EL MAPA</span><div class="error-purpose-formula">|x − fθ(x)|</div><h4>Error absoluto · residuo</h4><p>Se calcula después de congelar la red. Mantiene la diferencia en la misma escala que las intensidades y forma el mapa de anomalía.</p><div class="error-example"><span>Error 0,10</span><b>→</b><strong>0,10</strong><span>Error 0,50</span><b>→</b><strong>0,50</strong></div></article>
+        <article><span>INFERENCIA · CONSTRUYE EL MAPA</span><div class="error-purpose-formula">|x − fθ(x)|</div><h4>Error absoluto · residuo</h4><p>Se calcula después de congelar la red. Mantiene la diferencia en la misma escala que las intensidades y forma el mapa de anomalía.</p></article>
         <p class="error-purpose-summary"><b>MSE pregunta:</b> «¿cómo debo cambiar los pesos para reconstruir mejor?» <span>·</span> <b>Error absoluto pregunta:</b> «¿dónde difiere la reconstrucción de esta imagen?»</p>
       </div>
     </section>
@@ -180,7 +195,7 @@
       <div class="section-index light">04 — LABORATORIO DE RUIDO</div>
       <div class="noise-lab-head">
         <h2 id="noise-title">Ver cómo el ruido<br><em>corrompe la entrada.</em></h2>
-        <p>Durante el entrenamiento se genera un campo de ruido gaussiano grueso a 16×16, se interpola a 128×128 y se suma únicamente al primer plano. Mueve el control para variar su desviación estándar.</p>
+        <p>Durante el entrenamiento se genera un campo de ruido gaussiano grueso a 16×16, se interpola a 128×128 y se aplica únicamente al primer plano. Mueve el control para variar su desviación estándar.</p>
       </div>
       <div class="noise-lab-grid reveal">
         <div class="noise-image-panel">
@@ -237,7 +252,7 @@
           <div class="unet-timeline"><div><label for="unetStep">RECORRIDO POR LA RED</label><output id="unetStepValue" for="unetStep">01 / 07</output></div><input id="unetStep" type="range" min="0" max="6" value="0"><div class="unet-stage-copy"><b id="unetStageTitle">Entrada · 128²</b><span id="unetStageText">La red recibe el corte completo y extrae sus primeros patrones.</span></div></div>
         </div>
         <div class="channel-explainer">
-          <div class="channel-copy"><span>¿QUÉ SIGNIFICA «CH»?</span><h3>No son nuevas resonancias.<br>Son mapas de características.</h3><p>Cada canal es una matriz aprendida que responde a algún patrón útil. La red decide durante el entrenamiento qué debe representar cada uno; no asignamos manualmente un canal a «bordes» o «texturas».</p></div>
+          <div class="channel-copy"><span>¿QUÉ SIGNIFICA «CH»?</span><h3>Son mapas de características.</h3><p>Cada canal es una matriz aprendida que responde a algún patrón útil. La red decide durante el entrenamiento qué debe representar cada uno; no asignamos manualmente un canal a «bordes» o «texturas».</p></div>
           <div class="channel-live">
             <div class="channel-read"><div><span>RESOLUCIÓN ESPACIAL</span><b id="channelResolution">128 × 128</b><small>cuántas posiciones conserva cada mapa</small></div><i aria-hidden="true">↔</i><div><span>MAPAS DE CARACTERÍSTICAS</span><b id="channelCount">64 canales</b><small>cuántos patrones puede codificar</small></div></div>
             <div class="channel-meter"><span id="channelMeter" style="width:12.5%"></span></div>
@@ -256,13 +271,13 @@
       <div class="why-grid">
         <article><span>01</span><h3>¿Por qué ruido?</h3><p>Evita que la red aprenda una copia trivial. La obliga a modelar la estructura normal para poder restaurarla.</p></article>
         <article><span>02</span><h3>¿Por qué U-Net?</h3><p>Combina contexto y detalle. Es especialmente adecuada para imágenes donde importa la posición de cada región.</p></article>
-        <article><span>03</span><h3>¿Por qué sin sigmoid?</h3><p>La salida es una regresión lineal de intensidades, sin saturar artificialmente la reconstrucción.</p></article>
+        <article><span>03</span><h3>¿Qué devuelve la red?</h3><p>Una imagen reconstruida de <code>128 × 128</code> y un canal. La clasificación no sale directamente de la U-Net: se calcula después a partir del error entre la entrada y su reconstrucción.</p></article>
       </div>
     </section>
 
     <section class="results dark-section" id="resultados">
-      <div class="section-index light">06 — LO QUE OCURRIÓ</div>
-      <div class="results-head"><div><h2>Una separación alta,<br>medida de dos formas.</h2><p>Resultados de una ejecución completa con semilla 42. Test reservado: 3.715 cortes.</p></div><div class="run-stamp"><span>SCIENTIFIC RUN</span><b>50 épocas · GPU · 1h 35m</b></div></div>
+      <div class="section-index light">06 — RESULTADO</div>
+      <div class="results-head"><div><h2>Una separación alta,<br>medida de dos formas.</h2><p>Resultados de una ejecución completa con semilla 42.</p></div><div class="run-stamp"><span>SCIENTIFIC RUN</span><b>50 épocas · GPU · 1h 35m</b></div></div>
       <div class="metric-grid reveal">
         <article class="metric hero-metric"><span>AUROC · TEST</span><strong>0,9633</strong><div class="metric-bar"><i style="width:96.33%"></i></div><p>En el 96,33% de las parejas, un corte anómalo recibe más score que uno normal.</p></article>
         <article class="metric"><span>BALANCED ACCURACY</span><strong>0,9097</strong><div class="metric-ring" style="--value:90.97"><b>90,97%</b></div><p>Promedia sensibilidad y especificidad para no ocultar el desbalance.</p></article>
@@ -281,7 +296,7 @@
         <p class="youden-note">El umbral se selecciona exclusivamente en validación. Después se congela y se aplica una sola vez al test; no se elige mirando los resultados finales.</p>
       </div>
       <div class="metrics-lab reveal" aria-labelledby="metrics-lab-title">
-        <div class="metrics-lab-heading"><span class="overline">LABORATORIO DE MÉTRICAS</span><h3 id="metrics-lab-title">Dos preguntas diferentes.</h3><p><strong>AUROC</strong> evalúa cómo ordena el modelo todos los cortes sin elegir un umbral. La <strong>balanced accuracy</strong> evalúa una decisión binaria en un punto concreto.</p></div>
+        <div class="metrics-lab-heading"><span class="overline">LABORATORIO DE MÉTRICAS · TEST</span><h3 id="metrics-lab-title">Dos preguntas diferentes.</h3><p><strong>AUROC</strong> evalúa cómo ordena el modelo todos los cortes sin elegir un umbral. La <strong>balanced accuracy</strong> evalúa una decisión binaria en un punto concreto.</p></div>
         <div class="roc-panel">
           <div class="metric-explain-title"><span>01 · AUROC</span><b>Área = 0,9633</b></div>
           <svg id="rocChart" viewBox="0 0 460 360" role="img" aria-label="Curva ROC real del conjunto de test con punto de operación interactivo"></svg>
@@ -311,22 +326,48 @@
       <div class="section-index">07 — PROTOCOLO SIN ATAJOS</div>
       <div class="protocol-head"><h2>Cada dato tiene<br>un único papel.</h2><p>Separar entrenamiento, selección, calibración y test evita que la respuesta final se filtre hacia el modelo.</p></div>
       <div class="data-rail reveal">
-        <article><span class="rail-num">01</span><div class="rail-count">7.500</div><h3>Train · good</h3><p>Aprende los pesos</p><b>Solo normales</b></article>
-        <article><span class="rail-num">02</span><div class="rail-count">39</div><h3>Valid · good</h3><p>Elige la mejor época</p><b>Solo normales</b></article>
-        <article><span class="rail-num">03</span><div class="rail-count">83</div><h3>Valid · mixto</h3><p>Calibra el umbral</p><b>39 N + 44 A</b></article>
-        <article><span class="rail-num">04</span><div class="rail-count">3.715</div><h3>Test · mixto</h3><p>Mide el resultado final</p><b>640 N + 3.075 A</b></article>
+        <article><span class="rail-num">01</span><div class="rail-count">7.500</div><h3>Entrenamiento</h3><p>Entrena el modelo</p><b>7.500 normales</b></article>
+        <article><span class="rail-num">02</span><div class="rail-count">39</div><h3>Validación normal</h3><p>Elige la mejor época</p><b>39 normales · cada época</b></article>
+        <article><span class="rail-num">03</span><div class="rail-count">83</div><h3>Validación mixta</h3><p>Elige el límite</p><b>39 normales + 44 anómalas · al final</b></article>
+        <article><span class="rail-num">04</span><div class="rail-count">3.715</div><h3>Prueba final</h3><p>Mide el resultado</p><b>640 normales + 3.075 anómalas · una vez</b></article>
       </div>
       <div class="config-strip"><span>CONFIGURACIÓN REPRODUCIBLE</span><div><b>128 × 128</b><small>resolución</small></div><div><b>16</b><small>batch</small></div><div><b>10<sup>−4</sup></b><small>learning rate</small></div><div><b>σ 0,2</b><small>ruido</small></div><div><b>42</b><small>semilla</small></div></div>
     </section>
 
     <section class="limits">
       <div class="section-index light">08 — LEER EL RESULTADO CON HONESTIDAD</div>
-      <div class="limits-layout"><div><h2>Es prometedor.<br><em>No es un diagnóstico.</em></h2><p>La contribución es una línea base reproducible y explicable, no un sistema clínico.</p></div><div class="limits-list"><article><span>01</span><p>Trabaja con una sola modalidad <strong>FLAIR</strong> y cortes 2D independientes; pierde contexto 3D y multimodal.</p></article><article><span>02</span><p>La etiqueta es global por corte: no permite medir con rigor la <strong>localización</strong> de una lesión.</p></article><article><span>03</span><p>La validación tiene solo <strong>83 imágenes</strong>; el umbral podría variar con otras muestras.</p></article><article><span>04</span><p>Un benchmark no garantiza generalización a otros hospitales, escáneres o poblaciones.</p></article></div></div>
-      <div class="next-question"><span>LA SIGUIENTE PREGUNTA</span><p>¿Se mantiene el resultado con varias semillas, datos externos, volúmenes 3D y más modalidades?</p><b>→ Trabajo futuro</b></div>
+      <div class="limits-layout"><div><h2><em>No es un diagnóstico.</em></h2><p>La contribución es una línea base reproducible y explicable, no un sistema clínico.</p></div><div class="limits-list"><article><span>01</span><p>Trabaja con una sola modalidad <strong>FLAIR</strong> y cortes 2D independientes.</p></article><article><span>02</span><p>La etiqueta es global por corte: no permite medir con rigor la <strong>localización</strong> de una lesión.</p></article><article><span>03</span><p>La validación tiene solo <strong>83 imágenes</strong>; el umbral podría variar con otras muestras.</p></article><article><span>04</span><p>Un benchmark no garantiza generalización a otros hospitales, escáneres o poblaciones.</p></article></div></div>
+      <div class="next-question"><span>LA SIGUIENTE PREGUNTA</span><p>¿Podemos pasar de detectar una imagen anómala a localizar exactamente el tumor?</p><b>→ Trabajo futuro</b></div>
+    </section>
+
+    <section class="reference-comparison" id="comparacion-kascenas">
+      <div class="section-index">09 — COMPARACIÓN CON KASCENAS</div>
+      <div class="reference-head">
+        <h2>Qué mantenemos.<br><em>Qué cambiamos.</em></h2>
+        <p>La misma idea, adaptada a nuestros datos.</p>
+      </div>
+      <div class="comparison-table-wrap" role="region" aria-label="Comparación con Kascenas et al." tabindex="0">
+        <table class="comparison-table">
+          <thead><tr><th>Parte</th><th>Kascenas</th><th>Este proyecto</th><th>Motivo</th></tr></thead>
+          <tbody>
+            <tr><td><span class="method-status same">IGUAL</span>Aprendizaje</td><td>Aprende solo con imágenes normales.</td><td>Aprende con 7.500 imágenes normales.</td><td>Misma idea.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Entrada</td><td>Usa 4 tipos de resonancia.</td><td>Usa solo FLAIR.</td><td>Solo tenemos FLAIR.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Preparación</td><td>Usa resonancias originales y crea cortes de 128×128.</td><td>Usa cortes PNG ya creados, de 128×128 y con valores de 0 a 1.</td><td>No tenemos las resonancias originales.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Red</td><td>U-Net con 4 canales: T1, T1Gd, T2 y FLAIR.</td><td>U-Net con 1 canal: FLAIR.</td><td>Nuestros datos solo incluyen FLAIR.</td></tr>
+            <tr><td><span class="method-status same">IGUAL</span>Ruido</td><td>Ruido 16×16 con σ=0,2.</td><td>Ruido 16×16 con σ=0,2.</td><td>Mismos valores.</td></tr>
+            <tr><td><span class="method-status same">IGUAL</span>Error</td><td>Compara solo la zona del cerebro (máscara).</td><td>Compara solo la zona del cerebro (máscara).</td><td>Ignora el fondo negro.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Entrenamiento</td><td>No indica un número de épocas. Entrena durante 67.200 lotes.</td><td>7.500 imágenes ÷ 16 por lote = 469 lotes por época. En 50 épocas: 23.450 lotes.</td><td>Elige la mejor época con 39 imágenes normales.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Mapa de error</td><td>Une el error de los 4 tipos de resonancia.</td><td>Usa el error de FLAIR y limpia puntos sueltos.</td><td>Solo tenemos FLAIR.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Resultado</td><td>Busca el tumor en cada píxel.</td><td>Decide si la imagen es normal o anómala.</td><td>Tenemos una etiqueta por imagen.</td></tr>
+            <tr><td><span class="method-status changed">CAMBIA</span>Prueba</td><td>Mide el resultado por píxel.</td><td>Mide el resultado por imagen.</td><td>Las etiquetas son por imagen.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="comparison-note">Referencia: <a href="https://proceedings.mlr.press/v172/kascenas22a.html" target="_blank" rel="noreferrer">Kascenas et al., MIDL 2022 ↗</a>.</p>
     </section>
   </main>
 
   <footer><div class="footer-mark">DÆ</div><div><strong>Detección no supervisada de anomalías<br>en cortes cerebrales mediante un DAE</strong><span>Proyecto académico · Uso experimental</span></div><div class="footer-links"><a href="../README.md">README</a><a href="../docs/memoria.pdf">Memoria PDF</a><a href="#inicio">Volver arriba ↑</a></div></footer>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

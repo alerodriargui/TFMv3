@@ -36,6 +36,9 @@ $$('.mode-switch button').forEach(button => button.addEventListener('click', () 
   });
   $('#arrow1').textContent = mode === 'train' ? 'corromper' : 'entrada directa';
   $('#arrow3').textContent = mode === 'train' ? 'comparar' : 'puntuar';
+  $('#scoreFormula').innerHTML = mode === 'train'
+    ? '<b>(</b><span>x</span><b>−</b><span>x̂</span><b>)</b><strong>²</strong>'
+    : '<b>|</b><span>x</span><b>−</b><span>x̂</span><b>|</b>';
   $('#pipeline').classList.toggle('inference', mode === 'infer');
 }));
 
