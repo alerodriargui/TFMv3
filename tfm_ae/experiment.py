@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 
 from . import PROJECT_ROOT
 from .data import RadiographDataset, split_dir
+from .localization import anomaly_maps, evaluate_localization
 
 
 # Configuracion del experimento
@@ -227,12 +228,7 @@ def score_dataset_dae(
     for batch_index, (images, batch_labels, batch_paths) in enumerate(loader, start=1):
         device_images = images.to(device)
         reconstructed = model(device_images)
-        mask = F.avg_pool2d((device_images > 0.01).float(), 5, stride=1, padding=2)
-        error = (reconstructed - device_images).abs() * (mask > 0.95)
-        patches = F.pad(error, (2, 2, 2, 2), mode="reflect")
-        patches = patches.unfold(2, 5, 1).unfold(3, 5, 1)
-        filtered = patches.contiguous().view(*error.shape, 25).median(-1).values
-        spatial = filtered.amax(dim=1)
+        spatial = anomaly_maps(device_images, reconstructed)
         batch_scores = spatial.amax(dim=(1, 2))
         scores.append(batch_scores.cpu().numpy())
         labels.append(batch_labels.numpy())
@@ -335,6 +331,11 @@ def run(config: ExperimentConfig) -> dict:
     _save_scores(config.output_dir / "test_scores.csv", test_labels, test_scores, test_paths)
     _save_reconstructions(config.output_dir / "reconstructions.png", *samples)
 
+    localization = evaluate_localization(
+        model, config.data_root, config.output_dir, config.image_size,
+        config.batch_size, device, limit=config.max_eval_images_per_class, seed=config.seed,
+    )
+
     # Contar parámetros del modelo
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
@@ -349,6 +350,7 @@ def run(config: ExperimentConfig) -> dict:
         "threshold": threshold,
         "validation": validation_metrics,
         "test": test_metrics,
+        "localization": localization,
         "elapsed_seconds": time.perf_counter() - started,
         "scientific_run": (
             config.epochs >= 3

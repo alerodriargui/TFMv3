@@ -1,0 +1,41 @@
+{
+  "pixel_threshold": 0.13525390625,
+  "selection": "maximum micro Dice on validation; grid step 1/4096",
+  "image_size": 128,
+  "mask": "RGB > 0; alpha ignored; nearest resize; all pixels evaluated",
+  "splits": {
+    "valid": {
+      "images": 83,
+      "tp": 18197,
+      "fp": 4268,
+      "fn": 8472,
+      "micro_dice": 0.7407090812879066,
+      "micro_iou": 0.5881953647735721,
+      "sensitivity": 0.6823277963178221,
+      "mean_dice_lesion": 0.6688622558338735,
+      "mean_iou_lesion": 0.560422995886214,
+      "empty_reference_images": 39,
+      "false_positive_pixels_empty_reference": 776,
+      "lesion_reference_images": 44,
+      "anomalous_empty_reference_images": 0
+    },
+    "test": {
+      "images": 3715,
+      "tp": 1218931,
+      "fp": 178191,
+      "fn": 695686,
+      "micro_dice": 0.7361274544884123,
+      "micro_iou": 0.5824380449616018,
+      "sensitivity": 0.6366448224370723,
+      "mean_dice_lesion": 0.6871634715505583,
+      "mean_iou_lesion": 0.5662171228231136,
+      "empty_reference_images": 646,
+      "false_positive_pixels_empty_reference": 13983,
+      "lesion_reference_images": 3069,
+      "anomalous_empty_reference_images": 6
+    }
+  },
+  "model_sha256": "e6c10149e8e193c8ae9bfd33ea6a9ca3eb73c632d73331ac9da1140a24f88390",
+  "max_images_per_class": null,
+  "subset_seed": 42
+}

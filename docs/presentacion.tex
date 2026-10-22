@@ -535,8 +535,8 @@
 \end{frame}
 
 \begin{frame}{¿Por qué el máximo como score?}
-  BMAD proporciona una etiqueta por corte, por lo que el mapa debe reducirse a
-  un único número:
+  Para clasificar cada corte, reducimos el mapa a un único número.
+  Para evaluar localización conservamos también el mapa completo:
   \[
     s(x)=\max_{i,j}A(x)_{ij}.
   \]
@@ -762,17 +762,49 @@
     \midrule
     ¿Es realmente no supervisado? & Los pesos se aprenden solo con normales y sin etiquetas; el threshold sí usa etiquetas de validación: es calibración supervisada \\
     ¿Por qué no entrenar un clasificador? & Requeriría anomalías etiquetadas y aprendería las patologías presentes; aquí se evalúa modelado de normalidad \\
-    ¿El error reconstruye el tumor o lo localiza? & Es una señal de discrepancia; con etiquetas por corte solo validamos clasificación, no segmentación \\
+    ¿El error reconstruye el tumor o lo localiza? & Es una señal de discrepancia; las máscaras permiten medir Dice, IoU y sensibilidad de la localización \\
     ¿Por qué no afirmar uso clínico? & Falta validación externa, análisis por paciente, múltiples semillas y estudio de errores clínicos \\
     ¿Es definitivo el threshold 0,18611? & No: depende de validación, preprocesado y coste de errores; no debe transferirse sin recalibrar \\
     \bottomrule
   \end{tabular}
 \end{frame}
 
+\begin{frame}{Coincidencia con las mascaras de referencia}
+  \begin{itemize}
+    \item Mascaras binarias emparejadas con cada corte de validacion y test.
+    \item Umbral por pixel elegido maximizando Dice micro en validacion.
+    \item Test con umbral fijo: Dice, IoU y sensibilidad.
+    \item Los cortes normales tambien penalizan falsos positivos.
+    \item La demo superpone referencia (verde), prediccion (naranja)
+          y coincidencia (cian).
+    \item Las mascaras no se usan para aprender los pesos del DAE.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Resultados de localización en test}
+  Umbral espacial: $0{,}135254$, elegido exclusivamente en validación.
+  \begin{center}
+    \begin{tabular}{lr}
+      \toprule
+      Métrica & Resultado \\
+      \midrule
+      Dice micro & 0,7361 \\
+      IoU micro & 0,5824 \\
+      Sensibilidad & 0,6366 \\
+      Dice medio por corte con lesión visible & 0,6872 \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \small 3.715 cortes de test, con los pesos originales congelados.
+  Seis lesiones muy pequeñas desaparecen al reducir a $128\times128$;
+  siguen en el agregado micro, pero no en la media de los 3.069 cortes
+  con lesión visible en la referencia reducida.
+\end{frame}
+
 \begin{frame}{Limitaciones}
   \begin{itemize}
     \item Una modalidad FLAIR 2D pierde información multimodal y tridimensional.
-    \item Una etiqueta por corte no permite evaluar localización de lesión.
+    \item La localización se evalúa en 2D a resolución reducida, no por volumen o paciente.
     \item El máximo espacial puede ser sensible a artefactos locales.
     \item La validación es pequeña: 39 normales y 44 anómalas.
     \item El threshold usa etiquetas de validación: los pesos son no supervisados,
@@ -793,7 +825,7 @@
 
   \vspace{0.25cm}
   \textbf{Trabajo futuro}: varias semillas, ablaciones de hiperparámetros,
-  información multimodal/3D, máscaras de lesión y validación externa.
+  información multimodal/3D, evaluación espacial por paciente y validación externa.
 \end{frame}
 
 \begin{frame}[plain]

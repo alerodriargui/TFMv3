@@ -214,7 +214,8 @@ consume el código es \texttt{train/good}, \texttt{valid/good},
 \texttt{valid/Ungood}, \texttt{test/good} y \texttt{test/Ungood}. El conjunto
 contiene 7.500 cortes normales para entrenamiento, 39 normales y 44 anómalos
 para validación, y 640 normales y 3.075 anómalos para test. El flujo de este
-proyecto utiliza una etiqueta por corte y no una máscara tumoral.
+proyecto utiliza etiquetas por corte y, para evaluar la localización, las
+máscaras binarias de las carpetas \texttt{label} de validación y test.
 
 \subsection{Preprocesado}
 Cada PNG se abre con PIL, se convierte a escala de grises y se redimensiona a
@@ -464,11 +465,39 @@ el score de anomalía.
   \label{fig:reconstructions-results}
 \end{figure}
 
+\section{Evaluacion espacial con mascaras de referencia}
+Las mascaras binarias se emparejan por nombre con los PNG de las carpetas
+\texttt{img}. Se ignora el canal alfa opaco y se redimensionan con vecino mas
+cercano. No intervienen en el aprendizaje de los pesos. Se selecciona un umbral
+por pixel maximizando Dice micro en validacion (rejilla de paso $1/4096$),
+independiente del umbral de clasificacion, y se aplica fijo a test.
+\[
+\begin{gathered}
+\mathrm{Dice}=\frac{2TP}{2TP+FP+FN},\qquad
+\mathrm{IoU}=\frac{TP}{TP+FP+FN},\\
+\mathrm{Sensibilidad}=\frac{TP}{TP+FN}.
+\end{gathered}
+\]
+Los resultados micro agregan todos los cortes, incluidos los normales para
+penalizar falsos positivos; las medias por corte se restringen a referencias
+con lesion. Dos mascaras vacias reciben Dice e IoU de 1; su sensibilidad no se
+define. La demo muestra referencia, prediccion y superposicion. Los conteos por
+corte y resultados globales se guardan en CSV y \texttt{localization.json}.
+La procedencia de las anotaciones debe documentarse antes de atribuirlas a expertos.
+
+Con el checkpoint de semilla 42, el umbral espacial seleccionado es
+$0{,}135254$. En los 3.715 cortes de test se obtiene Dice micro de $0{,}7361$,
+IoU micro de $0{,}5824$ y sensibilidad de $0{,}6366$. La media de Dice sobre
+los 3.069 cortes con lesión visible en la referencia reducida es $0{,}6872$.
+Seis lesiones de entre 1 y 15 píxeles en las máscaras originales desaparecen
+al reducirlas a $128\times128$; esos cortes permanecen en el agregado micro,
+pero no en la media restringida a referencias con lesión visible.
+
 \section{Limitaciones}
 El proyecto trabaja con una sola modalidad FLAIR y cortes 2D independientes, por
 lo que pierde información multimodal y tridimensional disponible en estudios de
-RM completos. La etiqueta por corte no permite evaluar directamente la calidad
-de localización de una lesión. El score basado en el máximo puede reaccionar a
+RM completos. La evaluación espacial usa máscaras reducidas a $128\times128$
+y no constituye una evaluación volumétrica por paciente. El score basado en el máximo puede reaccionar a
 artefactos locales; la erosión implícita de la máscara y el filtro de mediana
 reducen este efecto, pero no lo eliminan. La validación contiene pocas imágenes,
 lo que puede hacer inestable la estimación del umbral. Finalmente, un benchmark
@@ -493,8 +522,8 @@ reproducible y explicable que adapta el principio de Kascenas et al. al formato
 2D FLAIR de BMAD. En la ejecución completa alcanzó un AUROC de 0,9633 y una
 balanced accuracy de 0,9097 en test. Como trabajo futuro se propone estudiar varias semillas,
 evaluar la sensibilidad a hiperparámetros como $\sigma$, resolución del ruido y
-tamaño del filtro, recuperar información multimodal y tridimensional, utilizar
-máscaras de lesión cuando estén disponibles y validar externamente en datos de
+tamaño del filtro, recuperar información multimodal y tridimensional, ampliar
+la evaluación espacial por paciente y validar externamente en datos de
 otros centros. El software es experimental y no es apto para decisiones
 asistenciales.
 

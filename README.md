@@ -100,10 +100,58 @@ perdida de validacion sobre imagenes normales.
 
 Cada ejecucion guarda `model.pt`, `metrics.json`, los scores de validacion y
 test, y una imagen con reconstrucciones en `results/experiments/dae_seed{N}/`.
-Las unicas metricas finales son AUROC y balanced accuracy. El umbral se elige
+Las metricas por imagen son AUROC y balanced accuracy; la evaluacion espacial anade Dice, IoU y sensibilidad. El umbral se elige
 con validacion y se guarda por separado para aplicarlo despues sobre test.
 
 ## Google Colab
 
 El notebook [TFMv3_colab_brain.ipynb](notebooks/TFMv3_colab_brain.ipynb)
 descarga los datos, valida la GPU, ejecuta una prueba reducida y entrena el DAE.
+
+## Evaluacion de localizacion con mascaras
+
+Validacion y test incluyen pares `good/img/<nombre>.png` / `good/label/<nombre>.png`
+y `Ungood/img/<nombre>.png` / `Ungood/label/<nombre>.png`. Las mascaras de referencia
+no se usan para entrenar el DAE. Se ignora su canal alfa y se considera lesion
+cualquier pixel RGB mayor que cero; se redimensionan con vecino mas cercano.
+
+Para evaluar el checkpoint existente sin reentrenar:
+
+```powershell
+python -m tfm_ae.localization --data-root data/raw/rsna_bmad/BraTS2021_slice
+python -m tfm_ae.demo_server
+```
+
+En la demo, selecciona un corte en **Corte con referencia** y pulsa **Ejecutar modelo**.
+Se muestran la referencia, la prediccion, su superposicion, Dice, IoU y sensibilidad.
+Verde indica solo referencia, naranja solo prediccion y cian coincidencia.
+Las imagenes propias sin referencia no reciben metricas de coincidencia.
+
+La evaluacion elige un umbral por pixel maximizando Dice micro en toda la
+validacion sobre una rejilla fija de paso 1/4096; despues lo aplica sin cambios
+a test. Es independiente del umbral de clasificacion por imagen. Se evaluan todos
+los pixeles a la resolucion del modelo, incluidos los del fondo y las lesiones
+que el filtro de foreground pudiera suprimir. `localization.json` guarda el
+umbral y los resultados; `valid_localization.csv` y `test_localization.csv`
+guardan TP, FP, FN y metricas por corte. Tambien se ejecuta en nuevos entrenamientos.
+
+Dice micro e IoU micro agregan los conteos de todos los cortes, incluidos los
+normales para penalizar sus falsos positivos. Las medias por corte se calculan
+solo sobre referencias con lesion. Dos mascaras vacias tienen Dice/IoU 1;
+la sensibilidad sin lesion es indefinida (`null` en la demo, celda vacia en CSV).
+Estos resultados son por corte/pixel a resolucion reducida, no por paciente ni
+una evaluacion volumetrica. La procedencia de las anotaciones debe documentarse
+antes de atribuir las referencias a expertos.
+
+Las pruebas reducidas de entrenamiento respetan `--max-eval-images-per-class`
+tambien en la evaluacion espacial y lo registran en el informe; sus resultados
+no deben presentarse como evaluacion completa.
+
+En el dataset local, seis cortes de test etiquetados como anomalos tienen
+referencia vacia despues de reducir a 128x128. Se registran en
+`anomalous_empty_reference_images`; siguen contando en las metricas micro,
+pero no en las medias restringidas a referencias con lesion visible.
+
+Para otra ubicacion de los datos, pasa tambien `--data-root RUTA` al servidor
+de la demo. La calibracion se valida contra una huella de los pesos del modelo
+para impedir mezclar umbrales y checkpoints diferentes.

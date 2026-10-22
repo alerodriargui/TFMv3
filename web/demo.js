@@ -1,7 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 
-const state = { blob: null, name: 'Corte 01', objectUrl: null };
+const state = { blob: null, name: 'Corte 01', objectUrl: null, caseId: null, version: 0 };
 const inputImage = $('#inputImage');
 const compareBefore = $('#compareBefore');
 const runButton = $('#runButton');
@@ -13,6 +13,9 @@ function showError(message) {
 }
 
 function clearResult() {
+  $('#localizationImages').hidden = true;
+  $('#localizationMetrics').hidden = true;
+  $('#localizationStatus').textContent = 'Ejecuta un caso del dataset para comparar con su referencia.';
   errorBanner.classList.remove('visible');
   $('.result-stage').classList.remove('ready');
   $('.heatmap-wrap').classList.remove('ready');
@@ -24,6 +27,9 @@ function clearResult() {
 }
 
 function selectSource(src, name, blob = null) {
+  state.version += 1;
+  state.caseId = null;
+  $('#referenceCase').value = '';
   if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
   state.objectUrl = blob ? URL.createObjectURL(blob) : null;
   state.blob = blob;
@@ -38,6 +44,10 @@ function selectSource(src, name, blob = null) {
 $$('.sample').forEach(button => button.addEventListener('click', () => {
   $$('.sample').forEach(item => item.classList.toggle('active', item === button));
   selectSource(button.dataset.src, button.dataset.name);
+  if (button.dataset.caseId !== undefined) {
+    state.caseId = Number(button.dataset.caseId);
+    $('#referenceCase').value = button.dataset.caseId;
+  }
 }));
 
 function acceptFile(file) {
@@ -67,19 +77,21 @@ async function sourceBlob() {
 }
 
 async function runInference() {
+  const version = state.version;
   clearResult();
   runButton.classList.add('loading');
   runButton.querySelector('span').textContent = 'Reconstruyendo';
   $('.result-stage').classList.add('processing');
   try {
-    const blob = await sourceBlob();
-    const response = await fetch('/api/reconstruct', {
+    const blob = state.caseId === null ? await sourceBlob() : new Blob([]);
+    const response = await fetch(state.caseId === null ? '/api/reconstruct' : `/api/reconstruct?case=${state.caseId}`, {
       method: 'POST',
       headers: { 'Content-Type': blob.type || 'application/octet-stream' },
       body: blob
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || 'El servidor no pudo ejecutar la inferencia.');
+    if (version !== state.version) return;
 
     const inputSrc = `data:image/png;base64,${payload.input}`;
     const reconSrc = `data:image/png;base64,${payload.reconstruction}`;
@@ -99,6 +111,23 @@ async function runInference() {
       ? '<i></i><div><b>ANÓMALA</b><span>El residuo supera el umbral calibrado.</span></div>'
       : '<i></i><div><b>NORMAL</b><span>El residuo queda por debajo del umbral.</span></div>';
     loadImagePipeline(payload);
+    if (payload.localization) {
+      const metrics = payload.localization;
+      $('#localizationImages').hidden = false;
+      $('#referenceMask').src = `data:image/png;base64,${payload.reference_overlay}`;
+      $('#predictionMask').src = `data:image/png;base64,${payload.prediction_overlay}`;
+      $('#overlapImage').src = `data:image/png;base64,${payload.overlap}`;
+      const format = value => value === null ? 'no definida' : value.toFixed(3);
+      $('#localizationMetrics').hidden = false;
+      $('#diceValue').textContent = format(metrics.dice);
+      $('#iouValue').textContent = format(metrics.iou);
+      $('#sensitivityValue').textContent = format(metrics.sensitivity);
+      $('#localizationStatus').textContent = (payload.reference_pixels === 0 ? 'Referencia sin lesión a esta resolución. ' : 'Verde: referencia; naranja: red; cian: coincidencia. ') + `Umbral por píxel: ${payload.pixel_threshold.toFixed(5)}`;
+    } else {
+      $('#localizationStatus').textContent = state.caseId === null
+        ? 'Esta imagen no tiene una máscara de referencia asociada. Selecciona un caso del dataset.'
+        : 'Falta calibración: ejecuta python -m tfm_ae.localization y reinicia el servidor.';
+    }
   } catch (error) {
     const hint = location.protocol === 'file:' ? ' Inicia la demo con “python -m tfm_ae.demo_server”.' : '';
     showError(`${error.message}${hint}`);
@@ -313,3 +342,50 @@ $('#processRange').addEventListener('input', event => {
   setProcessPlaying(false);
 });
 $('#processPlay').addEventListener('click', () => setProcessPlaying(!processPlaying));
+
+$('#referenceCase').addEventListener('change', event => {
+  if (event.target.value === '') return;
+  const id = Number(event.target.value);
+  const name = event.target.selectedOptions[0].textContent;
+  $$('.sample').forEach(item => item.classList.remove('active'));
+  selectSource(`/api/case-image?id=${id}`, name);
+  state.caseId = id;
+  $('#referenceCase').value = String(id);
+});
+fetch('/api/cases').then(response => {
+  if (!response.ok) throw new Error('No se pudieron cargar los casos');
+  return response.json();
+}).then(payload => {
+  if (payload.evaluation) {
+    const test = payload.evaluation.splits.test;
+    $('#localizationAggregate').textContent = `Test ${payload.evaluation.max_images_per_class == null ? "completo" : "reducido"} (${test.images} cortes): Dice micro ${test.micro_dice.toFixed(3)} | IoU micro ${test.micro_iou.toFixed(3)} | Sensibilidad ${test.sensitivity.toFixed(3)}. Medias sobre cortes con lesion: Dice ${test.mean_dice_lesion.toFixed(3)}, IoU ${test.mean_iou_lesion.toFixed(3)}.`;
+  }
+  if (payload.evaluation?.splits.test.anomalous_empty_reference_images) {
+    $('#localizationAggregate').textContent += ` Hay ${payload.evaluation.splits.test.anomalous_empty_reference_images} cortes anomalos con referencia vacia a esta resolucion; no entran en las medias de cortes con lesion visible.`;
+  }
+  const examples = [
+    ...payload.cases.filter(item => item.name.startsWith('Ungood')).slice(0, 3),
+    ...payload.cases.filter(item => item.name.startsWith('good')).slice(0, 3)
+  ];
+  $$('.sample').forEach((button, index) => {
+    const item = examples[index];
+    if (!item) { button.hidden = true; return; }
+    button.dataset.caseId = String(item.id);
+    button.dataset.src = `/api/case-image?id=${item.id}`;
+    button.dataset.name = item.name;
+    button.querySelector('img').src = button.dataset.src;
+    button.querySelector('img').alt = item.name;
+    button.querySelector('span').textContent = item.name.startsWith('Ungood') ? 'Anómalo' : 'Normal';
+    button.title = item.name;
+  });
+  if (state.version === 0 && examples.length) $('.sample').click();
+  for (const item of payload.cases) {
+    const option = document.createElement('option');
+    option.value = item.id; option.textContent = item.name;
+    $('#referenceCase').append(option);
+  }
+  if (state.caseId !== null) $('#referenceCase').value = String(state.caseId);
+  $('#localizationStatus').textContent = payload.calibrated
+    ? 'Selecciona un caso y pulsa Ejecutar modelo.'
+    : 'Falta calibración: ejecuta python -m tfm_ae.localization y reinicia el servidor.';
+}).catch(() => { $('#localizationStatus').textContent = 'Inicia la demo con python -m tfm_ae.demo_server para cargar las referencias.'; });

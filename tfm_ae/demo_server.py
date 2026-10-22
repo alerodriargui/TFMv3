@@ -9,6 +9,7 @@ import json
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs
 
 import numpy as np
 import torch
@@ -17,6 +18,8 @@ from PIL import Image
 
 from . import PROJECT_ROOT
 from .dae import DAE
+from .data import resolve_data_root, find_images
+from .localization import load_mask, overlap, anomaly_maps, model_fingerprint
 
 DEFAULT_CHECKPOINT = PROJECT_ROOT / "results" / "dae_seed42" / "model.pt"
 WEB_ROOT = PROJECT_ROOT / "web"
@@ -33,16 +36,23 @@ def _png_base64(array: np.ndarray) -> str:
 class FrozenDAE:
     """Carga una vez el checkpoint y expone inferencia sin gradientes."""
 
-    def __init__(self, checkpoint_path: Path) -> None:
+    def __init__(self, checkpoint_path: Path, data_root: Path | None = None) -> None:
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
         self.image_size = int(checkpoint.get("image_size", 128))
         self.model = DAE(base_ch=int(checkpoint.get("dae_base_ch", 64)))
         self.model.load_state_dict(checkpoint["model_state"])
         self.model.requires_grad_(False)
         self.model.eval()
+        self.cases = find_images(resolve_data_root(data_root) / "test")
+        report = checkpoint_path.parent / "localization.json"
+        self.localization = json.loads(report.read_text(encoding="utf-8")) if report.exists() else None
+        if self.localization and self.localization.get('model_sha256') != model_fingerprint(self.model):
+            raise ValueError('La calibracion espacial no corresponde a este checkpoint; vuelve a evaluarlo.')
+        if self.localization and self.localization['image_size'] != self.image_size:
+            raise ValueError('La calibracion espacial tiene otra resolucion.')
 
     @torch.inference_mode()
-    def reconstruct(self, image_bytes: bytes) -> dict[str, object]:
+    def reconstruct(self, image_bytes: bytes, reference: np.ndarray | None = None) -> dict[str, object]:
         with Image.open(io.BytesIO(image_bytes)) as source:
             source = source.convert("L").resize(
                 (self.image_size, self.image_size), Image.Resampling.BILINEAR
@@ -54,10 +64,7 @@ class FrozenDAE:
         foreground = F.avg_pool2d((image > 0.01).float(), 5, stride=1, padding=2) > 0.95
         raw_error = (reconstruction - image).abs()
         error = raw_error * foreground
-        patches = F.pad(error, (2, 2, 2, 2), mode="reflect")
-        patches = patches.unfold(2, 5, 1).unfold(3, 5, 1)
-        filtered = patches.contiguous().view(*error.shape, 25).median(-1).values
-        anomaly_map = filtered.amax(dim=1)[0]
+        anomaly_map = anomaly_maps(image, reconstruction)[0]
         score = float(anomaly_map.amax())
         maximum_index = int(anomaly_map.argmax())
         maximum_y, maximum_x = divmod(maximum_index, self.image_size)
@@ -69,7 +76,7 @@ class FrozenDAE:
         mask_png = (foreground[0, 0].numpy() * 255).astype(np.uint8)
         masked_heatmap_png = self._colorize(error[0, 0].numpy(), input_png)
         heatmap_png = self._colorize(anomaly_map.numpy(), input_png)
-        return {
+        payload = {
             "input": _png_base64(input_png),
             "reconstruction": _png_base64(recon_png),
             "heatmap": _png_base64(heatmap_png),
@@ -81,6 +88,30 @@ class FrozenDAE:
             "is_anomaly": score >= THRESHOLD,
             "maximum": {"x": maximum_x, "y": maximum_y},
         }
+
+        if self.localization:
+            threshold = self.localization['pixel_threshold']
+            predicted = anomaly_map.numpy() >= threshold
+            payload['pixel_threshold'] = threshold
+            payload['prediction'] = _png_base64((predicted * 255).astype(np.uint8))
+            if reference is not None:
+                overlay = np.repeat(input_png[..., None], 3, axis=2)
+                # Verde: referencia; naranja: prediccion; cian: coincidencia.
+                for region, color in [(reference & ~predicted, [100,255,100]),
+                                      (predicted & ~reference, [255,112,69]),
+                                      (reference & predicted, [71,225,230])]:
+                    overlay[region] = (.35*overlay[region] + .65*np.array(color)).astype(np.uint8)
+                payload['localization'] = overlap(predicted, reference)
+                payload['reference'] = _png_base64((reference * 255).astype(np.uint8))
+                reference_overlay = np.repeat(input_png[..., None], 3, axis=2)
+                reference_overlay[reference] = (.35 * reference_overlay[reference] + .65 * np.array([100,255,100])).astype(np.uint8)
+                prediction_overlay = np.repeat(input_png[..., None], 3, axis=2)
+                prediction_overlay[predicted] = (.35 * prediction_overlay[predicted] + .65 * np.array([255,112,69])).astype(np.uint8)
+                payload['reference_overlay'] = _png_base64(reference_overlay)
+                payload['prediction_overlay'] = _png_base64(prediction_overlay)
+                payload['reference_pixels'] = int(reference.sum())
+                payload['overlap'] = _png_base64(overlay)
+        return payload
 
     @staticmethod
     def _colorize(
@@ -111,15 +142,48 @@ class DemoHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(WEB_ROOT), **kwargs)
 
     def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path == '/api/cases':
+            cases = self.model.cases
+            # Ejemplos deterministas de ambas clases; se accede por indice, nunca por ruta del cliente.
+            indices = [i for kind in ['Ungood', 'good'] for i, path in
+                       list((i, p) for i, p in enumerate(cases) if p.parent.parent.name == kind)[:6]]
+            self._json(HTTPStatus.OK, {'cases': [{'id': i, 'name': f'{cases[i].parent.parent.name} / {cases[i].name}'} for i in indices],
+                                      'calibrated': self.model.localization is not None,
+                                      'evaluation': self.model.localization})
+            return
+        if parsed.path == '/api/case-image':
+            try:
+                index = int(parse_qs(parsed.query)['id'][0])
+                if index < 0 or index >= len(self.model.cases):
+                    raise ValueError('Caso inexistente')
+                data = self.model.cases[index].read_bytes()
+                self.send_response(HTTPStatus.OK)
+                self.send_header('Content-Type', 'image/png')
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers(); self.wfile.write(data)
+            except (ValueError, KeyError, IndexError):
+                self.send_error(HTTPStatus.BAD_REQUEST)
+            return
         if self.path in ("/", ""):
             self.path = "/demo.html"
         super().do_GET()
 
     def do_POST(self) -> None:
-        if self.path != "/api/reconstruct":
+        parsed = urlparse(self.path)
+        if parsed.path != "/api/reconstruct":
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         try:
+            query = parse_qs(parsed.query)
+            if 'case' in query:
+                index = int(query['case'][0])
+                if index < 0 or index >= len(self.model.cases):
+                    raise ValueError('Caso inexistente')
+                path = self.model.cases[index]
+                payload = self.model.reconstruct(path.read_bytes(), load_mask(path, self.model.image_size))
+                self._json(HTTPStatus.OK, payload)
+                return
             length = int(self.headers.get("Content-Length", "0"))
             if length <= 0 or length > MAX_UPLOAD_BYTES:
                 raise ValueError("La imagen está vacía o supera 10 MB.")
@@ -141,13 +205,15 @@ class DemoHandler(SimpleHTTPRequestHandler):
 def main() -> None:
     parser = argparse.ArgumentParser(description="Demo web del DAE congelado")
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
+    parser.add_argument("--data-root", type=Path)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
 
     if not args.checkpoint.is_file():
         raise FileNotFoundError(f"No se encuentra el checkpoint: {args.checkpoint}")
-    DemoHandler.model = FrozenDAE(args.checkpoint)
+    torch.set_num_threads(4)
+    DemoHandler.model = FrozenDAE(args.checkpoint, args.data_root)
     server = ThreadingHTTPServer((args.host, args.port), DemoHandler)
     print(f"DAE Lab disponible en http://{args.host}:{args.port}", flush=True)
     try:
