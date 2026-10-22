@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="demo.css?v=5">
+  <link rel="stylesheet" href="demo.css?v=6">
   <link rel="stylesheet" href="demo-window.css?v=2">
   <style>
     .reference-comparison{margin:0 4vw 70px;padding:40px;background:#e7e5dc;color:#15221d}
@@ -106,16 +106,16 @@
 
       <p id="localizationStatus" role="status">Cargando casos disponibles…</p>
       <div class="localization-metrics" id="localizationMetrics" hidden>
-        <div><span>Dice</span><strong id="diceValue">-</strong></div>
-        <div><span>IoU</span><strong id="iouValue">-</strong></div>
-        <div><span>Sensibilidad</span><strong id="sensitivityValue">-</strong></div>
+        <div><span>Dice</span><strong id="diceValue">-</strong><div class="metric-formula" aria-label="Dos por píxeles coincidentes dividido entre píxeles de referencia más píxeles de la red"><b>2 × píxeles coincidentes</b><i>píxeles de referencia + píxeles de la red</i></div></div>
+        <div><span>IoU</span><strong id="iouValue">-</strong><div class="metric-formula" aria-label="Píxeles coincidentes dividido entre píxeles marcados por cualquiera de las dos, sin repetir"><b>píxeles coincidentes</b><i>píxeles marcados por cualquiera, sin repetir</i></div></div>
+        <div><span>Sensibilidad</span><strong id="sensitivityValue">-</strong><div class="metric-formula" aria-label="Píxeles coincidentes dividido entre píxeles de referencia"><b>píxeles coincidentes</b><i>píxeles de referencia</i></div></div>
       </div>
       <div class="localization-grid" id="localizationImages" hidden>
         <figure><img id="referenceMask" alt="Lesión de referencia superpuesta sobre la resonancia"><figcaption>Referencia · verde</figcaption></figure>
         <figure><img id="predictionMask" alt="Predicción superpuesta sobre la resonancia"><figcaption>Red · naranja</figcaption></figure>
         <figure><img id="overlapImage" alt="Superposición de referencia y predicción"><figcaption>Verde: solo referencia · Naranja: solo red · Cian: coincidencia</figcaption></figure>
       </div>
-      <p>Dice = 2TP / (2TP + FP + FN) · IoU = TP / (TP + FP + FN). Un valor de 1 indica coincidencia total. Si ambas máscaras están vacías se asigna 1; la sensibilidad sin lesión no se define.</p>
+      <p>Los píxeles coincidentes están marcados tanto en la referencia como por la red. Multiplica cada valor por 100 para expresarlo en porcentaje. Si ambas máscaras están vacías, Dice e IoU valen 1; la sensibilidad sin lesión no se define.</p>
       <p>Las máscaras son las referencias distribuidas con el dataset; su procedencia experta debe documentarse antes de atribuirlas a especialistas.</p>
       <details><summary>Resultados del conjunto de test</summary><p id="localizationAggregate"></p></details>
     </section>

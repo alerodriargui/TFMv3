@@ -15,6 +15,10 @@
 .localization-metrics[hidden]{display:none}.localization-metrics>div{padding:18px;border:1px solid var(--line);background:var(--panel)}
 .localization-metrics span{display:block;font:10px var(--mono);text-transform:uppercase;color:var(--muted)}
 .localization-metrics strong{display:block;margin-top:8px;font:32px var(--mono);color:var(--mint)}
+.metric-formula{margin-top:18px;font:11px/1.5 var(--sans);text-align:center;color:var(--muted);overflow-wrap:anywhere}
+.metric-formula b,.metric-formula i{display:block;font-weight:400;font-style:normal;padding:6px 0}
+.metric-formula b{border-bottom:1px solid var(--muted);color:var(--ink)}
+@media(max-width:560px){.localization-metrics{grid-template-columns:1fr}.metric-formula{font-size:12px;margin-top:10px}}
 .source-panel>label:not(.dropzone){display:block;margin-top:20px;font-size:11px;color:var(--muted)}
 #referenceCase{display:block;width:100%;margin-top:8px;padding:10px;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
 .localization-lab details{margin-top:15px;font-size:12px;color:var(--muted)}
