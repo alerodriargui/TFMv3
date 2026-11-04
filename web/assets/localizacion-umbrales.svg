@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 660" role="img" aria-labelledby="title desc">
+<title id="title">Un mapa de error, muchos umbrales</title><desc id="desc">El modelo congelado produce un mapa de error una vez por imagen en la pasada de calibración. Agrupamos los errores según la referencia y probamos umbrales sobre esos mismos valores. En este ejemplo, 0,20 logra Dice 1, frente a 0,86 con 0,05 y 0,50 con 0,80.</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10" fill="#83efc9"/></marker></defs>
+<rect width="1400" height="660" rx="20" fill="#101e2d"/>
+<g font-family="Arial,sans-serif" fill="#eef5f8">
+<text x="35" y="40" font-size="20" fill="#83efc9">1. EL MODELO GENERA EL MAPA UNA VEZ EN ESTA PASADA</text>
+<rect x="35" y="65" width="150" height="130" rx="12" fill="#23384b"/><text x="110" y="113" text-anchor="middle" font-size="22">Imagen de</text><text x="110" y="145" text-anchor="middle" font-size="22">validación</text>
+<path d="M195 130H240" stroke="#83efc9" stroke-width="3" marker-end="url(#arrow)"/>
+<rect x="255" y="65" width="190" height="130" rx="12" fill="#23384b"/><text x="350" y="110" text-anchor="middle" font-size="23">Modelo</text><text x="350" y="143" text-anchor="middle" font-size="23">congelado</text><text x="350" y="174" text-anchor="middle" font-size="16" fill="#acbfce">+ cálculo del error</text>
+<path d="M455 130H500" stroke="#83efc9" stroke-width="3" marker-end="url(#arrow)"/>
+<text x="590" y="82" text-anchor="middle" font-size="20">Mapa de error</text>
+<g font-size="22" text-anchor="middle"><rect x="525" y="96" width="60" height="44" rx="5" fill="#263d50"/><rect x="592" y="96" width="60" height="44" rx="5" fill="#346578"/><rect x="525" y="147" width="60" height="44" rx="5" fill="#448b9c"/><rect x="592" y="147" width="60" height="44" rx="5" fill="#60adba"/>
+<text x="555" y="126">0,10</text><text x="622" y="126">0,40</text><text x="555" y="177">0,60</text><text x="622" y="177">0,90</text></g>
+<path d="M675 130H725" stroke="#83efc9" stroke-width="3" marker-end="url(#arrow)"/>
+<rect x="750" y="65" width="610" height="140" rx="12" fill="#192e3f"/>
+<text x="775" y="96" font-size="20">Agrupamos los errores según la referencia:</text>
+<text x="775" y="135" font-size="21" fill="#83efc9">Lesión: 0,40 · 0,60 · 0,90</text><text x="775" y="173" font-size="21" fill="#acbfce">Fondo: 0,10</text>
+<text x="35" y="253" font-size="20" fill="#83efc9">2. PROBAMOS LÍMITES SOBRE ESOS MISMOS ERRORES</text>
+<text x="35" y="284" font-size="18" fill="#acbfce">Marcamos los valores iguales o mayores al límite. La referencia tiene 3 píxeles de lesión.</text>
+<g stroke="#3e566a"><rect x="35" y="310" width="410" height="238" rx="14" fill="#172a3c"/><rect x="490" y="310" width="410" height="238" rx="14" fill="#173b39" stroke="#83efc9" stroke-width="2"/><rect x="945" y="310" width="410" height="238" rx="14" fill="#172a3c"/></g>
+<g font-size="24" text-anchor="middle"><text x="240" y="350">Límite 0,05</text><text x="695" y="350">Límite 0,20</text><text x="1150" y="350">Límite 0,80</text></g>
+<g fill="#70d8ee"><rect x="181" y="376" width="48" height="48" rx="6" fill="#ffab7b"/><rect x="237" y="376" width="48" height="48" rx="6"/><rect x="181" y="432" width="48" height="48" rx="6"/><rect x="237" y="432" width="48" height="48" rx="6"/>
+<rect x="636" y="376" width="48" height="48" rx="6" fill="#30485a"/><rect x="692" y="376" width="48" height="48" rx="6"/><rect x="636" y="432" width="48" height="48" rx="6"/><rect x="692" y="432" width="48" height="48" rx="6"/>
+<rect x="1091" y="376" width="48" height="48" rx="6" fill="#30485a"/><rect x="1147" y="376" width="48" height="48" rx="6" fill="#83efc9"/><rect x="1091" y="432" width="48" height="48" rx="6" fill="#83efc9"/><rect x="1147" y="432" width="48" height="48" rx="6"/></g>
+<g font-size="21" text-anchor="middle"><text x="240" y="518">Marca de más · Dice 0,86</text><text x="695" y="518" fill="#83efc9">Coincide todo · Dice 1 → GANA</text><text x="1150" y="518">Omite lesión · Dice 0,50</text></g>
+<g font-size="17"><rect x="45" y="574" width="14" height="14" fill="#70d8ee"/><text x="68" y="587">Coincide</text><rect x="190" y="574" width="14" height="14" fill="#ffab7b"/><text x="213" y="587">Marca de más</text><rect x="385" y="574" width="14" height="14" fill="#83efc9"/><text x="408" y="587">Lesión omitida</text><rect x="580" y="574" width="14" height="14" fill="#30485a"/><text x="603" y="587">Fondo correcto</text></g>
+<text x="35" y="630" font-size="18" fill="#acbfce">Ejemplo inventado con 3 límites. El código evalúa 4097 candidatos usando los píxeles de toda la validación.</text>
+</g></svg>

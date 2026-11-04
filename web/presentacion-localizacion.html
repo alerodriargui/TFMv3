@@ -1,0 +1,78 @@
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Localización · Del error a la lesión</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1420;--panel:#142334;--line:#2c4154;--ink:#eef5f8;--muted:#acbfce;--mint:#83efc9;--orange:#ffab7b;--cyan:#70d8ee}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 90% 0,#1b3c46 0,transparent 55%),var(--bg);color:var(--ink);font:18px/1.55 system-ui,sans-serif;min-height:100vh}header{max-width:1440px;margin:auto;padding:22px 5vw;display:flex;justify-content:space-between;align-items:center;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}header b{color:var(--mint)}main{max-width:1440px;margin:auto;padding:20px 5vw 105px}.slide[hidden]{display:none}.slide{animation:enter .25s ease-out}@keyframes enter{from{opacity:.3;transform:translateY(8px)}to{opacity:1;transform:none}}.kicker{color:var(--mint);font:13px/1.4 Consolas,monospace;text-transform:uppercase;letter-spacing:2px;margin:0 0 16px}h1,h2{font-weight:650;letter-spacing:-.045em;line-height:1.08;margin:0 0 22px;max-width:1080px}h1{font-size:clamp(42px,6.4vw,88px)}h2{font-size:clamp(32px,4.4vw,58px)}h3{font-size:20px;line-height:1.3;margin:0 0 12px}p{margin:0 0 16px}.lead{font-size:clamp(19px,2vw,26px);max-width:980px;color:var(--muted)}em{font-style:normal;color:var(--mint)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:25px 0}.three{grid-template-columns:repeat(3,1fr)}.card{padding:24px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,#192c3e,#122030)}.card p:last-child{margin-bottom:0}.tag{display:inline-block;color:var(--mint);font:12px Consolas,monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}.note,.source{font-size:14px;color:var(--muted)}.source{margin-top:20px}.takeaway{padding:16px 22px;border-left:3px solid var(--mint);background:#83efc90a;font-size:19px;margin-top:22px}.flow{display:flex;align-items:stretch;gap:10px;margin:30px 0;flex-wrap:wrap}.flow div{flex:1;min-width:130px;padding:20px;background:var(--panel);border:1px solid var(--line);border-radius:12px}.flow b{display:block;color:var(--mint);font:12px Consolas,monospace;margin-bottom:10px}.flow>span{align-self:center;color:var(--mint)}pre{padding:20px;background:#08111b;border:1px solid #25394b;border-radius:12px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:15px/1.65 Consolas,monospace;margin:16px 0}code{font-family:Consolas,monospace}ul,ol{padding-left:24px;margin:12px 0}li{padding-left:3px;margin:8px 0}table{width:100%;border-collapse:collapse;margin:18px 0;font-size:17px}th{color:var(--muted);font-weight:500}td,th{padding:13px 12px;border-bottom:1px solid var(--line);text-align:left}strong{color:var(--mint)}.big{font-size:48px;font-weight:650;letter-spacing:-2px;color:var(--mint);line-height:1.2}.formula{font:24px/1.5 Consolas,monospace;color:var(--mint);margin:15px 0}.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;margin:18px 0}.legend span:before{content:'';display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--swatch);margin-right:7px}.matrix{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;max-width:220px;margin:15px auto}.cell{aspect-ratio:1;display:grid;place-items:center;border-radius:6px;font:14px Consolas,monospace;background:#233447;color:#d4e3ee}.cell.tp{background:var(--cyan);color:#091720}.cell.fp{background:var(--orange);color:#091720}.cell.fn,.cell.ref{background:var(--mint);color:#091720}.mini-metrics{display:flex;flex-wrap:wrap;gap:20px;font-size:18px;margin-top:15px}.mini-metrics b{color:var(--mint)}input[type=range]{width:100%;accent-color:var(--mint);margin:18px 0;cursor:pointer}label{display:block}button{background:var(--panel);color:var(--ink);border:1px solid #486175;border-radius:9px;padding:10px 16px;font:inherit;font-size:14px;cursor:pointer}button:hover{border-color:var(--mint)}button:disabled{opacity:.35;cursor:default}button:focus-visible,input:focus-visible{outline:3px solid var(--mint);outline-offset:4px}footer{position:fixed;bottom:0;left:0;right:0;background:#0b1420f5;border-top:1px solid var(--line);padding:16px 5vw;display:flex;align-items:center;justify-content:space-between;gap:12px}.progress{position:absolute;left:0;top:-2px;height:2px;background:var(--mint);transition:width .2s}.nav-info{color:var(--muted);font:13px Consolas,monospace}.nav-buttons{display:flex;gap:8px}.small-label{font-size:12px;color:var(--muted)}@media(min-width:1500px){body{font-size:20px}pre{font-size:17px}}@media(max-width:760px){header{padding:18px 6vw}main{padding:15px 6vw 115px}.grid,.three{grid-template-columns:1fr}body{font-size:16px}.card{padding:20px}.flow>span{display:none}table{font-size:13px}td,th{padding:10px 5px}.small-label{display:none}.big{font-size:36px}footer{padding:14px 5vw}}@media(prefers-reduced-motion:reduce){.slide{animation:none}.progress{transition:none}}@media print{.slide[hidden]{display:block}.slide{break-after:page}header,footer{display:none}main{padding:0}.slide{animation:none}}
+</style>
+</head>
+<body>
+<header><b>TFMv3 / Localización</b><span>Paso a paso</span></header>
+<main>
+<section class="slide" aria-labelledby="s1">
+<p class="kicker">1 / Qué hemos añadido</p><h1 id="s1">¿Dónde está<br><em>la posible lesión?</em></h1>
+<p class="lead">Ahora marcamos una zona de la imagen y comprobamos si coincide con la referencia del dataset.</p>
+<div class="flow"><div><b>ANTES</b>Una puntuación para la imagen</div><span>→</span><div><b>NUEVO</b>Una zona marcada + cuánto coincide</div></div>
+<p class="takeaway">Localizar = <strong>señalar dónde</strong>.</p>
+</section>
+<section class="slide" hidden aria-labelledby="s2">
+<p class="kicker">2 / Qué comparamos</p><h2 id="s2">Dos dibujos sobre la misma imagen.</h2>
+<div class="grid"><div class="card"><span class="tag">Referencia del dataset</span><svg viewBox="0 0 260 150" height="190" width="100%" role="img" aria-label="Esquema de referencia con una zona verde"><ellipse cx="130" cy="75" rx="85" ry="65" fill="#293c4d"/><path d="M135 40 Q185 25 190 75 Q175 115 140 100 Q118 75 135 40" fill="#83efc9"/></svg><h3>La zona que viene anotada.</h3></div><div class="card"><span class="tag">Predicción del sistema</span><svg viewBox="0 0 260 150" height="190" width="100%" role="img" aria-label="Esquema de predicción con una zona naranja"><ellipse cx="130" cy="75" rx="85" ry="65" fill="#293c4d"/><path d="M146 48 Q195 35 197 83 Q185 119 150 104 Q128 82 146 48" fill="#ffab7b"/></svg><h3>La zona que marca nuestro sistema.</h3></div></div>
+<p class="takeaway">Una <strong>máscara</strong> es ese dibujo: indica qué píxeles pertenecen a la zona.</p>
+<p class="source">Dibujos ilustrativos, no imágenes médicas reales.</p>
+</section>
+<section class="slide" hidden aria-labelledby="s3">
+<p class="kicker">3 / Cómo sale nuestra zona</p><h2 id="s3">Marcamos donde hay más error.</h2>
+<div class="flow"><div><b>01</b>Comparamos la imagen con su reconstrucción</div><span>→</span><div><b>02</b>Medimos cuánto difieren en cada punto</div><span>→</span><div><b>03</b>Marcamos donde el error supera un límite</div></div>
+<div class="grid"><div class="card"><h3>Error pequeño</h3><p>La reconstrucción se parece → no se marca.</p></div><div class="card"><h3>Error grande</h3><p>La reconstrucción difiere → se marca como posible anomalía.</p></div></div>
+<p class="takeaway">Ese límite se llama <strong>umbral</strong>. Un error alto no demuestra por sí solo que haya una lesión.</p>
+</section>
+<section class="slide" hidden aria-labelledby="s4">
+<p class="kicker">4 / Cómo elegimos el umbral</p><h2 id="s4">Un mapa. Muchos límites. Gana el mejor Dice.</h2>
+<img src="assets/localizacion-umbrales.svg" style="display:block;width:100%;height:auto" alt="El modelo genera un mapa de errores una vez en la pasada de calibración. Sobre los mismos errores se prueban distintos límites. Ejemplo: con 0,05 se marca de más y Dice es 0,86; con 0,20 coincide todo y Dice es 1; con 0,80 falta lesión y Dice es 0,50. Se elige el límite de mayor Dice.">
+<p class="takeaway">El código agrupa y cuenta los errores en <strong>histogramas</strong>. Así prueba los 4097 límites sin ejecutar el modelo para cada uno.</p>
+<p class="source">El ejemplo simplifica el proceso. El umbral real se elige con toda la validación y quedó en 0,13525390625.</p>
+</section>
+<section class="slide" hidden aria-labelledby="s5">
+<p class="kicker">5 / Qué hacemos después</p><h2 id="s5">Elegir primero.<br><em>Comprobar después.</em></h2>
+<div class="grid"><div class="card"><span class="tag">Validación</span><h3>Elegimos el umbral.</h3><p class="big">≈ 0,1353</p><p>Es el valor que quedó guardado.</p></div><div class="card"><span class="tag">Test</span><h3>Lo usamos en otras imágenes.</h3><p>No cambiamos el límite para que encaje mejor.</p><p>Comparamos con sus referencias para ver qué tal funciona.</p></div></div>
+<p class="takeaway">Es un <strong>umbral nuevo para marcar zonas</strong>, distinto del que decide si una imagen completa es anómala.</p>
+</section>
+<section class="slide" hidden aria-labelledby="s6">
+<p class="kicker">6 / Qué vemos en la demo</p><h2 id="s6">Los colores muestran los aciertos y las diferencias.</h2>
+<div class="grid three"><div class="card" style="border-top:5px solid var(--cyan)"><h3>Cian</h3><p>Coinciden sistema y referencia.</p></div><div class="card" style="border-top:5px solid var(--orange)"><h3>Naranja</h3><p>El sistema marca de más.</p></div><div class="card" style="border-top:5px solid var(--mint)"><h3>Verde</h3><p>Hay referencia que el sistema no marca.</p></div></div>
+<div class="card"><span class="tag">Resultado guardado en test</span><p class="big">Dice: 0,736 / 1</p><p>Resume la coincidencia de las zonas en 3715 imágenes. No es el porcentaje de imágenes acertadas.</p></div>
+<p class="takeaway">Lo nuevo: <strong>dibujar la zona, compararla y medir cuánto coincide</strong>.</p>
+<p class="source">Resultado de results/dae_seed42/localization.json.</p>
+</section>
+</main>
+<footer><div class="progress" id="progress"></div><span class="nav-info" id="counter" aria-live="polite"></span><span class="small-label">← → navegar · Inicio / Fin · F pantalla completa</span><div class="nav-buttons"><button id="fullscreen" type="button" aria-label="Alternar pantalla completa">⛶</button><button id="prev" type="button">← Anterior</button><button id="next" type="button">Siguiente →</button></div></footer>
+<script>
+const slides = [...document.querySelectorAll('.slide')];
+const prev = document.getElementById('prev');
+const next = document.getElementById('next');
+let current = 0;
+function show(index) {
+ current = Math.max(0, Math.min(slides.length - 1, index));
+ slides.forEach((slide, i) => { slide.hidden = i !== current; });
+ document.getElementById('counter').textContent = `${String(current+1).padStart(2,'0')} / ${slides.length}`;
+ document.getElementById('progress').style.width = `${(current+1)/slides.length*100}%`;
+ prev.disabled = current === 0; next.disabled = current === slides.length-1;
+ history.replaceState(null,'',`#${current+1}`); window.scrollTo(0,0);
+}
+async function fullscreen() {
+ try { if(document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
+ catch { document.getElementById('fullscreen').title = 'Usa F11 para pantalla completa'; }
+}
+prev.addEventListener('click',()=>show(current-1));
+next.addEventListener('click',()=>show(current+1));
+document.getElementById('fullscreen').addEventListener('click',fullscreen);
+document.addEventListener('keydown',event=>{
+ if(event.altKey||event.ctrlKey||event.metaKey||event.target.matches('input,textarea,select')) return;
+ const destinations = {ArrowRight:current+1,ArrowLeft:current-1,Home:0,End:slides.length-1};
+ if(event.key in destinations){event.preventDefault();show(destinations[event.key]);}
+ if(event.key.toLowerCase()==='f') fullscreen();
+});
+show((parseInt(location.hash.slice(1),10)||1)-1);
+</script>
+</body></html>
