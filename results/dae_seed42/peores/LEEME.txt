@@ -1,3 +1,3 @@
-Seleccion del conjunto test, solo mascaras con lesion. Cinco casos con Dice 0 y los cinco peores con Dice mayor que 0. Orden por Dice; empates por ruta original.
+Seleccion del conjunto test, solo mascaras con lesion. Diez casos con Dice 0 y los diez peores con Dice mayor que 0. Orden por Dice; empates por ruta original.
 Umbral calibrado en validacion: 0.13525390625
 Coincidencia: verde = verdadero positivo; rojo = falso positivo; azul = falso negativo.

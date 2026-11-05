@@ -1,0 +1,81 @@
+﻿subset,metric,start,end,count,percent
+Todas las imágenes de test,dice,0.0,0.05,410,11.036339165545087
+Todas las imágenes de test,dice,0.05,0.1,25,0.6729475100942126
+Todas las imágenes de test,dice,0.1,0.15000000000000002,27,0.7267833109017496
+Todas las imágenes de test,dice,0.15000000000000002,0.2,26,0.6998654104979811
+Todas las imágenes de test,dice,0.2,0.25,27,0.7267833109017496
+Todas las imágenes de test,dice,0.25,0.30000000000000004,47,1.2651413189771197
+Todas las imágenes de test,dice,0.30000000000000004,0.35000000000000003,39,1.0497981157469718
+Todas las imágenes de test,dice,0.35000000000000003,0.4,40,1.0767160161507403
+Todas las imágenes de test,dice,0.4,0.45,65,1.749663526244953
+Todas las imágenes de test,dice,0.45,0.5,74,1.9919246298788695
+Todas las imágenes de test,dice,0.5,0.55,114,3.0686406460296096
+Todas las imágenes de test,dice,0.55,0.6000000000000001,109,2.934051144010767
+Todas las imágenes de test,dice,0.6000000000000001,0.65,154,4.14535666218035
+Todas las imágenes de test,dice,0.65,0.7000000000000001,218,5.868102288021534
+Todas las imágenes de test,dice,0.7000000000000001,0.75,273,7.348586810228802
+Todas las imágenes de test,dice,0.75,0.8,353,9.502018842530283
+Todas las imágenes de test,dice,0.8,0.8500000000000001,506,13.620457604306864
+Todas las imágenes de test,dice,0.8500000000000001,0.9,517,13.916554508748318
+Todas las imágenes de test,dice,0.9,0.9500000000000001,289,7.7792732166890985
+Todas las imágenes de test,dice,0.9500000000000001,1.0,402,10.820995962314939
+Todas las imágenes de test,iou,0.0,0.05,431,11.601615074024226
+Todas las imágenes de test,iou,0.05,0.1,48,1.2920592193808882
+Todas las imágenes de test,iou,0.1,0.15000000000000002,44,1.1843876177658144
+Todas las imágenes de test,iou,0.15000000000000002,0.2,57,1.5343203230148048
+Todas las imágenes de test,iou,0.2,0.25,61,1.6419919246298789
+Todas las imágenes de test,iou,0.25,0.30000000000000004,79,2.126514131897712
+Todas las imágenes de test,iou,0.30000000000000004,0.35000000000000003,94,2.5302826379542394
+Todas las imágenes de test,iou,0.35000000000000003,0.4,119,3.203230148048452
+Todas las imágenes de test,iou,0.4,0.45,122,3.2839838492597577
+Todas las imágenes de test,iou,0.45,0.5,162,4.360699865410498
+Todas las imágenes de test,iou,0.5,0.55,213,5.7335127860026915
+Todas las imágenes de test,iou,0.55,0.6000000000000001,221,5.94885598923284
+Todas las imágenes de test,iou,0.6000000000000001,0.65,259,6.971736204576043
+Todas las imágenes de test,iou,0.65,0.7000000000000001,317,8.532974427994617
+Todas las imágenes de test,iou,0.7000000000000001,0.75,345,9.286675639300135
+Todas las imágenes de test,iou,0.75,0.8,332,8.936742934051145
+Todas las imágenes de test,iou,0.8,0.8500000000000001,272,7.321668909825034
+Todas las imágenes de test,iou,0.8500000000000001,0.9,134,3.60699865410498
+Todas las imágenes de test,iou,0.9,0.9500000000000001,17,0.4576043068640646
+Todas las imágenes de test,iou,0.9500000000000001,1.0,388,10.44414535666218
+Solo imágenes con lesión de referencia,dice,0.0,0.05,152,4.952753339850114
+Solo imágenes con lesión de referencia,dice,0.05,0.1,25,0.8145975887911372
+Solo imágenes con lesión de referencia,dice,0.1,0.15000000000000002,27,0.8797653958944281
+Solo imágenes con lesión de referencia,dice,0.15000000000000002,0.2,26,0.8471814923427826
+Solo imágenes con lesión de referencia,dice,0.2,0.25,27,0.8797653958944281
+Solo imágenes con lesión de referencia,dice,0.25,0.30000000000000004,47,1.5314434669273378
+Solo imágenes con lesión de referencia,dice,0.30000000000000004,0.35000000000000003,39,1.270772238514174
+Solo imágenes con lesión de referencia,dice,0.35000000000000003,0.4,40,1.3033561420658195
+Solo imágenes con lesión de referencia,dice,0.4,0.45,65,2.1179537308569567
+Solo imágenes con lesión de referencia,dice,0.45,0.5,74,2.411208862821766
+Solo imágenes con lesión de referencia,dice,0.5,0.55,114,3.7145650048875853
+Solo imágenes con lesión de referencia,dice,0.55,0.6000000000000001,109,3.551645487129358
+Solo imágenes con lesión de referencia,dice,0.6000000000000001,0.65,154,5.017921146953405
+Solo imágenes con lesión de referencia,dice,0.65,0.7000000000000001,218,7.103290974258716
+Solo imágenes con lesión de referencia,dice,0.7000000000000001,0.75,273,8.895405669599217
+Solo imágenes con lesión de referencia,dice,0.75,0.8,353,11.502117953730856
+Solo imágenes con lesión de referencia,dice,0.8,0.8500000000000001,506,16.487455197132615
+Solo imágenes con lesión de referencia,dice,0.8500000000000001,0.9,517,16.845878136200717
+Solo imágenes con lesión de referencia,dice,0.9,0.9500000000000001,289,9.416748126425546
+Solo imágenes con lesión de referencia,dice,0.9500000000000001,1.0,14,0.45617464972303684
+Solo imágenes con lesión de referencia,iou,0.0,0.05,173,5.637015314434669
+Solo imágenes con lesión de referencia,iou,0.05,0.1,48,1.5640273704789833
+Solo imágenes con lesión de referencia,iou,0.1,0.15000000000000002,44,1.4336917562724014
+Solo imágenes con lesión de referencia,iou,0.15000000000000002,0.2,57,1.8572825024437927
+Solo imágenes con lesión de referencia,iou,0.2,0.25,61,1.9876181166503748
+Solo imágenes con lesión de referencia,iou,0.25,0.30000000000000004,79,2.5741283805799933
+Solo imágenes con lesión de referencia,iou,0.30000000000000004,0.35000000000000003,94,3.0628869338546756
+Solo imágenes con lesión de referencia,iou,0.35000000000000003,0.4,119,3.877484522645813
+Solo imágenes con lesión de referencia,iou,0.4,0.45,122,3.9752362333007496
+Solo imágenes con lesión de referencia,iou,0.45,0.5,162,5.278592375366569
+Solo imágenes con lesión de referencia,iou,0.5,0.55,213,6.940371456500489
+Solo imágenes con lesión de referencia,iou,0.55,0.6000000000000001,221,7.201042684913653
+Solo imágenes con lesión de referencia,iou,0.6000000000000001,0.65,259,8.439231019876182
+Solo imágenes con lesión de referencia,iou,0.65,0.7000000000000001,317,10.32909742587162
+Solo imágenes con lesión de referencia,iou,0.7000000000000001,0.75,345,11.241446725317694
+Solo imágenes con lesión de referencia,iou,0.75,0.8,332,10.817855979146302
+Solo imágenes con lesión de referencia,iou,0.8,0.8500000000000001,272,8.862821766047572
+Solo imágenes con lesión de referencia,iou,0.8500000000000001,0.9,134,4.3662430759204955
+Solo imágenes con lesión de referencia,iou,0.9,0.9500000000000001,17,0.5539263603779733
+Solo imágenes con lesión de referencia,iou,0.9500000000000001,1.0,0,0.0

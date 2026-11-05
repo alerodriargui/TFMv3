@@ -1,0 +1,5 @@
+Todas las imágenes de test / DICE: mediana 0.781; intervalo más frecuente 0.85–0.90: 517 (13.9%); ceros 393; unos 388.
+Todas las imágenes de test / IOU: mediana 0.641; intervalo más frecuente 0.00–0.05: 431 (11.6%); ceros 393; unos 388.
+Solo imágenes con lesión de referencia / DICE: mediana 0.772; intervalo más frecuente 0.85–0.90: 517 (16.8%); ceros 135; unos 0.
+Solo imágenes con lesión de referencia / IOU: mediana 0.629; intervalo más frecuente 0.70–0.75: 345 (11.2%); ceros 135; unos 0.
+Último intervalo incluye 1; los demás incluyen el extremo izquierdo y excluyen el derecho.
