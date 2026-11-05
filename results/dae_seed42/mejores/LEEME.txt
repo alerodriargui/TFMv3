@@ -1,0 +1,3 @@
+Seleccion del conjunto test, solo mascaras con lesion. Orden por Dice; empates por ruta original.
+Umbral calibrado en validacion: 0.13525390625
+Coincidencia: verde = verdadero positivo; rojo = falso positivo; azul = falso negativo.
